@@ -2,11 +2,11 @@ package com.tailg.plus.domain.control
 
 import com.tailg.plus.data.ble.platform.ConnectionState
 
-// TODO(integration): `OfficialMqttLinkState` (Dart enum in
-// `lib/services/official_mqtt_service.dart`) is ported by the MQTT subagent as
-// `com.tailg.plus.data.mqtt.OfficialMqttLinkState` — expected entries:
-// DISCONNECTED / CONNECTING / CONNECTED. Wire the import when it lands.
-// import com.tailg.plus.data.mqtt.OfficialMqttLinkState
+// 待解析引用 (ported by the MQTT subagent, not yet landed):
+// Dart `lib/services/official_mqtt_service.dart` `OfficialMqttLinkState`
+// → `com.tailg.plus.data.mqtt.OfficialMqttLinkState` with entries
+// DISCONNECTED / CONNECTING / CONNECTED.
+import com.tailg.plus.data.mqtt.OfficialMqttLinkState
 
 /**
  * Port of `lib/services/control_channel_status.dart`.

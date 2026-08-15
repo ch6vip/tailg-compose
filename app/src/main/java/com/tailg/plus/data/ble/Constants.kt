@@ -33,6 +33,8 @@
 package com.tailg.plus.data.ble
 
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.seconds
 
 /** Dart `_keyMask = 0x5A3C6F91D2E84B7A`. */
 private const val KEY_MASK = 0x5A3C6F91D2E84B7AL

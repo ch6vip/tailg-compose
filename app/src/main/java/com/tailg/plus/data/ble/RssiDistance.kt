@@ -22,6 +22,7 @@ package com.tailg.plus.data.ble
 import kotlin.math.abs
 import kotlin.math.pow
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
 
 /** Dart `defaultRssiA` = 52.1949. */
 const val defaultRssiA = 52.1949

@@ -179,7 +179,7 @@ class ReplicaFeatureStore(
         if (decoded !is List<*>) {
             logWarning(
                 "ReplicaFeatureStore: expected list payload",
-                decoded::class.qualifiedName ?: decoded::class.simpleName ?: "unknown",
+                decoded::class.simpleName ?: "unknown",
             )
             return emptyList()
         }
@@ -199,7 +199,7 @@ class ReplicaFeatureStore(
         if (item !is Map<*, *>) {
             logWarning(
                 "ReplicaFeatureStore: skipped list item with type",
-                item?.let { it::class.qualifiedName } ?: "null",
+                item?.let { it::class.simpleName } ?: "Null",
             )
             return null
         }
@@ -223,7 +223,7 @@ class ReplicaFeatureStore(
         if (payload != null) return payload
         logWarning(
             "ReplicaFeatureStore: expected map payload",
-            decoded::class.qualifiedName ?: decoded::class.simpleName ?: "unknown",
+            decoded::class.simpleName ?: "unknown",
         )
         return null
     }

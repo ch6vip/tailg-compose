@@ -429,15 +429,9 @@ class ConnectionManager(
   /**
    * Scan for BLE peripherals (Dart `BluetoothScanner.startScan` in the
    * auto-connect service). Emits discovered [BluetoothDevice]s; scanning stops
-   * when the collector cancels or applies a timeout, e.g.
-   *
-   * ```
-   * manager.scanDevices()
-   *   .timeout(BleTimings.manualScanTimeout)
-   *   .collect { device -> … }
-   * ```
-   *
-   * Caller must hold `BLUETOOTH_SCAN` (+ `ACCESS_FINE_LOCATION` on Android < 12).
+   * automatically after [scanTimeout] (flow completes normally) or when the
+   * collector cancels. Caller must hold `BLUETOOTH_SCAN` (+
+   * `ACCESS_FINE_LOCATION` on Android < 12).
    */
   fun scanDevices(
     scanTimeout: Duration = BleTimings.manualScanTimeout,
@@ -458,7 +452,15 @@ class ConnectionManager(
       }
     }
     scanner.startScan(filter?.let { listOf(it) }, settings, callback)
-    awaitClose { scanner.stopScan(callback) }
+    val autoStop = scope.launch {
+      delay(scanTimeout)
+      scanner.stopScan(callback)
+      close()
+    }
+    awaitClose {
+      autoStop.cancel()
+      scanner.stopScan(callback)
+    }
   }
 
   // =========================================================================
@@ -520,6 +522,11 @@ class ConnectionManager(
           try {
             val result = withTimeout(BleTimings.gattOperationTimeout) { queued.operation() }
             if (!queued.deferred.isCompleted) queued.deferred.complete(result)
+          } catch (e: TimeoutCancellationException) {
+            // withTimeout fired: fail this operation, keep draining the queue.
+            if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
+          } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
           } catch (e: Exception) {
             if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
           } finally {
@@ -1022,10 +1029,10 @@ class ConnectionManager(
         delay(BleTimings.fccReadbackDelay)
         readCharacteristic(fcc1)
       }
-      _ridingMode = parseQgjRidingMode(response.toList()) ?: mode
+      _ridingMode.value = parseQgjRidingMode(response.toList()) ?: mode
 
-      addRidingMode(_ridingMode)
-      log.operation("模式已切换: ${_ridingMode.label}", level = LogLevel.INFO)
+      addRidingMode(_ridingMode.value)
+      log.operation("模式已切换: ${_ridingMode.value.label}", level = LogLevel.INFO)
       true
     } catch (e: Exception) {
       log.operation("模式切换失败", detail = e.toString(), level = LogLevel.ERROR)
@@ -1037,7 +1044,39 @@ class ConnectionManager(
   // Public API — teardown
   // =========================================================================
 
-  // TODO(port-group:teardown)
+  /**
+   * Port of Dart `dispose` — fail pending ops, cancel timers/jobs, disconnect
+   * the device and stop the event loop. Idempotent.
+   */
+  suspend fun dispose() {
+    if (_disposed) return
+    _disposed = true
+
+    completePendingGattOperations(IllegalStateException("ConnectionManager disposed"))
+
+    // Cancel timers.
+    cancelHeartbeat()
+    disarmReadyWatchdog()
+
+    // Complete pending operations.
+    completePendingOperations(IllegalStateException("ConnectionManager disposed"))
+
+    // Disconnect the device.
+    try {
+      closeGatt()
+    } catch (e: Exception) {
+      log.ble("释放连接时断开设备失败", detail = e.toString(), level = LogLevel.WARNING)
+    }
+
+    // Stop the event loop and, when the scope is manager-owned, the scope.
+    reconnectJob?.cancel()
+    reconnectJob = null
+    eventLoopJob?.cancel()
+    eventLoopJob = null
+    if (ownsScope) {
+      scope.cancel()
+    }
+  }
 
   // =========================================================================
   // GATT bridge (BluetoothGattCallback → event loop)
@@ -1059,6 +1098,7 @@ class ConnectionManager(
     }
 
     @Deprecated("Deprecated in API 33; kept for minSdk 26 devices")
+    @Suppress("DEPRECATION")
     override fun onCharacteristicRead(
       gatt: BluetoothGatt?,
       characteristic: BluetoothGattCharacteristic,
@@ -1094,6 +1134,7 @@ class ConnectionManager(
     }
 
     @Deprecated("Deprecated in API 33; kept for minSdk 26 devices")
+    @Suppress("DEPRECATION")
     override fun onCharacteristicChanged(
       gatt: BluetoothGatt?,
       characteristic: BluetoothGattCharacteristic,
@@ -1375,6 +1416,8 @@ class ConnectionManager(
       try {
         connectGattOnce(device, timeout)
         return
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
       } catch (e: Exception) {
         if (attempt == attempts) throw e
         log.ble("连接失败，短暂重试 $attempt/$attempts", detail = e.toString(), level = LogLevel.DEBUG)
@@ -2203,9 +2246,9 @@ class ConnectionManager(
     _standardPendingCommandType = null
     if (standardAck != null && !standardAck.isCompleted) standardAck.complete(false)
 
-    val state = _standardStateDeferred
+    val stateDeferred = _standardStateDeferred
     _standardStateDeferred = null
-    if (state != null && !state.isCompleted) state.complete(null)
+    if (stateDeferred != null && !stateDeferred.isCompleted) stateDeferred.complete(null)
 
     val inductionStatus = _tlinkInductionStatusDeferred
     _tlinkInductionStatusDeferred = null
@@ -2354,6 +2397,8 @@ class ConnectionManager(
         _disconnectHandled = false
         log.ble("重连成功", level = LogLevel.INFO)
         return
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
       } catch (e: Exception) {
         log.ble("重连失败", detail = e.toString(), level = LogLevel.DEBUG)
         recoverFailedConnect(e)

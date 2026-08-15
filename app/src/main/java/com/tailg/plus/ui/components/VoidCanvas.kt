@@ -1,6 +1,5 @@
 package com.tailg.plus.ui.components
 
-import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.RepeatMode
 import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
@@ -15,8 +14,8 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -24,14 +23,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -39,9 +35,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
-import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
-import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.text.TextStyle
@@ -118,7 +112,7 @@ fun VoidCanvas(
     Box(
       modifier = Modifier
         .align(Alignment.TopEnd)
-        .padding(top = (-80).dp, end = (-60).dp)
+        .offset(x = 60.dp, y = (-80).dp)
         .size(280.dp)
         .blur(60.dp)
         .background(glow, CircleShape),
@@ -127,14 +121,13 @@ fun VoidCanvas(
     Box(
       modifier = Modifier
         .align(Alignment.BottomStart)
-        .padding(bottom = (-80).dp, start = (-100).dp)
+        .offset(x = (-100).dp, y = 80.dp)
         .size(320.dp)
         .blur(60.dp)
         .background(blob2, CircleShape),
     )
     // Fine grain noise overlay (deterministic Random(7), low-opacity dots).
     Canvas(modifier = Modifier.matchParentSize()) {
-      val paint = androidx.compose.ui.graphics.Paint()
       val rnd = Random(7)
       val count = (size.width * size.height / 1800).toInt().coerceIn(40, 220)
       for (i in 0 until count) {
@@ -293,7 +286,7 @@ fun VoidEnergyRing(
       Text(
         text = if (p <= 0f && label == null) "--" else label ?: p.round().toString(),
         style = TextStyle(
-          fontSize = size.value * 0.28f * 16f / 16f * 1f,
+          fontSize = (size * 0.28f).value.sp, // Dart display: size * 0.28
           fontWeight = FontWeight.W300,
           color = AppColorsDark.textPrimary,
         ),
@@ -411,7 +404,6 @@ fun VoidMetric(
           color = if (accent) AppColorsDark.energyGreen else AppColorsDark.textPrimary,
           fontFeatureSettings = "tnum",
         ),
-        modifier = Modifier.widthIn(max = Dp.Unspecified),
       )
       if (unit != null) {
         Spacer(Modifier.width(2.dp))
@@ -424,6 +416,3 @@ fun VoidMetric(
     }
   }
 }
-
-private fun Modifier.widthIn(max: Dp): Modifier =
-  this.then(androidx.compose.foundation.layout.widthIn(maxWidth = max))

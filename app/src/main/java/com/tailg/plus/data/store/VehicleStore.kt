@@ -11,10 +11,13 @@ import com.tailg.plus.data.model.parsePersistedMap
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import java.time.Instant
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val Context.vehicleStoreDataStore by preferencesDataStore(name = "vehicle_store")
 
@@ -66,6 +69,7 @@ class VehicleStore(
 
     private var _defaultVehicleId: String? = null
     private var _initialized = false
+    private val initMutex = Mutex()
 
     /** Dart `vehicles`: immutable snapshot of the current list. */
     val vehicles: List<VehicleProfile> get() = _vehicles.toList()
@@ -82,10 +86,17 @@ class VehicleStore(
             return _vehicles.firstOrNull { it.id == id } ?: _vehicles.first()
         }
 
-    /** Dart `init()`: idempotent one-time load. */
+    /**
+     * Dart `init()`: idempotent one-time load. The [Mutex] mirrors the Dart
+     * `_initializing` future guard, so concurrent callers wait for the load
+     * instead of running it twice.
+     */
     suspend fun init() {
         if (_initialized) return
-        load()
+        initMutex.withLock {
+            if (_initialized) return
+            load()
+        }
     }
 
     /** Dart `resetForTest({clock})`. */
@@ -214,7 +225,7 @@ class VehicleStore(
         if (decoded !is List<*>) {
             logDecodeWarning(
                 "Expected persisted vehicle profiles to be a list, " +
-                    "got ${decoded::class.qualifiedName ?: decoded::class.simpleName}",
+                    "got ${decoded?.let { it::class.simpleName } ?: "Null"}",
             )
             return emptyList()
         }
@@ -240,7 +251,7 @@ class VehicleStore(
         if (item !is Map<*, *>) {
             logDecodeWarning(
                 "Skipped vehicle profile entry with type " +
-                    (item?.let { it::class.qualifiedName } ?: "null"),
+                    (item?.let { it::class.simpleName } ?: "Null"),
             )
             return null
         }
@@ -304,6 +315,8 @@ class VehicleStore(
         try {
             persistVehicleProfiles()
             emit()
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             logService.operation(
                 "VehicleStore",

@@ -20,7 +20,7 @@ import com.tailg.plus.log.LogService
  * The Dart facade constructed `VehicleStore()` inline; until Hilt is wired,
  * this adapter bridges the two without changing either side.
  */
-private class VehicleStoreCloudAdapter(private val store: VehicleStore) : OfficialCloudVehicleStore {
+internal class VehicleStoreCloudAdapter(private val store: VehicleStore) : OfficialCloudVehicleStore {
   override val vehicles: List<VehicleProfile> get() = store.vehicles
 
   override suspend fun init() = store.init()

@@ -161,8 +161,8 @@ class InductionModeServiceTest {
 
   @Test
   fun `rssiCalibration fromMap tolerates key casing and types`() {
-    assertEquals(defaultRssiA, RssiCalibration.fromMap(null).rssiA)
-    assertEquals(defaultRssiFactor, RssiCalibration.fromMap(emptyMap()).rssiFactor)
+    assertEquals(defaultRssiA, RssiCalibration.fromMap(null).rssiA, 0.0)
+    assertEquals(defaultRssiFactor, RssiCalibration.fromMap(emptyMap()).rssiFactor, 0.0)
     val camel = RssiCalibration.fromMap(
       mapOf(
         "rssiA" to 60.0,
@@ -171,17 +171,17 @@ class InductionModeServiceTest {
         "maxRssiDistance" to 4.0,
       ),
     )
-    assertEquals(60.0, camel.rssiA)
-    assertEquals(5.0, camel.rssiFactor)
-    assertEquals(1.0, camel.minDistanceM)
-    assertEquals(4.0, camel.maxDistanceM)
+    assertEquals(60.0, camel.rssiA, 0.0)
+    assertEquals(5.0, camel.rssiFactor, 0.0)
+    assertEquals(1.0, camel.minDistanceM, 0.0)
+    assertEquals(4.0, camel.maxDistanceM, 0.0)
     val pascal = RssiCalibration.fromMap(
       mapOf("RssiA" to 55.0, "RssiFactor" to 4.0, "MinRssiDistance" to 2.5, "MaxRssiDistance" to 3.5),
     )
-    assertEquals(55.0, pascal.rssiA)
-    assertEquals(4.0, pascal.rssiFactor)
+    assertEquals(55.0, pascal.rssiA, 0.0)
+    assertEquals(4.0, pascal.rssiFactor, 0.0)
     val bad = RssiCalibration.fromMap(mapOf("rssiA" to "not-a-number"))
-    assertEquals(defaultRssiA, bad.rssiA)
+    assertEquals(defaultRssiA, bad.rssiA, 0.0)
   }
 
   // --- gates ----------------------------------------------------------------
@@ -405,6 +405,7 @@ class InductionModeServiceTest {
     service.bindVehicle(modelType = 1, carId = "k1", vehicleRaw = null)
     runCurrent()
     val ok = service.setEnabled(true)
+    runCurrent()
 
     assertTrue(ok)
     coVerify { cloud.setKksHidEnabled(true) }

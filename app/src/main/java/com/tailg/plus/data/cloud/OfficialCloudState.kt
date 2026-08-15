@@ -243,14 +243,28 @@ data class OfficialCloudState(
             messagesError = null,
         )
 
-        private fun <T> sentinel(): T = Any() as T
-
-        private val SENTINEL_STRING: String? = sentinel()
-        private val SENTINEL_PROFILE: OfficialUserProfile? = sentinel()
-        private val SENTINEL_BATTERY: OfficialBatteryInfo? = sentinel()
-        private val SENTINEL_BMS: OfficialBmsInfo? = sentinel()
-        private val SENTINEL_LOCATION: OfficialVehicleLocation? = sentinel()
-        private val SENTINEL_FENCE: OfficialFenceData? = sentinel()
-        private val SENTINEL_RIDE: OfficialRideStatistics? = sentinel()
+        /**
+         * Sentinel constants used as default values for nullable [copyWith]
+         * parameters so that "parameter omitted" (preserve current value) can
+         * be distinguished from "explicitly passed null" (clear the field).
+         *
+         * Each sentinel is a unique instance compared via `===` (reference
+         * equality). They must NOT be created via `Any() as T` — that throws
+         * `ClassCastException` at runtime because the JVM `checkcast` for a
+         * concrete nullable type (e.g. `String?`) rejects a bare `Any` object.
+         * Instead we instantiate the real type; reference equality still
+         * distinguishes the sentinel from any caller-supplied value because
+         * every `copyWith` call site produces fresh instances.
+         *
+         * `SENTINEL_STRING` uses `buildString { }` (a non-interned `String`)
+         * so that `===` differs from the interned `""` literal.
+         */
+        private val SENTINEL_STRING: String = buildString { }
+        private val SENTINEL_PROFILE: OfficialUserProfile = OfficialUserProfile()
+        private val SENTINEL_BATTERY: OfficialBatteryInfo = OfficialBatteryInfo()
+        private val SENTINEL_BMS: OfficialBmsInfo = OfficialBmsInfo()
+        private val SENTINEL_LOCATION: OfficialVehicleLocation = OfficialVehicleLocation()
+        private val SENTINEL_FENCE: OfficialFenceData = OfficialFenceData()
+        private val SENTINEL_RIDE: OfficialRideStatistics = OfficialRideStatistics()
     }
 }

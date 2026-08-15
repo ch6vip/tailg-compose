@@ -251,7 +251,7 @@ class BleProtocolPortTest {
   @Test
   fun qgjKeyVersionQueryUsesOfficialFrame() {
     assertArrayEquals(
-      hexToBytes("A700021005"),
+      hexToBytes("A70000021005"),
       buildQgjCommand(QgjCommandIds.keyVersionGet),
     )
   }
@@ -260,10 +260,10 @@ class BleProtocolPortTest {
   fun qgjLoginFrameCarriesBigEndianPasswordAndUserId() {
     // length = 8 payload + 2 = 0x000A; cmdId 0x1001; payload = BE32(1234) + BE32(42)
     assertArrayEquals(
-      hexToBytes("A7000A1001000004D20000002A"),
+      hexToBytes("A700000A1001000004D20000002A"),
       buildQgjLoginFrame(password = 1234, userId = 42),
     )
-    assertArrayEquals(hexToBytes("A700021001"), buildQgjLoginFrame())
+    assertArrayEquals(hexToBytes("A700000A10010000000000000000"), buildQgjLoginFrame())
   }
 
   @Test

@@ -2,6 +2,9 @@ package com.tailg.plus.ui.screens
 
 import android.Manifest
 import android.bluetooth.BluetoothManager
+import android.bluetooth.le.ScanCallback
+import android.bluetooth.le.ScanResult
+import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
@@ -36,9 +39,12 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +63,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import com.tailg.plus.data.ble.BleTimings
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.Lucide
@@ -65,14 +72,19 @@ import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.launch
 
 /**
  * Port of `lib/pages/scan_page.dart` — BLE device scan + connect.
  *
  * The Dart page uses `flutter_blue_plus` for scanning and connecting. The
- * Compose port would use Android's native BluetoothLeScanner; until a BLE
- * service wrapper lands in the project, this shows the full UI (radar, device
- * list, scan FAB) with a placeholder device list and permission handling.
+ * Compose port uses Android's native [android.bluetooth.le.BluetoothLeScanner]
+ * directly: a [ScanCallback] feeds a [MutableStateFlow] of stabilized results
+ * (strongest RSSI per device, sorted by signal strength), and a
+ * [LaunchedEffect] starts/stops scanning based on the [scanning] flag.
  *
  * The Dart page connects via `connectionManager.connect(device)` and upserts
  * a `VehicleProfile`; the Compose port exposes [onConnectDevice] so the host
@@ -85,20 +97,140 @@ fun ScanScreen(
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
+  val scope = rememberCoroutineScope()
 
   var bluetoothOn by remember { mutableStateOf(isBluetoothEnabled(context)) }
   var hasPermissions by remember { mutableStateOf(hasBleScanPermissions(context)) }
   var scanning by remember { mutableStateOf(false) }
   var connectingRemoteId by remember { mutableStateOf<String?>(null) }
-  // TODO: replace with real BLE scan results once a BluetoothLeScanner wrapper
-  // is available. Placeholder stays empty so the UI renders the "no devices"
-  // state correctly.
   var results by remember { mutableStateOf<List<ScanDevice>>(emptyList()) }
+
+  // Stabilized scan-result accumulator (Dart `_resultsNotifier` equivalent).
+  // The ScanCallback runs on a binder thread; it upserts into this map keyed by
+  // device address (keeping the strongest RSSI), then pokes [rawResults] so the
+  // composition-scope collector re-stabilizes + sorts the display list.
+  val discovered = remember { java.util.concurrent.ConcurrentHashMap<String, ScanResult>() }
+
+  // Trigger flow: every scan callback bumps this so the collector re-runs.
+  val rawResults = remember { MutableStateFlow(0) }
 
   val permissionLauncher = rememberLauncherForActivityResult(
     contract = ActivityResultContracts.RequestMultiplePermissions(),
   ) { granted ->
     hasPermissions = granted.values.all { it }
+    // If the user just granted everything, kick off a scan immediately so they
+    // don't have to tap the FAB twice (mirrors the Dart `_startScan` flow).
+    if (hasPermissions && isBluetoothEnabled(context) && !scanning) {
+      scanning = true
+    }
+  }
+
+  // Re-check bluetooth state when the screen resumes (Dart uses a stream; here
+  // a fresh read on recomposition is enough for the manual-scan page).
+  bluetoothOn = isBluetoothEnabled(context)
+  hasPermissions = hasBleScanPermissions(context)
+
+  // Stabilize + sort raw scan results on the composition scope (Dart
+  // `_stabilizeScanResults`): keep the strongest RSSI per device id, preserve
+  // existing order for already-seen devices, append newcomers sorted by RSSI.
+  // Throttled via collectLatest so rapid scan callbacks don't flood recompose.
+  LaunchedEffect(Unit) {
+    rawResults.collectLatest {
+      val snapshot = discovered.values.toList()
+      if (snapshot.isEmpty()) {
+        if (results.isNotEmpty()) results = emptyList()
+        return@collectLatest
+      }
+      val byId = LinkedHashMap<String, ScanResult>()
+      for (result in snapshot) {
+        val id = try {
+          result.device.address
+        } catch (_: SecurityException) {
+          continue
+        }
+        val current = byId[id]
+        if (current == null || result.rssi > current.rssi) byId[id] = result
+      }
+      val stable = ArrayList<ScanDevice>(byId.size)
+      // Preserve order of previously displayed devices.
+      for (previous in results) {
+        val latest = byId.remove(previous.id)
+        if (latest != null) {
+          stable.add(latest.toScanDevice())
+        }
+      }
+      // Newcomers sorted by RSSI desc, then address asc (Dart tiebreak).
+      val newcomers = byId.values.sortedWith(
+        compareByDescending<ScanResult> { it.rssi }
+          .thenBy { runCatching { it.device.address }.getOrDefault("") },
+      )
+      for (n in newcomers) {
+        stable.add(n.toScanDevice())
+      }
+      results = stable
+    }
+  }
+
+  // Start/stop the real BluetoothLeScanner based on the [scanning] flag.
+  // DisposableEffect ensures the scan is always torn down when the composable
+  // leaves the composition (e.g. back navigation) — mirrors the Dart
+  // `dispose` path that cancels `FlutterBluePlus.stopScan()`.
+  DisposableEffect(scanning) {
+    if (!scanning) {
+      return@DisposableEffect onDispose { /* nothing to stop when we never started */ }
+    }
+    val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
+    val scanner = adapter?.bluetoothLeScanner
+    if (scanner == null) {
+      scanning = false
+      return@DisposableEffect onDispose { }
+    }
+    val callback = object : ScanCallback() {
+      override fun onScanResult(callbackType: Int, result: ScanResult) {
+        upsertDiscovered(discovered, result)
+        rawResults.value = rawResults.value + 1
+      }
+
+      override fun onBatchScanResults(results: MutableList<ScanResult>) {
+        for (r in results) upsertDiscovered(discovered, r)
+        rawResults.value = rawResults.value + 1
+      }
+
+      override fun onScanFailed(errorCode: Int) {
+        scanning = false
+      }
+    }
+    val settings = ScanSettings.Builder()
+      .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
+      .build()
+    // startScan can throw SecurityException if permissions were revoked between
+    // the permission check and the call; guard so the UI never crashes.
+    val started = try {
+      scanner.startScan(null, settings, callback)
+      true
+    } catch (_: SecurityException) {
+      hasPermissions = false
+      scanning = false
+      false
+    }
+    onDispose {
+      if (started) {
+        try {
+          scanner.stopScan(callback)
+        } catch (_: SecurityException) {
+          // Permissions revoked during scan — nothing more to do.
+        }
+      }
+    }
+  }
+
+  // Auto-stop after the manual scan timeout (Dart `FlutterBluePlus.startScan`
+  // passes `timeout: BleTimings.manualScanTimeout`). Using a separate
+  // LaunchedEffect keyed on `scanning` keeps the timer tied to the scan state.
+  LaunchedEffect(scanning) {
+    if (!scanning) return@LaunchedEffect
+    delay(BleTimings.manualScanTimeout.inWholeMilliseconds)
+    if (scanning) scanning = false
   }
 
   Scaffold(
@@ -150,11 +282,19 @@ fun ScanScreen(
           connectingRemoteId = connectingRemoteId,
           onTap = { device ->
             if (connectingRemoteId != null) return@DeviceList
+            // Stop scanning before connecting (Dart `_stopScan` in `_connectDevice`).
+            scanning = false
             connectingRemoteId = device.id
-            // TODO: call the real BLE connection manager. For now, delegate
-            // to the host callback and clear the connecting state.
-            onConnectDevice(device.id, device.name)
-            connectingRemoteId = null
+            // Delegate to the host callback; clear the connecting state once
+            // the host returns. The real ConnectionManager.connect() is a
+            // suspend call the host can await before popping the back stack.
+            scope.launch {
+              try {
+                onConnectDevice(device.id, device.name)
+              } finally {
+                connectingRemoteId = null
+              }
+            }
           },
         )
         Spacer(Modifier.height(80.dp))
@@ -173,15 +313,17 @@ fun ScanScreen(
           onTap = {
             if (scanning) {
               scanning = false
-              // TODO: stop BluetoothLeScanner
             } else {
               if (!hasPermissions) {
                 permissionLauncher.launch(bleScanPermissionArray())
                 return@ScanFab
               }
               if (!bluetoothOn) return@ScanFab
+              // Clear stale results when starting a fresh scan (Dart resets
+              // `_resultsNotifier` via `FlutterBluePlus.startScan`).
+              discovered.clear()
+              results = emptyList()
               scanning = true
-              // TODO: start BluetoothLeScanner and populate [results].
             }
           },
         )
@@ -192,12 +334,56 @@ fun ScanScreen(
 
 // ── Helpers ──────────────────────────────────────────────────────────────
 
-/** Placeholder data class for a BLE scan result. */
+/** Data class for a stabilized BLE scan result (Dart `ScanResult` projection). */
 data class ScanDevice(
   val id: String,
   val name: String,
   val rssi: Int,
 )
+
+/**
+ * Upsert a [ScanResult] into the discovered map keyed by device address,
+ * keeping the entry with the strongest RSSI (Dart `_stabilizeScanResults`
+ * per-device merge). Called from the binder-thread [ScanCallback].
+ *
+ * `BluetoothDevice.getName()` / `getAddress()` can throw
+ * [SecurityException] on Android 12+ if `BLUETOOTH_CONNECT` / `BLUETOOTH_SCAN`
+ * were revoked between `startScan` and the callback; guard so the binder
+ * thread never crashes.
+ */
+private fun upsertDiscovered(
+  discovered: java.util.concurrent.ConcurrentHashMap<String, ScanResult>,
+  result: ScanResult,
+) {
+  val address = try {
+    result.device.address
+  } catch (_: SecurityException) {
+    return
+  }
+  val existing = discovered[address]
+  if (existing == null || result.rssi > existing.rssi) {
+    discovered[address] = result
+  }
+}
+
+/**
+ * Project a [ScanResult] into a [ScanDevice] for display. `getName()` /
+ * `getAddress()` are guarded against [SecurityException] (permissions can be
+ * revoked mid-scan on Android 12+).
+ */
+private fun ScanResult.toScanDevice(): ScanDevice {
+  val name = try {
+    device.name ?: ""
+  } catch (_: SecurityException) {
+    ""
+  }
+  val id = try {
+    device.address
+  } catch (_: SecurityException) {
+    ""
+  }
+  return ScanDevice(id = id, name = name, rssi = rssi)
+}
 
 private fun isBluetoothEnabled(context: Context): Boolean {
   val manager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager

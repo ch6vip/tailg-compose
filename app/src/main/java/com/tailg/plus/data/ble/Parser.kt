@@ -24,21 +24,25 @@ private const val VOLTAGE_PREFIX = "780EB310"
 /** Port of Dart `sealed class ParsedResponse`. */
 sealed class ParsedResponse(val raw: String)
 
+// Note: subclasses are plain classes (not data classes) — a data class would require
+// every primary-constructor parameter to be `val`/`var`, and Dart's response types are
+// identity-based (no value equality), so plain classes are the faithful mapping.
+
 /** Port of Dart `TokenResponse`. */
-data class TokenResponse(raw: String, val token: String) : ParsedResponse(raw)
+class TokenResponse(raw: String, val token: String) : ParsedResponse(raw)
 
 /** Port of Dart `VoltageResponse`. */
-data class VoltageResponse(raw: String, val voltage: Double) : ParsedResponse(raw)
+class VoltageResponse(raw: String, val voltage: Double) : ParsedResponse(raw)
 
 /** Port of Dart `StateResponse`. */
-data class StateResponse(
+class StateResponse(
   raw: String,
   val success: Boolean,
   val bikeState: BikeState? = null,
 ) : ParsedResponse(raw)
 
 /** Port of Dart `CommandResponse`. */
-data class CommandResponse(
+class CommandResponse(
   raw: String,
   val commandType: String,
   val statusCode: String,
@@ -46,7 +50,7 @@ data class CommandResponse(
 ) : ParsedResponse(raw)
 
 /** Port of Dart `UnknownResponse`. */
-data class UnknownResponse(raw: String) : ParsedResponse(raw)
+class UnknownResponse(raw: String) : ParsedResponse(raw)
 
 /**
  * Port of Dart `parseResponse` — never throws; malformed frames become [UnknownResponse].

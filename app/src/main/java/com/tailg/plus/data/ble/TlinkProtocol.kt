@@ -100,14 +100,18 @@ fun buildTLinkInductionDistancePlain(progress: Int): String {
 /** Port of Dart `sealed class TLinkResponse`. */
 sealed class TLinkResponse(val raw: String)
 
+// Note: subclasses are plain classes (not data classes) — a data class would require
+// every primary-constructor parameter to be `val`/`var`, and Dart's response types are
+// identity-based (no value equality), so plain classes are the faithful mapping.
+
 /** Port of Dart `TLinkTokenResponse`. */
-data class TLinkTokenResponse(raw: String, val token: String) : TLinkResponse(raw)
+class TLinkTokenResponse(raw: String, val token: String) : TLinkResponse(raw)
 
 /** Port of Dart `TLinkLoginResponse`. */
-data class TLinkLoginResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
+class TLinkLoginResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
 
 /** Port of Dart `TLinkCommandResponse`. */
-data class TLinkCommandResponse(
+class TLinkCommandResponse(
   raw: String,
   val commandType: String,
   val statusCode: String,
@@ -118,20 +122,20 @@ data class TLinkCommandResponse(
  * Port of Dart `TLinkInductionStatusResponse` — `HEADER_RECEIVE_INDUCTION_STATUS` =
  * `8506B53301`; switch @ [10,12): `02` = closed else open; distance @ [12,14) hex 1–30.
  */
-data class TLinkInductionStatusResponse(
+class TLinkInductionStatusResponse(
   raw: String,
   val enabled: Boolean,
   val distance: Int?,
 ) : TLinkResponse(raw)
 
 /** Port of Dart `TLinkInductionSetResponse` — `HEADER_RECEIVE_SET_INDUCTION_STATUS` = `8504B53302`. */
-data class TLinkInductionSetResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
+class TLinkInductionSetResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
 
 /** Port of Dart `TLinkProximityDistanceSetResponse` — `HEADER_RECEIVE_PROXIMITYDISTANCE_SET` = `8504B53303`. */
-data class TLinkProximityDistanceSetResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
+class TLinkProximityDistanceSetResponse(raw: String, val success: Boolean) : TLinkResponse(raw)
 
 /** Port of Dart `TLinkUnknownResponse`. */
-data class TLinkUnknownResponse(raw: String) : TLinkResponse(raw)
+class TLinkUnknownResponse(raw: String) : TLinkResponse(raw)
 
 /**
  * Port of Dart `parseTLinkResponse`.

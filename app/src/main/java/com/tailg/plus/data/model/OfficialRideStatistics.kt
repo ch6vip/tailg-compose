@@ -118,7 +118,8 @@ data class OfficialRideStatistics(
             val wholeMeters = normalized.substringBefore('.').toIntOrNull()
                 ?: normalized.toDoubleOrNull()?.toInt()
             if (wholeMeters == null) return "--"
-            val truncatedHundredths = wholeMeters * 100 / 1000
+            // Dart `~/` is floor division; Math.floorDiv keeps negative parity.
+            val truncatedHundredths = Math.floorDiv(wholeMeters * 100, 1000)
             return formatFixed(truncatedHundredths / 100.0, 2)
         }
     }
@@ -134,5 +135,6 @@ fun officialIsoWeekNumber(value: Instant): Int {
     val weekThursday = date.plusDays((4 - date.dayOfWeek.value).toLong())
     val januaryFourth = LocalDate.of(weekThursday.year, 1, 4)
     val firstWeekThursday = januaryFourth.plusDays((4 - januaryFourth.dayOfWeek.value).toLong())
-    return 1 + ChronoUnit.DAYS.between(firstWeekThursday, weekThursday).toInt() / 7
+    // Dart `~/` is floor division; Math.floorDiv keeps exact parity.
+    return 1 + Math.floorDiv(ChronoUnit.DAYS.between(firstWeekThursday, weekThursday).toInt(), 7)
 }

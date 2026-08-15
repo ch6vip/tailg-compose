@@ -247,7 +247,7 @@ object ControlChannelResolver {
     val selected = cloudState.selectedVehicle
     if (selected == null) return true
     val linkedId = cloudState.linkedLocalVehicleId(selected.key)
-    if (linkedId == null || linkedId.isEmpty) return true
+    if (linkedId == null || linkedId.isEmpty()) return true
     return defaultVehicleId == linkedId
   }
 
@@ -279,8 +279,8 @@ object ControlChannelResolver {
     val selected = cloudState.selectedVehicle
     if (selected == null) return ""
     val linkedId = cloudState.linkedLocalVehicleId(selected.key)
-    if (linkedId == null || linkedId.isEmpty) return ""
-    if (defaultVehicleId == null || defaultVehicleId.isEmpty) {
+    if (linkedId == null || linkedId.isEmpty()) return ""
+    if (defaultVehicleId == null || defaultVehicleId.isEmpty()) {
       return "没有默认本地车辆"
     }
     return "默认本地车辆与官方车辆关联不一致"

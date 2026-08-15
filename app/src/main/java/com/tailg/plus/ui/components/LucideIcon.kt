@@ -152,6 +152,7 @@ fun LucideIcon(
   modifier: Modifier = Modifier,
   size: Dp = AppIconSizes.md,
   color: Color = AppColorsDark.textSecondary,
+  strokeWidth: Float = 2f,
 ) {
   Icon(
     imageVector = icon,

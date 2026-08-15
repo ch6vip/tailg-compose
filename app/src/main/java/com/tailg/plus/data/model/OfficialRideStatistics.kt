@@ -1,6 +1,7 @@
 package com.tailg.plus.data.model
 
 import com.squareup.moshi.JsonClass
+import com.tailg.plus.util.formatFixed
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId

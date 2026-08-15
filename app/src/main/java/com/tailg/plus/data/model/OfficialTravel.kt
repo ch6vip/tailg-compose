@@ -2,6 +2,10 @@ package com.tailg.plus.data.model
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import com.tailg.plus.util.formatCompactDecimalText
+import com.tailg.plus.util.formatTravelMileageMetersText
+import com.tailg.plus.util.parseTravelMileageMeters
+import com.tailg.plus.util.travelMetersToKm
 
 /**
  * Port of `lib/models/official_vehicle.dart` — part 2/3: travel day / record /

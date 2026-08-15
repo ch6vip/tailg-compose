@@ -19,7 +19,8 @@ import kotlin.math.floor
  * - Dart switches to exponential notation for |value| >= 1e21; Java `%f`
  *   always prints plain decimal. Unreachable for mileage/energy values.
  */
-private fun formatFixed(value: Double, fractionDigits: Int): String =
+/** Dart `toStringAsFixed(digits)` — fixed-point, locale-independent '.', HALF_UP. */
+fun formatFixed(value: Double, fractionDigits: Int): String =
     String.format(Locale.US, "%.${fractionDigits}f", value)
 
 /** `formatCompactDecimal(value, {fractionDigits: 1})`: drop a trailing `.0`. */

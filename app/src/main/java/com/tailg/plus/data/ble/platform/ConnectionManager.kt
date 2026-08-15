@@ -116,6 +116,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeout
@@ -963,12 +964,12 @@ class ConnectionManager(
 
   /** Port of Dart `readRemoteRssi` — one-shot RSSI read on the connected device. */
   suspend fun readRemoteRssi(): Int? {
-    val device = _device ?: return null
+    val gatt = _gatt ?: return null
     if (state == ConnectionState.DISCONNECTED) return null
     return try {
       val deferred = CompletableDeferred<Int>()
       _rssiDeferred = deferred
-      if (!device.readRemoteRssi()) {
+      if (!gatt.readRemoteRssi()) {
         _rssiDeferred = null
         return null
       }
@@ -1113,8 +1114,9 @@ class ConnectionManager(
       gatt: BluetoothGatt?,
       characteristic: BluetoothGattCharacteristic,
       value: ByteArray,
+      status: Int,
     ) {
-      gattEvents.trySend(GattEvent.CharacteristicRead(characteristic, BluetoothGatt.GATT_SUCCESS, value))
+      gattEvents.trySend(GattEvent.CharacteristicRead(characteristic, status, value))
     }
 
     override fun onCharacteristicWrite(
@@ -2071,7 +2073,7 @@ class ConnectionManager(
         try {
           val data = readFeb3()
           failCount = 0
-          if (data != null && data.isNotEmpty) {
+          if (data != null && data.isNotEmpty()) {
             val bikeState = BikeState.fromFeb3(data)
             if (bikeState != null) {
               publishBikeState(bikeState)

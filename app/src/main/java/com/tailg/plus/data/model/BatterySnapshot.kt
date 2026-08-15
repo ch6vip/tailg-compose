@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import com.tailg.plus.util.formatFixed
 import java.time.Instant
 import kotlin.math.ceil
 import kotlin.math.floor
@@ -228,13 +229,6 @@ data class BatterySnapshot(
             if (value >= 0) floor(value + 0.5).toInt() else ceil(value - 0.5).toInt()
     }
 }
-
-/**
- * Dart `toStringAsFixed(digits)` — fixed-point with [digits] fraction digits,
- * locale-independent '.' decimal separator, HALF_UP rounding.
- */
-private fun formatFixed(value: Double, digits: Int): String =
-    String.format(java.util.Locale.US, "%.${digits}f", value)
 
 private fun dataSource(
     officialBatteryValue: Any? = null,

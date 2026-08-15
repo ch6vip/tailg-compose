@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import com.tailg.plus.util.formatFixed
 import java.net.URI
 import kotlin.math.abs
 

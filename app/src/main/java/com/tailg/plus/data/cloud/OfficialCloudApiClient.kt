@@ -4,7 +4,7 @@ import com.tailg.plus.data.model.parsePersistedMap
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import java.io.IOException
-import java.net.SocketTimeoutException
+import java.io.InterruptedIOException
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
@@ -148,7 +148,7 @@ class OfficialCloudApiClient(
                 } finally {
                     response.close()
                 }
-            } catch (e: SocketTimeoutException) {
+            } catch (e: InterruptedIOException) {
                 if (retryPolicy.canRetryAttempt(attempt)) {
                     delayBeforeRetry(
                         path = path,

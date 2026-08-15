@@ -2,6 +2,7 @@ package com.tailg.plus.data.model
 
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
+import com.tailg.plus.util.formatDistanceMeters
 
 /**
  * Port of `lib/models/official_location_data.dart`.

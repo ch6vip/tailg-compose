@@ -19,8 +19,8 @@ class ControlCommandResult private constructor(
   val command: CommandCode,
   val transport: ControlCommandTransport,
   val success: Boolean,
-  val successMessage: String?,
-  val failureMessage: String?,
+  val successMessage: String? = null,
+  val failureMessage: String? = null,
 ) {
   /** BLE success means the device ACKed locally — refresh vehicle state. */
   val shouldRefreshBikeState: Boolean

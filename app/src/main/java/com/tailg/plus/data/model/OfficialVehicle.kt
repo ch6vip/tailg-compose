@@ -380,8 +380,9 @@ data class OfficialVehicle(
             }
         }
 
-        private fun truthyFeatureValue(value: Any?): Boolean = when (value) {
-            is Boolean -> value
+        private fun truthyFeatureValue(value: Any?): Boolean {
+            return when (value) {
+                is Boolean -> value
             is Number -> value.toDouble() != 0.0
             is String -> {
                 val text = value.trim().lowercase()

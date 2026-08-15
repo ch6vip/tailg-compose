@@ -21,7 +21,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.CommandCode
-import com.tailg.plus.data.cloud.ControlChannelAvailability
+import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**

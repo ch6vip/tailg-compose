@@ -1,14 +1,27 @@
 package com.tailg.plus.ui.components
 
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
-import androidx.compose.material3.SnackbarVisualStyle
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppColorsLight
@@ -100,7 +113,7 @@ object AppSnack {
 
   /** Placeholder / not-yet-open feature entry (cloud-only product boundary). */
   suspend fun featureUnavailable(hostState: SnackbarHostState, label: String) {
-    info(hostState, "$label暂未开放，可先使用官方云端控车")
+    info(hostState, "${label}暂未开放，可先使用官方云端控车")
   }
 
   fun featureUnavailable(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
@@ -109,7 +122,7 @@ object AppSnack {
 
   /** Out-of-scope feature (L3 / non-replica) — never implies official support. */
   suspend fun outOfReplicaScope(hostState: SnackbarHostState, label: String) {
-    info(hostState, "$label不在复刻范围内")
+    info(hostState, "${label}不在复刻范围内")
   }
 
   fun outOfReplicaScope(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
@@ -118,7 +131,7 @@ object AppSnack {
 
   /** Short not-yet-open notice for legal/support entries without a cloud fallback. */
   suspend fun notYetOpen(hostState: SnackbarHostState, label: String) {
-    info(hostState, "$label暂未开放")
+    info(hostState, "${label}暂未开放")
   }
 
   fun notYetOpen(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
@@ -128,29 +141,36 @@ object AppSnack {
   private suspend fun show(
     hostState: SnackbarHostState,
     message: String,
-    background: androidx.compose.ui.graphics.Color,
-    foreground: androidx.compose.ui.graphics.Color,
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    background: Color,
+    foreground: Color,
+    icon: ImageVector,
     durationMillis: Long,
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
   ) {
+    // M3 showSnackbar has no per-call style; hand the visual over to the host.
+    AppSnackVisualState.current = AppSnackVisualState(background = background, foreground = foreground, icon = icon)
     hostState.currentSnackbarData?.dismiss()
     val result = hostState.showSnackbar(
       message = message,
       actionLabel = actionLabel,
       withDismissAction = false,
       duration = if (durationMillis >= 3_000L) SnackbarDuration.Long else SnackbarDuration.Short,
-      visualStyle = SnackbarVisualStyle(
-        icon = icon,
-        backgroundColor = background,
-        contentColor = foreground,
-        shape = RoundedCornerShape(AppRadii.sm),
-      ),
     )
     if (result == SnackbarResult.ActionPerformed) {
       onAction?.invoke()
     }
+  }
+}
+
+/** Snapshot of the last [AppSnack.show] visual, consumed by [AppSnackbarHost]. */
+internal data class AppSnackVisualState(
+  val background: Color = AppColorsDark.surfaceContainerHigh,
+  val foreground: Color = AppColorsDark.textPrimary,
+  val icon: ImageVector? = Lucide.info,
+) {
+  companion object {
+    var current by mutableStateOf(AppSnackVisualState())
   }
 }
 
@@ -161,8 +181,39 @@ object AppSnack {
  */
 @Composable
 fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
+  val visual = AppSnackVisualState.current
   SnackbarHost(
     hostState = hostState,
     modifier = modifier.padding(16.dp),
-  )
+  ) { data ->
+    Surface(
+      shape = RoundedCornerShape(AppRadii.sm),
+      color = visual.background,
+      contentColor = visual.foreground,
+      shadowElevation = 6.dp,
+    ) {
+      Row(
+        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        val icon = visual.icon
+        if (icon != null) {
+          Icon(icon, contentDescription = null, tint = visual.foreground)
+          Spacer(Modifier.width(12.dp))
+        }
+        Text(
+          text = data.visuals.message,
+          color = visual.foreground,
+          style = MaterialTheme.typography.bodyMedium,
+        )
+        val actionLabel = data.visuals.actionLabel
+        if (actionLabel != null) {
+          Spacer(Modifier.width(12.dp))
+          TextButton(onClick = { data.performAction() }) {
+            Text(actionLabel, color = visual.foreground)
+          }
+        }
+      }
+    }
+  }
 }

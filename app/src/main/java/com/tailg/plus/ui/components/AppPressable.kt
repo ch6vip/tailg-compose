@@ -23,8 +23,12 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.button
 import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.enabled
+import androidx.compose.ui.semantics.label
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -99,16 +103,16 @@ fun AppPressable(
       this.label = label
       this.button = semButton
       this.enabled = semEnabled
-      this.selected = semSelected
+      this.selected = semSelected ?: false
     }
   } else {
     Modifier.semantics {
       this.button = semButton
       this.enabled = semEnabled
-      this.selected = semSelected
+      this.selected = semSelected ?: false
     }
   }
-  val roleModifier = if (semanticsButton) Modifier.role(Role.Button) else Modifier
+  val roleModifier = if (semanticsButton) Modifier.semantics { this.role = Role.Button } else Modifier
 
   Box(
     modifier = modifier

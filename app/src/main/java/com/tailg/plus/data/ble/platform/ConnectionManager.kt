@@ -1110,15 +1110,6 @@ class ConnectionManager(
       )
     }
 
-    override fun onCharacteristicRead(
-      gatt: BluetoothGatt?,
-      characteristic: BluetoothGattCharacteristic,
-      value: ByteArray,
-      status: Int,
-    ) {
-      gattEvents.trySend(GattEvent.CharacteristicRead(characteristic, status, value))
-    }
-
     override fun onCharacteristicWrite(
       gatt: BluetoothGatt?,
       characteristic: BluetoothGattCharacteristic,
@@ -1144,14 +1135,6 @@ class ConnectionManager(
       gattEvents.trySend(
         GattEvent.CharacteristicChanged(characteristic, characteristic.value ?: ByteArray(0)),
       )
-    }
-
-    override fun onCharacteristicChanged(
-      gatt: BluetoothGatt?,
-      characteristic: BluetoothGattCharacteristic,
-      value: ByteArray,
-    ) {
-      gattEvents.trySend(GattEvent.CharacteristicChanged(characteristic, value))
     }
 
     override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
@@ -1274,13 +1257,13 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     writeDeferreds[characteristic.uuid] = deferred
-    val started = if (Build.VERSION.SDK_INT >= 33) {
-      gatt.writeCharacteristic(characteristic, value, writeType)
-    } else {
-      characteristic.value = value
-      characteristic.writeType = writeType
-      gatt.writeCharacteristic(characteristic)
-    }
+    // Single deprecated API-18 path (works on every API level incl. 33+);
+    // the API-33 overload adds nothing for us.
+    @Suppress("DEPRECATION")
+    characteristic.value = value
+    @Suppress("DEPRECATION")
+    characteristic.writeType = writeType
+    val started = gatt.writeCharacteristic(characteristic)
     if (!started) {
       writeDeferreds.remove(characteristic.uuid)
       throw IllegalStateException("writeCharacteristic failed: ${characteristic.uuid}")

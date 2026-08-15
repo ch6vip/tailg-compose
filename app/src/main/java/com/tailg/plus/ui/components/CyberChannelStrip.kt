@@ -22,8 +22,8 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.ControlTopBarChannel
-import com.tailg.plus.data.cloud.OfficialControlChannel
+import com.tailg.plus.domain.control.ControlTopBarChannel
+import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 
@@ -100,27 +100,27 @@ fun CyberChannelStrip(
     Spacer(Modifier.height(10.dp))
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       ChannelChip(
-        channel = OfficialControlChannel.automatic,
+        channel = OfficialControlChannel.AUTOMATIC,
         label = "智能",
         selected = selected,
         busy = busy,
-        onSelect = { onChanged(OfficialControlChannel.automatic) },
+        onSelect = { onChanged(OfficialControlChannel.AUTOMATIC) },
         modifier = Modifier.weight(1f),
       )
       ChannelChip(
-        channel = OfficialControlChannel.ble,
+        channel = OfficialControlChannel.BLE,
         label = "仅蓝牙",
         selected = selected,
         busy = busy,
-        onSelect = { onChanged(OfficialControlChannel.ble) },
+        onSelect = { onChanged(OfficialControlChannel.BLE) },
         modifier = Modifier.weight(1f),
       )
       ChannelChip(
-        channel = OfficialControlChannel.officialCloud,
+        channel = OfficialControlChannel.OFFICIAL_CLOUD,
         label = "仅云端",
         selected = selected,
         busy = busy,
-        onSelect = { onChanged(OfficialControlChannel.officialCloud) },
+        onSelect = { onChanged(OfficialControlChannel.OFFICIAL_CLOUD) },
         modifier = Modifier.weight(1f),
       )
     }

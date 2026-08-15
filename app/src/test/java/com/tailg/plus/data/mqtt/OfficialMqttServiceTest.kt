@@ -9,6 +9,9 @@
  */
 package com.tailg.plus.data.mqtt
 
+import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
+import com.tailg.plus.data.cloud.OfficialRemoteErrorMessages
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.OfficialVehicle
 import io.mockk.Runs
@@ -20,7 +23,7 @@ import io.mockk.mockk
 import io.mockk.verify
 import java.net.SocketException
 import java.util.concurrent.TimeoutException
-import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -32,18 +35,17 @@ import org.junit.Test
 
 class OfficialMqttServiceTest {
 
-  private lateinit var cloud: OfficialMqttCloudGateway
+  private lateinit var cloud: OfficialCloudService
 
   @Before
   fun setUp() {
     OfficialMqttService.liveConnectEnabled = false
     cloud = mockk()
-    every { cloud.stateChanges } returns MutableSharedFlow()
-    every { cloud.signedIn } returns true
-    every { cloud.userId } returns "u1"
+    every { cloud.stateFlow } returns MutableStateFlow(OfficialCloudState.initial())
+    every { cloud.currentState } returns OfficialCloudState.initial()
     every { cloud.applyMqttVehicleStatus(any(), any()) } just Runs
     coEvery { cloud.sendCommand(any()) } returns "success"
-    coEvery { cloud.refreshVehicles(any(), any()) } just Runs
+    coEvery { cloud.refreshVehicles(any(), any(), any(), any()) } just Runs
   }
 
   @After
@@ -58,6 +60,22 @@ class OfficialMqttServiceTest {
     modelType = 8,
     isGps = 1,
   )
+
+  /** Signed-in cloud snapshot selecting [vehicle]. */
+  private fun signedInState(vehicle: OfficialVehicle): OfficialCloudState =
+    OfficialCloudState.initial().copyWith(
+      token = "tok",
+      userId = "u1",
+      vehicles = listOf(vehicle),
+      selectedVehicleKey = vehicle.key,
+    )
+
+  private fun bindSignedIn(mqtt: OfficialMqttService, imei: String) {
+    val state = signedInState(vehicle(imei))
+    every { cloud.stateFlow } returns MutableStateFlow(state)
+    every { cloud.currentState } returns state
+    // Fresh values so the launched cloud collector sees the signed-in state too.
+  }
 
   // --- formatConnectError -------------------------------------------------
 
@@ -106,7 +124,7 @@ class OfficialMqttServiceTest {
   fun returnsMqttSuccessWhenPublishOverrideSucceeds() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
-      every { cloud.selectedVehicle } returns vehicle("860000000000001")
+      bindSignedIn(mqtt, "860000000000001")
       mqtt.publishCommandOverride = { _, _, _ -> }
 
       val result = mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
@@ -124,7 +142,7 @@ class OfficialMqttServiceTest {
   fun fallsBackToHttpWhenPublishFails() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
-      every { cloud.selectedVehicle } returns vehicle("860000000000001")
+      bindSignedIn(mqtt, "860000000000001")
       mqtt.publishCommandOverride = { _, _, _ ->
         throw IllegalStateException("mock broker down")
       }
@@ -144,7 +162,7 @@ class OfficialMqttServiceTest {
   fun recordsOfficialCommandErrorsWithoutTreatingThemAsAck() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
-      every { cloud.selectedVehicle } returns vehicle("860000000000001")
+      bindSignedIn(mqtt, "860000000000001")
       mqtt.publishCommandOverride = { _, _, _ -> }
 
       mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
@@ -164,7 +182,7 @@ class OfficialMqttServiceTest {
   fun clearsPendingOnMqttStatusAckAndAppliesVehicleState() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
-      every { cloud.selectedVehicle } returns vehicle("860000000000001")
+      bindSignedIn(mqtt, "860000000000001")
       mqtt.publishCommandOverride = { _, _, _ -> }
 
       mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
@@ -186,7 +204,7 @@ class OfficialMqttServiceTest {
   fun ignoresStatusPayloadsBelongingToAnotherVehicle() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
-      every { cloud.selectedVehicle } returns vehicle("860000000000001")
+      bindSignedIn(mqtt, "860000000000001")
       mqtt.publishCommandOverride = { _, _, _ -> }
 
       mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)

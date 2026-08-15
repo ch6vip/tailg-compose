@@ -1,6 +1,10 @@
 package com.tailg.plus.data.mqtt
 
 import com.tailg.plus.data.cloud.OfficialCloudApiException
+import com.tailg.plus.data.cloud.OfficialCloudMessages
+import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
+import com.tailg.plus.data.cloud.OfficialRemoteErrorMessages
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.OfficialCloudCommand
 import com.tailg.plus.data.model.OfficialVehicle
@@ -37,7 +41,6 @@ import org.eclipse.paho.client.mqttv3.MqttConnectOptions
 import org.eclipse.paho.client.mqttv3.MqttException
 import org.eclipse.paho.client.mqttv3.MqttMessage
 import org.eclipse.paho.client.mqttv3.MqttSecurityException
-import org.eclipse.paho.client.mqttv3.MqttTimeoutException
 import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
 
 /**
@@ -47,7 +50,7 @@ import org.eclipse.paho.client.mqttv3.persist.MemoryPersistence
  * Connects with the same credentials/topics as the decompiled app
  * ([OfficialMqttConfig]), publishes `MqttCmdBean` JSON payloads at QoS 0, and
  * applies status replies to the cloud vehicle state via
- * [OfficialMqttCloudGateway.applyMqttVehicleStatus].
+ * [OfficialCloudService.applyMqttVehicleStatus].
  *
  * Dart singleton → plain class; DI (Hilt) should create the single shared
  * instance (same pattern as [LogService]).
@@ -65,7 +68,7 @@ class OfficialMqttService(
      * Fallback cloud session used when [attachToCloud] was never called
      * (Dart `_boundCloud ?? OfficialCloudService()`).
      */
-    private val defaultCloud: OfficialMqttCloudGateway? = null,
+    private val defaultCloud: OfficialCloudService? = null,
     private val scope: CoroutineScope = CoroutineScope(SupervisorJob() + Dispatchers.IO),
 ) {
 
@@ -90,8 +93,6 @@ class OfficialMqttService(
             is SSLException -> "SSLException: ${error.message?.trim().orEmpty()}"
             is TimeoutException ->
                 "TimeoutException: ${error.message?.trim().takeIf { !it.isNullOrEmpty() } ?: "timed out"}"
-            is MqttTimeoutException ->
-                "MqttTimeoutException(reasonCode=${error.reasonCode}): ${error.message?.trim().orEmpty()}"
             is MqttSecurityException ->
                 "MqttSecurityException(reasonCode=${error.reasonCode}): ${error.message?.trim().orEmpty()}"
             is MqttException ->
@@ -137,7 +138,7 @@ class OfficialMqttService(
     @Volatile private var _lastPreconnectRawError: String? = null
     @Volatile private var _preconnectInFlight: Boolean = false
     @Volatile private var _disposed: Boolean = false
-    @Volatile private var _boundCloud: OfficialMqttCloudGateway? = null
+    @Volatile private var _boundCloud: OfficialCloudService? = null
     private var _cloudJob: Job? = null
 
     val isConnected: Boolean get() = _client?.isConnected == true
@@ -163,28 +164,29 @@ class OfficialMqttService(
     /**
      * Bind to cloud state and pre-connect whenever a vehicle is selected
      * (Dart `attachToCloud`). Rebinding is a no-op for the same instance.
+     * The cloud [OfficialCloudService.stateFlow] is a StateFlow, so the first
+     * collected value is always the current state — no separate "kick" needed
+     * (Dart used a broadcast stream and kicked once explicitly).
      */
-    fun attachToCloud(cloud: OfficialMqttCloudGateway) {
+    fun attachToCloud(cloud: OfficialCloudService) {
         synchronized(lock) {
             if (_boundCloud === cloud && _cloudJob != null) return
             _boundCloud = cloud
             _cloudJob?.cancel()
             _cloudJob = scope.launch {
-                // Kick once with the current state (broadcast flows may miss the last value).
-                onCloudState(cloud)
-                cloud.stateChanges.collect { onCloudState(cloud) }
+                cloud.stateFlow.collect { onCloudState(it) }
             }
         }
     }
 
-    private suspend fun onCloudState(cloud: OfficialMqttCloudGateway) {
+    private suspend fun onCloudState(state: OfficialCloudState) {
         if (_disposed) return
-        val vehicle = cloud.selectedVehicle
-        if (!cloud.signedIn || vehicle == null) {
+        val vehicle = state.selectedVehicle
+        if (!state.signedIn || vehicle == null) {
             disconnect()
             return
         }
-        preconnect(vehicle = vehicle, userId = cloud.userId)
+        preconnect(vehicle = vehicle, userId = state.userId)
     }
 
     // --- preconnect / retry -----------------------------------------------
@@ -268,22 +270,24 @@ class OfficialMqttService(
     }
 
     /** Explicit retry after a failed preconnect (network restored, user retry). */
-    suspend fun retryPreconnect(cloud: OfficialMqttCloudGateway) {
+    suspend fun retryPreconnect(cloud: OfficialCloudService) {
         attachToCloud(cloud)
-        val vehicle = cloud.selectedVehicle
-        if (!cloud.signedIn || vehicle == null) {
-            _lastPreconnectError = OfficialRemoteErrorMessages.SIGN_IN_AND_SELECT_VEHICLE_REQUIRED
+        val state = cloud.currentState
+        val vehicle = state.selectedVehicle
+        if (!state.signedIn || vehicle == null) {
+            _lastPreconnectError = OfficialCloudMessages.SIGN_IN_AND_SELECT_VEHICLE_REQUIRED
             return
         }
-        preconnect(vehicle = vehicle, userId = cloud.userId, force = true)
+        preconnect(vehicle = vehicle, userId = state.userId, force = true)
     }
 
     /** Pre-connect for the current cloud session when one is selected. */
-    suspend fun preconnectForCloud(cloud: OfficialMqttCloudGateway) {
+    suspend fun preconnectForCloud(cloud: OfficialCloudService) {
         attachToCloud(cloud)
-        val vehicle = cloud.selectedVehicle
-        if (!cloud.signedIn || vehicle == null) return
-        preconnect(vehicle = vehicle, userId = cloud.userId)
+        val state = cloud.currentState
+        val vehicle = state.selectedVehicle
+        if (!state.signedIn || vehicle == null) return
+        preconnect(vehicle = vehicle, userId = state.userId)
     }
 
     // --- connect / disconnect ---------------------------------------------
@@ -462,9 +466,6 @@ class OfficialMqttService(
         is MqttSecurityException -> OfficialCloudApiException(
             "官方 MQTT 连接失败: 认证失败 reasonCode=${e.reasonCode} broker=$broker",
         )
-        is MqttTimeoutException -> OfficialCloudApiException(
-            "官方 MQTT 连接失败: 连接超时 broker=$broker",
-        )
         is MqttException -> OfficialCloudApiException(
             "官方 MQTT 连接失败: reasonCode=${e.reasonCode} broker=$broker",
         )
@@ -483,7 +484,7 @@ class OfficialMqttService(
 
         val cloud = _boundCloud ?: defaultCloud
         if (cloud != null) {
-            val selectedImei = cloud.selectedVehicle?.commandImei?.trim().orEmpty()
+            val selectedImei = cloud.currentState.selectedVehicle?.commandImei?.trim().orEmpty()
             val payloadImei = payload.imei?.trim().orEmpty()
             if (payloadImei.isNotEmpty() && selectedImei.isNotEmpty() && payloadImei != selectedImei) {
                 log.operation(
@@ -573,22 +574,23 @@ class OfficialMqttService(
      */
     suspend fun sendCommandPreferMqtt(
         command: CommandCode,
-        cloud: OfficialMqttCloudGateway,
+        cloud: OfficialCloudService,
     ): String {
         attachToCloud(cloud)
         val api = OfficialCloudCommand.fromCommandCode(command)
             ?: throw OfficialCloudApiException("官方云端不支持${command.label}")
-        val vehicle = cloud.selectedVehicle
-        if (vehicle == null || !cloud.signedIn) {
+        val state = cloud.currentState
+        val vehicle = state.selectedVehicle
+        if (vehicle == null || !state.signedIn) {
             throw OfficialCloudApiException(
-                OfficialRemoteErrorMessages.SIGN_IN_AND_SELECT_VEHICLE_REQUIRED,
+                OfficialCloudMessages.SIGN_IN_AND_SELECT_VEHICLE_REQUIRED,
             )
         }
 
         try {
             publishCommand(
                 vehicle = vehicle,
-                userId = cloud.userId,
+                userId = state.userId,
                 commandApiName = api.apiName,
             )
             _lastSendPath = OfficialRemoteSendPath.MQTT

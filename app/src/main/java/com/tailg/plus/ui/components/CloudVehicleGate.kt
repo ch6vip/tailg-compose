@@ -34,7 +34,7 @@ suspend fun requireCloudVehicle(
   }
 
   if (!state.signedIn) {
-    snackbarInfo(message ?: OfficialCloudMessages.signInRequired)
+    snackbarInfo(message ?: OfficialCloudMessages.SIGN_IN_REQUIRED)
     if (offerLogin) {
       onNavigateLogin() // Dart: unawaited(Navigator.push(LoginPage()))
     }

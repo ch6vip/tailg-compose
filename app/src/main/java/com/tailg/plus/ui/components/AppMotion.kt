@@ -1,11 +1,12 @@
 package com.tailg.plus.ui.components
 
 import androidx.compose.animation.core.CubicBezierEasing
+import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
+import androidx.compose.material3.LocalMotionDurationScale
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.platform.LocalMotionDurationScale
 
 /**
  * Port of `lib/theme/app_motion.dart` → shared component helpers.
@@ -43,9 +44,9 @@ object AppMotion {
   val exitCurve: CubicBezierEasing = CubicBezierEasing(0.55f, 0.055f, 0.675f, 0.19f)
 
   /** Dart `Curves.easeInOut` — pulse / breathing. */
-  val pulseCurve: CubicBezierEasing = FastOutSlowInEasing
+  val pulseCurve: Easing = FastOutSlowInEasing
 
-  fun tween(durationMillis: Int): FiniteAnimationSpec<Float> =
+  fun <T> tween(durationMillis: Int): FiniteAnimationSpec<T> =
     tween(durationMillis = durationMillis, easing = pressCurve)
 
   // ── Scale presets ───────────────────────────────────────────────────────

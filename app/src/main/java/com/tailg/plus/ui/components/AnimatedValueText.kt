@@ -14,7 +14,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.toSpanStyle
+import androidx.compose.ui.text.withStyle
 
 /**
  * Port of `lib/widgets/animated_value_text.dart` — stable text slot that
@@ -49,8 +49,8 @@ fun AnimatedValueText(
       text = text,
       style = style,
       textAlign = textAlign,
-      maxLines = maxLines,
-      overflow = overflow,
+      maxLines = maxLines ?: Int.MAX_VALUE,
+      overflow = overflow ?: TextOverflow.Clip,
       modifier = modifier,
     )
     return
@@ -68,8 +68,8 @@ fun AnimatedValueText(
       text = target,
       style = style,
       textAlign = textAlign,
-      maxLines = maxLines,
-      overflow = overflow,
+      maxLines = maxLines ?: Int.MAX_VALUE,
+      overflow = overflow ?: TextOverflow.Clip,
     )
   }
 }

@@ -27,10 +27,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.ControlChannelAvailability
-import com.tailg.plus.data.cloud.ControlTopBarChannel
-import com.tailg.plus.data.cloud.ControlTopBarChannelKind
-import com.tailg.plus.data.cloud.OfficialControlChannel
+import com.tailg.plus.domain.control.ControlChannelAvailability
+import com.tailg.plus.domain.control.ControlTopBarChannel
+import com.tailg.plus.domain.control.ControlTopBarChannelKind
+import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppColorsLight
 import com.tailg.plus.ui.theme.AppRadii
@@ -93,7 +93,7 @@ fun ControlAndUnlockCard(
             ) {
               CircularProgressIndicator(
                 modifier = Modifier.size(16.dp),
-                strokeWidth = 2f,
+                strokeWidth = 2.dp,
                 color = AppColorsDark.energyGreen,
               )
             }
@@ -155,7 +155,7 @@ fun ControlAndUnlockCard(
           inactiveBorderColor = AppColorsDark.textPrimary.copy(alpha = 0.13f),
         )
         Segment(
-          value = OfficialControlChannel.automatic,
+          value = OfficialControlChannel.AUTOMATIC,
           label = "智能",
           selected = channelSelected,
           enabled = !channelBusy,
@@ -164,7 +164,7 @@ fun ControlAndUnlockCard(
           onSelect = onChannelChanged,
         )
         Segment(
-          value = OfficialControlChannel.ble,
+          value = OfficialControlChannel.BLE,
           label = "仅蓝牙",
           selected = channelSelected,
           enabled = !channelBusy,
@@ -173,7 +173,7 @@ fun ControlAndUnlockCard(
           onSelect = onChannelChanged,
         )
         Segment(
-          value = OfficialControlChannel.officialCloud,
+          value = OfficialControlChannel.OFFICIAL_CLOUD,
           label = "仅云端",
           selected = channelSelected,
           enabled = !channelBusy,
@@ -226,15 +226,15 @@ private fun channelDotColor(busy: Boolean, kind: ControlTopBarChannelKind): Colo
     AppColorsDark.energyAmber
   } else {
     when (kind) {
-      ControlTopBarChannelKind.bleDirect,
-      ControlTopBarChannelKind.mqttRemote,
-      ControlTopBarChannelKind.cloudStandby,
+      ControlTopBarChannelKind.BLE_DIRECT,
+      ControlTopBarChannelKind.MQTT_REMOTE,
+      ControlTopBarChannelKind.CLOUD_STANDBY,
       -> AppColorsDark.energyGreen
-      ControlTopBarChannelKind.bleConnecting,
-      ControlTopBarChannelKind.mqttConnecting,
-      ControlTopBarChannelKind.mqttRetry,
+      ControlTopBarChannelKind.BLE_CONNECTING,
+      ControlTopBarChannelKind.MQTT_CONNECTING,
+      ControlTopBarChannelKind.MQTT_RETRY,
       -> AppColorsDark.energyAmber
-      ControlTopBarChannelKind.unavailable -> AppColorsDark.energyRed
+      ControlTopBarChannelKind.UNAVAILABLE -> AppColorsDark.energyRed
     }
   }
 
@@ -246,9 +246,9 @@ private fun channelStatusLabel(
 ): String {
   if (busy) return "指令执行中"
   if (enabled ||
-    status.kind == ControlTopBarChannelKind.bleConnecting ||
-    status.kind == ControlTopBarChannelKind.mqttConnecting ||
-    status.kind == ControlTopBarChannelKind.mqttRetry
+    status.kind == ControlTopBarChannelKind.BLE_CONNECTING ||
+    status.kind == ControlTopBarChannelKind.MQTT_CONNECTING ||
+    status.kind == ControlTopBarChannelKind.MQTT_RETRY
   ) {
     return status.label
   }
@@ -264,15 +264,15 @@ private fun channelDescription(
   if (busy) return "指令执行中，暂不能切换渠道"
   if (!availability.enabled) {
     val reason = when (selected) {
-      OfficialControlChannel.automatic -> availability.disabledReason
-      OfficialControlChannel.ble -> availability.bleUnavailableReason
-      OfficialControlChannel.officialCloud -> availability.cloudUnavailableReason
+      OfficialControlChannel.AUTOMATIC -> availability.disabledReason
+      OfficialControlChannel.BLE -> availability.bleUnavailableReason
+      OfficialControlChannel.OFFICIAL_CLOUD -> availability.cloudUnavailableReason
     }
     if (reason.trim().isNotEmpty()) return reason.trim()
   }
   return when (selected) {
-    OfficialControlChannel.automatic -> "按车辆能力自动选择蓝牙或云端"
-    OfficialControlChannel.ble -> "仅附近蓝牙直连"
-    OfficialControlChannel.officialCloud -> "仅官方账号远程"
+    OfficialControlChannel.AUTOMATIC -> "按车辆能力自动选择蓝牙或云端"
+    OfficialControlChannel.BLE -> "仅附近蓝牙直连"
+    OfficialControlChannel.OFFICIAL_CLOUD -> "仅官方账号远程"
   }
 }

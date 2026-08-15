@@ -36,8 +36,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.ControlTopBarChannel
-import com.tailg.plus.data.cloud.ControlTopBarChannelKind
+import com.tailg.plus.domain.control.ControlTopBarChannel
+import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.flow.collect
@@ -410,15 +410,15 @@ private fun CyberStatusLine(
 
 /** Dart `_channelDotColor` switch. */
 private fun channelDotColor(kind: ControlTopBarChannelKind): Color = when (kind) {
-  ControlTopBarChannelKind.bleDirect,
-  ControlTopBarChannelKind.mqttRemote,
-  ControlTopBarChannelKind.cloudStandby,
+  ControlTopBarChannelKind.BLE_DIRECT,
+  ControlTopBarChannelKind.MQTT_REMOTE,
+  ControlTopBarChannelKind.CLOUD_STANDBY,
   -> CyberHomeColors.primary
-  ControlTopBarChannelKind.bleConnecting,
-  ControlTopBarChannelKind.mqttConnecting,
-  ControlTopBarChannelKind.mqttRetry,
+  ControlTopBarChannelKind.BLE_CONNECTING,
+  ControlTopBarChannelKind.MQTT_CONNECTING,
+  ControlTopBarChannelKind.MQTT_RETRY,
   -> CyberHomeColors.warning
-  ControlTopBarChannelKind.unavailable -> CyberHomeColors.danger
+  ControlTopBarChannelKind.UNAVAILABLE -> CyberHomeColors.danger
 }
 
 @Composable

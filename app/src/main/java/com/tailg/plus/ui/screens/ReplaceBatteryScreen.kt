@@ -64,7 +64,6 @@ import com.tailg.plus.ui.components.cyberButtonShape
 import com.tailg.plus.ui.components.cyberFilledButtonColors
 import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.components.cyberTextFieldShape
-import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
@@ -208,7 +207,7 @@ fun ReplaceBatteryScreen(
                 shape = cyberTextFieldShape,
                 modifier = Modifier
                   .fillMaxWidth()
-                  .menuAnchor(),
+                  .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
               )
               androidx.compose.material3.DropdownMenu(
                 expanded = expanded,
@@ -305,7 +304,7 @@ fun ReplaceBatteryScreen(
                     shape = cyberTextFieldShape,
                     modifier = Modifier
                       .fillMaxWidth()
-                      .menuAnchor(),
+                      .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
                   )
                   androidx.compose.material3.DropdownMenu(
                     expanded = specExpanded,

@@ -104,29 +104,30 @@ fun CloudTokenScreen(
     val text = clipboard.readClipboardText()
     if (text == null) {
       AppSnack.info(scope, snackbarHostState, "剪贴板为空")
-      return@pasteFromClipboard
+    } else {
+      tokenText = text
+      AppSnack.success(scope, snackbarHostState, "已从剪贴板粘贴")
     }
-    tokenText = text
-    AppSnack.success(scope, snackbarHostState, "已从剪贴板粘贴")
   }
 
   val loginWithToken: () -> Unit = {
-    if (busy) return@loginWithToken
-    val raw = tokenText.trim()
-    if (raw.isEmpty()) {
-      AppSnack.info(scope, snackbarHostState, "请先粘贴 Token")
-      return@loginWithToken
-    }
-    scope.launch {
-      busy = true
-      try {
-        cloud.loginWithToken(raw, phone = state.phone, userId = state.userId)
-        AppSnack.success(snackbarHostState, "Token 登录成功，车辆已同步")
-      } catch (e: Exception) {
-        log.operation("Token 登录失败", detail = e.toString(), level = LogLevel.WARNING)
-        AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
-      } finally {
-        busy = false
+    if (!busy) {
+      val raw = tokenText.trim()
+      if (raw.isEmpty()) {
+        AppSnack.info(scope, snackbarHostState, "请先粘贴 Token")
+      } else {
+        scope.launch {
+          busy = true
+          try {
+            cloud.loginWithToken(raw, phone = state.phone, userId = state.userId)
+            AppSnack.success(snackbarHostState, "Token 登录成功，车辆已同步")
+          } catch (e: Exception) {
+            log.operation("Token 登录失败", detail = e.toString(), level = LogLevel.WARNING)
+            AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+          } finally {
+            busy = false
+          }
+        }
       }
     }
   }

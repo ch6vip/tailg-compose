@@ -106,7 +106,8 @@ fun LocationScreen(
   val log = remember { LogService() }
   val cloudState by cloudService.stateFlow.collectAsState()
   val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
-  val clipboard = remember(cloudService) { ClipboardText(androidx.compose.ui.platform.LocalContext.current) }
+  val ctx = androidx.compose.ui.platform.LocalContext.current
+  val clipboard = remember(cloudService) { ClipboardText(ctx) }
 
   var tabIndex by remember { mutableStateOf(LocationTab.MAP) }
   var localLoading by remember { mutableStateOf(false) }

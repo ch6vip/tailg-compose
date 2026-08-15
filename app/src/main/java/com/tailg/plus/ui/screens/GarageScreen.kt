@@ -643,6 +643,7 @@ private fun GarageSearchHeader(
 
 // ── Search type sheet ──────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GarageSearchTypeSheet(
   selected: GarageSearchType,
@@ -1007,7 +1008,7 @@ private fun GarageRenameDialog(
       )
     },
     confirmButton = {
-      FilledButton(
+      Button(
         onClick = { onConfirm(name) },
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
@@ -1049,7 +1050,7 @@ private fun GarageUnbindDialog(
       }
     },
     confirmButton = {
-      FilledButton(
+      Button(
         onClick = { onConfirm(input) },
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
@@ -1063,6 +1064,7 @@ private fun GarageUnbindDialog(
 
 // ── Vehicle code sheet ────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun GarageVehicleCodeSheet(
   frame: String,

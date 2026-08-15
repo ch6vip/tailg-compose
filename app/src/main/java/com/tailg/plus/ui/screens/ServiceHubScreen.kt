@@ -83,18 +83,18 @@ fun ServiceHubScreen(
       ServiceSectionLabel("定位服务")
       GlyphSection(
         items = listOf(
-          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(com.tailg.plus.ui.navigation.Routes.LOCATION) },
-          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(com.tailg.plus.ui.navigation.Routes.LOCATION) },
-          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(com.tailg.plus.ui.navigation.Routes.LOCATION) },
+          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.LOCATION) },
+          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.LOCATION) },
+          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.LOCATION) },
         ),
       )
 
       ServiceSectionLabel("车辆与能耗")
       GlyphSection(
         items = listOf(
-          GlyphItem(Lucide.tune, "车辆设置") { onNavigate(com.tailg.plus.ui.navigation.Routes.VEHICLE_SETTINGS) },
-          GlyphItem(Lucide.battery, "电池服务") { onNavigate(com.tailg.plus.ui.navigation.Routes.BATTERY_DETAILS) },
-          GlyphItem(Lucide.chart, "骑行统计") { onNavigate(com.tailg.plus.ui.navigation.Routes.RIDE_STATS) },
+          GlyphItem(Lucide.tune, "车辆设置") { onNavigate(Routes.VEHICLE_SETTINGS) },
+          GlyphItem(Lucide.battery, "电池服务") { onNavigate(Routes.BATTERY_DETAILS) },
+          GlyphItem(Lucide.chart, "骑行统计") { onNavigate(Routes.RIDE_STATS) },
         ),
       )
 
@@ -107,7 +107,7 @@ fun ServiceHubScreen(
           icon = Lucide.stethoscope,
           title = "故障诊断",
           subtitle = "车辆健康与异常排查",
-          onClick = { onNavigate(com.tailg.plus.ui.navigation.Routes.DIAGNOSTIC) },
+          onClick = { onNavigate(Routes.DIAGNOSTIC) },
         )
         HorizontalDivider(
           thickness = 1.dp,
@@ -118,7 +118,7 @@ fun ServiceHubScreen(
           icon = Lucide.cloud,
           title = "官方账号",
           subtitle = "云端登录与账号同步",
-          onClick = { onNavigate(com.tailg.plus.ui.navigation.Routes.OFFICIAL_CLOUD) },
+          onClick = { onNavigate(Routes.OFFICIAL_CLOUD) },
         )
       }
     }

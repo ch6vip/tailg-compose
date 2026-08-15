@@ -79,7 +79,7 @@ fun FirmwareOtaScreen(
   var running by remember { mutableStateOf(false) }
 
   val start: () -> Unit = {
-    if (running) return@start
+    if (!running) {
     running = true
     progress = FirmwareOtaProgress(FirmwareOtaPhase.QUERYING, 0.0, "启动…")
     scope.launch {
@@ -100,6 +100,7 @@ fun FirmwareOtaScreen(
         progress = FirmwareOtaProgress(FirmwareOtaPhase.FAILED, progress.fraction, msg)
         AppSnack.error(snackbarHostState, msg)
       }
+    }
     }
   }
 

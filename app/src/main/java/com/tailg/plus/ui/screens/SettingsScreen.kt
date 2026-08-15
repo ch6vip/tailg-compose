@@ -63,7 +63,8 @@ fun SettingsScreen(
   onNavigate: (String) -> Unit,
   preferencesService: AppPreferencesService? = null,
 ) {
-  val prefs = preferencesService ?: remember { AppPreferencesService(androidx.compose.ui.platform.LocalContext.current) }
+  val context = androidx.compose.ui.platform.LocalContext.current
+  val prefs = preferencesService ?: remember { AppPreferencesService(context) }
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)

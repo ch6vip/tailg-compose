@@ -90,12 +90,13 @@ fun LanguageSettingsScreen(
   }
 
   val confirm: () -> Unit = {
-    if (saving) return@confirm
-    saving = true
-    scope.launch {
-      prefs.setLanguage(selected)
-      saving = false
-      onBack()
+    if (!saving) {
+      saving = true
+      scope.launch {
+        prefs.setLanguage(selected)
+        saving = false
+        onBack()
+      }
     }
   }
 

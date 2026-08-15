@@ -857,30 +857,31 @@ private fun VehicleBatteryMetaCard(vehicle: OfficialVehicle) {
   val bind = vehicle.batteryBindDate.trim()
   val typeId = vehicle.batteryTypeId.trim()
   val tlv = vehicle.bmsTlvType.trim()
-  if (spec.isEmpty() && bind.isEmpty() && typeId.isEmpty() && tlv.isEmpty()) return
-  val bindLabel = if (bind.length >= 10) bind.substring(0, 10) else bind
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .then(batteryCardDecoration)
-      .padding(16.dp),
-  ) {
-    Text(
-      text = "电池绑定信息",
-      style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-    )
-    Spacer(Modifier.height(10.dp))
-    if (spec.isNotEmpty()) {
-      MetaLine(label = "当前使用", value = if (spec.startsWith("当前使用")) spec else "当前使用：$spec")
-    }
-    if (bindLabel.isNotEmpty()) {
-      MetaLine(label = "绑定日期", value = "$bindLabel 绑定")
-    }
-    if (typeId.isNotEmpty()) {
-      MetaLine(label = "电池类型 ID", value = typeId)
-    }
-    if (tlv.isNotEmpty()) {
-      MetaLine(label = "BMS TLV", value = tlv)
+  if (spec.isNotEmpty() || bind.isNotEmpty() || typeId.isNotEmpty() || tlv.isNotEmpty()) {
+    val bindLabel = if (bind.length >= 10) bind.substring(0, 10) else bind
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .then(batteryCardDecoration)
+        .padding(16.dp),
+    ) {
+      Text(
+        text = "电池绑定信息",
+        style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+      )
+      Spacer(Modifier.height(10.dp))
+      if (spec.isNotEmpty()) {
+        MetaLine(label = "当前使用", value = if (spec.startsWith("当前使用")) spec else "当前使用：$spec")
+      }
+      if (bindLabel.isNotEmpty()) {
+        MetaLine(label = "绑定日期", value = "$bindLabel 绑定")
+      }
+      if (typeId.isNotEmpty()) {
+        MetaLine(label = "电池类型 ID", value = typeId)
+      }
+      if (tlv.isNotEmpty()) {
+        MetaLine(label = "BMS TLV", value = tlv)
+      }
     }
   }
 }
@@ -903,7 +904,7 @@ private fun MetaLine(label: String, value: String) {
 @Composable
 private fun BatteryRouteHintCard(vehicle: OfficialVehicle?) {
   val modelType = vehicle?.modelType
-  val tlv = vehicle?.bmsTlvType.trim() ?: ""
+  val tlv = vehicle?.bmsTlvType?.trim() ?: ""
   val isGps = vehicle?.isGps == 1 || vehicle?.hasGpsService == true
   val route = officialBatteryRoute(modelType = modelType, isGps = isGps, bmsTlvType = tlv)
   Column(

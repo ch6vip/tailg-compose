@@ -60,12 +60,10 @@ import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.NfcKeyRecord
 import com.tailg.plus.data.model.ShareMemberRecord
-import com.tailg.plus.data.model.FenceConfig
 import com.tailg.plus.data.model.VehicleLocation
 import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogCategory
-import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.service.BleNfcService
 import com.tailg.plus.ui.components.AppPressable
@@ -442,7 +440,7 @@ private fun NfcKeyEditDialog(
             shape = cyberTextFieldShape,
             modifier = Modifier
               .fillMaxWidth()
-              .menuAnchor(),
+              .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
           )
           androidx.compose.material3.DropdownMenu(
             expanded = expanded,

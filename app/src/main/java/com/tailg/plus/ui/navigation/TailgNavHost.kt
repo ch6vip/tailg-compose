@@ -1,15 +1,12 @@
 package com.tailg.plus.ui.navigation
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.PaddingValues
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
-import androidx.navigation.NavHostController
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -18,8 +15,8 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.VoidOrbitalNav
+import com.tailg.plus.ui.screens.AboutAppScreen
 import com.tailg.plus.ui.screens.AddVehicleScreen
-import com.tailg.plus.ui.screens.AppPreferencesScreen
 import com.tailg.plus.ui.screens.BatteryDetailsScreen
 import com.tailg.plus.ui.screens.BindImeiScreen
 import com.tailg.plus.ui.screens.CloudTokenScreen
@@ -29,6 +26,7 @@ import com.tailg.plus.ui.screens.FirmwareOtaScreen
 import com.tailg.plus.ui.screens.GarageCodeScannerScreen
 import com.tailg.plus.ui.screens.GarageScreen
 import com.tailg.plus.ui.screens.InductionSettingsScreen
+import com.tailg.plus.ui.screens.LanguageSettingsScreen
 import com.tailg.plus.ui.screens.LocationScreen
 import com.tailg.plus.ui.screens.LoginScreen
 import com.tailg.plus.ui.screens.LogScreen
@@ -37,18 +35,17 @@ import com.tailg.plus.ui.screens.OfficialCloudScreen
 import com.tailg.plus.ui.screens.OfficialReplicaScreen
 import com.tailg.plus.ui.screens.ProfileMineScreen
 import com.tailg.plus.ui.screens.QgjSettingsScreen
-import com.tailg.plus.ui.screens.ReplaceBatteryScreen
 import com.tailg.plus.ui.screens.RideStatsScreen
 import com.tailg.plus.ui.screens.ScanScreen
 import com.tailg.plus.ui.screens.ServiceHubScreen
 import com.tailg.plus.ui.screens.SettingsScreen
+import com.tailg.plus.ui.screens.UnitSettingsScreen
 import com.tailg.plus.ui.screens.VehicleMessageScreen
 import com.tailg.plus.ui.screens.VehicleSettingsScreen
+import com.tailg.plus.ui.screens.rememberOfficialCloudService
 import com.tailg.plus.ui.theme.AppColors
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.systemBars
 
 /**
  * Root navigation host — wires all 30 screens into a single NavHost.
@@ -60,6 +57,7 @@ import androidx.compose.foundation.layout.systemBars
 fun TailgNavHost() {
   val navController = rememberNavController()
   val snackbarHostState = remember { SnackbarHostState() }
+  val cloudService = rememberOfficialCloudService()
 
   val backStackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = backStackEntry?.destination?.route
@@ -99,6 +97,7 @@ fun TailgNavHost() {
       // ---- Auth ----
       composable(Routes.LOGIN) {
         LoginScreen(
+          cloudService = cloudService,
           onSignedIn = {
             navController.navigate(Routes.SERVICE_HUB) {
               popUpTo(Routes.LOGIN) { inclusive = true }
@@ -120,7 +119,14 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         ControlScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
+          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
+          mqttService = com.tailg.plus.data.mqtt.OfficialMqttService(),
+          vehicleStore = com.tailg.plus.data.store.VehicleStore(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
@@ -144,25 +150,27 @@ fun TailgNavHost() {
       composable(Routes.ADD_VEHICLE) {
         AddVehicleScreen(
           onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
+          onOpenOfficialVehicles = { navController.navigate(Routes.OFFICIAL_CLOUD) },
+          onOpenImeiBind = { navController.navigate(Routes.BIND_IMEI) },
+          onOpenBleScan = { navController.navigate(Routes.SCAN) },
         )
       }
       composable(Routes.BIND_IMEI) {
         BindImeiScreen(
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
+          cloudService = cloudService,
+          onBack = { _ -> navController.popBackStack() },
         )
       }
       composable(Routes.SCAN) {
         ScanScreen(
           onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
+          onConnectDevice = { _, _ -> navController.popBackStack() },
         )
       }
       composable(Routes.GARAGE_CODE_SCANNER) {
         GarageCodeScannerScreen(
           onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
+          onScanned = { _ -> navController.popBackStack() },
         )
       }
 
@@ -172,7 +180,7 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         LocationScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -181,8 +189,9 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         BatteryDetailsScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
+          onNavigate = { route -> navController.navigate(route) },
         )
       }
       composable(
@@ -190,8 +199,8 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         ReplaceBatteryScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
-          onBack = { navController.popBackStack() },
+          cloudService = cloudService,
+          onBack = { _ -> navController.popBackStack() },
         )
       }
       composable(
@@ -217,8 +226,14 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         VehicleSettingsScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
+          onOpenNotificationPrefs = { navController.navigate(Routes.NOTIFICATION_PREFS) },
+          onOpenInductionSettings = {
+            val vid = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: ""
+            navController.navigate(Routes.inductionSettings(vid))
+          },
+          onAddVehicle = { navController.navigate(Routes.ADD_VEHICLE) },
         )
       }
       composable(
@@ -226,8 +241,8 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         FirmwareOtaScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           onBack = { navController.popBackStack() },
+          cloudService = cloudService,
         )
       }
       composable(
@@ -235,7 +250,6 @@ fun TailgNavHost() {
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
         DiagnosticScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           onBack = { navController.popBackStack() },
         )
       }
@@ -255,6 +269,7 @@ fun TailgNavHost() {
         InductionSettingsScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           onBack = { navController.popBackStack() },
+          cloudService = cloudService,
         )
       }
 
@@ -266,18 +281,20 @@ fun TailgNavHost() {
         )
       }
       composable(Routes.APP_PREFERENCES) {
-        AppPreferencesScreen(
+        LanguageSettingsScreen(
           onBack = { navController.popBackStack() },
         )
       }
       composable(Routes.NOTIFICATION_PREFS) {
         NotificationPrefsScreen(
           onBack = { navController.popBackStack() },
+          cloudService = cloudService,
         )
       }
       composable(Routes.CLOUD_TOKEN) {
         CloudTokenScreen(
           onBack = { navController.popBackStack() },
+          cloudService = cloudService,
         )
       }
       composable(Routes.LOG) {
@@ -287,11 +304,14 @@ fun TailgNavHost() {
       }
       composable(Routes.OFFICIAL_CLOUD) {
         OfficialCloudScreen(
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
+          onNavigate = { route -> navController.navigate(route) },
         )
       }
       composable(Routes.OFFICIAL_REPLICA) {
         OfficialReplicaScreen(
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }

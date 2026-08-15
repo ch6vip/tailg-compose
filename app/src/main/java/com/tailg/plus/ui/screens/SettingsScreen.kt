@@ -26,9 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
@@ -42,6 +40,7 @@ import com.tailg.plus.ui.components.cyberCaptionStyle
 import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.launch
 
 /**
  * Port of `lib/pages/settings_page.dart` → `SettingsScreen.kt`.
@@ -67,6 +66,7 @@ fun SettingsScreen(
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
+  val scope = androidx.compose.runtime.rememberCoroutineScope()
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
@@ -132,7 +132,7 @@ fun SettingsScreen(
               checked = respectTextScale,
               onCheckedChange = { value ->
                 // Fire-and-forget; the StateFlow will reflect the new value.
-                kotlinx.coroutines.GlobalScope.launch {
+                scope.launch {
                   prefs.setRespectSystemTextScale(value)
                 }
               },

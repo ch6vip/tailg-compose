@@ -5,8 +5,9 @@ import androidx.compose.animation.core.Easing
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.FiniteAnimationSpec
 import androidx.compose.animation.core.tween
-import androidx.compose.material3.LocalMotionDurationScale
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
 
 /**
  * Port of `lib/theme/app_motion.dart` → shared component helpers.
@@ -58,13 +59,22 @@ object AppMotion {
 /**
  * Port of `lib/theme/motion_policy.dart`.
  *
- * Dart `MediaQuery.disableAnimations` → Compose `MotionDurationScale`
- * (system animator-duration-scale == 0). TickerMode pauses are handled by
- * Compose's own frame clock for `withFrameNanos` loops.
+ * Dart `MediaQuery.disableAnimations` → system animator-duration-scale == 0
+ * (`Settings.Global.ANIMATOR_DURATION_SCALE`). TickerMode pauses are handled
+ * by Compose's own frame clock for `withFrameNanos` loops.
  */
 object MotionPolicy {
   @Composable
-  fun reduceMotion(): Boolean = LocalMotionDurationScale.current == 0f
+  fun reduceMotion(): Boolean {
+    val context = LocalContext.current
+    return remember(context) {
+      android.provider.Settings.Global.getFloat(
+        context.contentResolver,
+        android.provider.Settings.Global.ANIMATOR_DURATION_SCALE,
+        1f,
+      ) == 0f
+    }
+  }
 
   @Composable
   fun loopsEnabled(): Boolean = !reduceMotion()

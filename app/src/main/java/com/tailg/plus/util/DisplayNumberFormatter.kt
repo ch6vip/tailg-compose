@@ -103,7 +103,7 @@ fun formatDecimalDown(value: Double, fractionDigits: Int = 2): String {
     var factor = 1
     repeat(fractionDigits) { factor *= 10 }
     val scaled = value * factor
-    val truncated = if (value.isNegative()) ceil(scaled) else floor(scaled)
+    val truncated = if (value < 0.0) ceil(scaled) else floor(scaled)
     val fixed = formatFixed(truncated / factor, fractionDigits)
     if (!fixed.contains('.')) return fixed
     var trimmed = fixed

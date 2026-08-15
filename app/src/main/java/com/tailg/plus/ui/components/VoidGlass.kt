@@ -6,7 +6,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
@@ -111,7 +110,7 @@ fun VoidGlassPanel(
     modifier = modifier
       .blur(blurSigma)
       .background(fill)
-      .border(width = 0.5.dp, color = edge, shape = RectangleShape)
+      .border(width = 0.5.dp, color = edge, shape = RoundedCornerShape(0.dp))
       .padding(contentPadding),
   ) {
     content()

@@ -158,7 +158,7 @@ private fun VehicleTile(
       )
     }
     if (selecting) {
-      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2f, color = AppColorsDark.textSecondary)
+      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColorsDark.textSecondary)
     } else if (selected) {
       LucideIcon(icon = Lucide.checkCircle, size = 20.dp, color = AppColors.primary)
     }

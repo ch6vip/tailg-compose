@@ -139,7 +139,7 @@ fun ControlAndUnlockCard(
       SingleChoiceSegmentedButtonRow(
         modifier = Modifier.height(40.dp),
       ) {
-        val segmentShape = { index: Int ->
+        val segmentShape: @Composable (Int) -> androidx.compose.foundation.shape.CornerBasedShape = { index ->
           SegmentedButtonDefaults.itemShape(
             index = index,
             count = 3,
@@ -199,7 +199,7 @@ private fun Segment(
   label: String,
   selected: OfficialControlChannel,
   enabled: Boolean,
-  shape: androidx.compose.foundation.shape.RoundedCornerShape,
+  shape: androidx.compose.ui.graphics.Shape,
   colors: androidx.compose.material3.SegmentedButtonColors,
   onSelect: (OfficialControlChannel) -> Unit,
 ) {

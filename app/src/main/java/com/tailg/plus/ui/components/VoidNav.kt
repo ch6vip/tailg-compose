@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
-import androidx.compose.foundation.layout.calculateBottomPadding
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
@@ -30,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -84,8 +84,8 @@ fun VoidOrbitalNav(
       .graphicsLayer {
         if (!reduceMotion && android.os.Build.VERSION.SDK_INT >= 31) {
           renderEffect = android.graphics.RenderEffect.createBlurEffect(
-            24f, 24f, android.graphics.Shader.TileMode.Decal,
-          )
+            24f, 24f, android.graphics.Shader.TileMode.CLAMP,
+          ).asComposeRenderEffect()
         } else {
           renderEffect = null
         }
@@ -150,6 +150,7 @@ private fun RowScope.NavItem(
   icon: ImageVector,
   selected: Boolean,
   onTap: () -> Unit,
+  modifier: Modifier = Modifier,
 ) {
   val color by animateColorAsState(
     targetValue = if (selected) CyberHomeColors.ink else CyberHomeColors.inkSecondary,
@@ -168,7 +169,7 @@ private fun RowScope.NavItem(
   )
 
   Column(
-    modifier = Modifier
+    modifier = modifier
       .height(VoidOrbitalNav.barHeightDp.dp)
       .padding(4.dp)
       .clip(RoundedCornerShape(bgRadius))

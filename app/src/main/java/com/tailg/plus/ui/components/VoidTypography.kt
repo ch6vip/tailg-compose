@@ -103,8 +103,8 @@ fun KineticType(
         text = text,
         style = style,
         textAlign = alignment,
-        maxLines = maxLines,
-        overflow = overflow,
+        maxLines = maxLines ?: Int.MAX_VALUE,
+        overflow = overflow ?: TextOverflow.Clip,
         modifier = Modifier
           .alpha(v)
           .graphicsLayer { translationY = (1f - v) * 30f },
@@ -151,7 +151,7 @@ fun VoidGlowText(
   Box(modifier = modifier) {
     Text(
       text = text,
-      maxLines = maxLines,
+      maxLines = maxLines ?: Int.MAX_VALUE,
       textAlign = textAlign,
       style = style.copy(
         color = glowColor.copy(alpha = 0.3f * glowIntensity),
@@ -163,7 +163,7 @@ fun VoidGlowText(
     )
     Text(
       text = text,
-      maxLines = maxLines,
+      maxLines = maxLines ?: Int.MAX_VALUE,
       textAlign = textAlign,
       style = style,
     )

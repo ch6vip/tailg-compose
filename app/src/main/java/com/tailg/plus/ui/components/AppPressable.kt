@@ -9,7 +9,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.shape.RectangleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -23,12 +22,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.semantics.button
 import androidx.compose.ui.semantics.clearAndSetSemantics
-import androidx.compose.ui.semantics.enabled
-import androidx.compose.ui.semantics.label
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.role
-import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -55,7 +51,7 @@ fun AppPressable(
   pressedScale: Float = AppMotion.pressScale,
   background: Color = Color.Transparent,
   pressedBackground: Color? = null,
-  shape: Shape = RectangleShape,
+  shape: Shape = RoundedCornerShape(0.dp),
   shadowElevation: Dp = 0.dp,
   pressedShadowElevation: Dp? = null,
   shadowColor: Color = Color.Transparent,
@@ -90,27 +86,14 @@ fun AppPressable(
 
   val haptics = LocalHapticFeedback.current
 
-  // Capture before the `semantics {}` lambda so the receiver's own properties
-  // (`label`/`button`/`enabled`/`selected`) do not shadow these values.
-  val label = semanticsLabel
-  val semButton = semanticsButton
-  val semEnabled = semanticsEnabled ?: enabled
-  val semSelected = semanticsSelected
-
+  // Dart `excludeSemantics: true` when a label is set; button/enabled/selected
+  // states ride on combinedClickable's own semantics (role + enabled).
   val semanticsModifier = if (label != null) {
-    // Dart `excludeSemantics: true` when a label is set.
     Modifier.clearAndSetSemantics {
-      this.label = label
-      this.button = semButton
-      this.enabled = semEnabled
-      this.selected = semSelected ?: false
+      contentDescription = label
     }
   } else {
-    Modifier.semantics {
-      this.button = semButton
-      this.enabled = semEnabled
-      this.selected = semSelected ?: false
-    }
+    Modifier
   }
   val roleModifier = if (semanticsButton) Modifier.semantics { this.role = Role.Button } else Modifier
 

@@ -170,7 +170,7 @@ private fun CircleKey(
         if (busy) {
           CircularProgressIndicator(
             modifier = Modifier.size(26.dp),
-            strokeWidth = 2.6f,
+            strokeWidth = 2.6.dp,
             color = CyberHomeColors.primary,
           )
         } else {

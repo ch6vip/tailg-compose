@@ -37,7 +37,6 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
-import androidx.compose.ui.input.pointer.consume
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
@@ -276,7 +275,7 @@ fun SlidePowerButton(
           if (awaiting) {
             CircularProgressIndicator(
               modifier = Modifier.size(24.dp),
-              strokeWidth = 2.5f,
+              strokeWidth = 2.5.dp,
               color = CyberHomeColors.ink,
             )
           } else {

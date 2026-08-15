@@ -35,7 +35,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.ble.CommandCode
+import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.ControlCommandActivity
 import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.ui.theme.AppRadii
@@ -59,11 +59,11 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 
 /** Dart `commandActivityIcon(CommandCode)`. */
 fun commandActivityIcon(command: CommandCode): ImageVector = when (command) {
-  CommandCode.powerOn, CommandCode.powerOff -> Lucide.power
-  CommandCode.lock -> Lucide.lock
-  CommandCode.unlock -> Lucide.unlock
-  CommandCode.find -> Lucide.find
-  CommandCode.openSeat -> Lucide.seat
+  CommandCode.POWER_ON, CommandCode.POWER_OFF -> Lucide.power
+  CommandCode.LOCK -> Lucide.lock
+  CommandCode.UNLOCK -> Lucide.unlock
+  CommandCode.FIND -> Lucide.find
+  CommandCode.OPEN_SEAT -> Lucide.seat
   else -> Lucide.find
 }
 

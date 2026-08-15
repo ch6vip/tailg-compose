@@ -284,7 +284,7 @@ fun VoidEnergyRing(
     }
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
       Text(
-        text = if (p <= 0f && label == null) "--" else label ?: p.round().toString(),
+        text = if (p <= 0f && label == null) "--" else label ?: kotlin.math.round(p).toString(),
         style = TextStyle(
           fontSize = (size * 0.28f).value.sp, // Dart display: size * 0.28
           fontWeight = FontWeight.W300,

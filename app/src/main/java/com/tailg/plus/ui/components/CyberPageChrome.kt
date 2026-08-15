@@ -250,7 +250,7 @@ fun cyberFilledButtonColors(): androidx.compose.material3.ButtonColors =
 /** Cyber outlined-button colors (Dart `cyberOutlinedButtonStyle`). */
 @Composable
 fun cyberOutlinedButtonColors(): androidx.compose.material3.ButtonColors =
-  androidx.compose.material3.OutlinedButtonDefaults.colors(
+  androidx.compose.material3.ButtonDefaults.outlinedButtonColors(
     contentColor = CyberHomeColors.inkSecondary,
     disabledContentColor = CyberHomeColors.inkFaint,
   )

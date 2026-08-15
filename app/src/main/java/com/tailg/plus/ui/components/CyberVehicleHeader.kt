@@ -470,7 +470,7 @@ private fun CyberBleChip(state: OfficialBleChipState, onClick: () -> Unit) {
       if (state == OfficialBleChipState.Connecting || state == OfficialBleChipState.Disconnecting) {
         CircularProgressIndicator(
           modifier = Modifier.size(13.dp),
-          strokeWidth = 2f,
+          strokeWidth = 2.dp,
           color = CyberHomeColors.primary,
         )
       } else {

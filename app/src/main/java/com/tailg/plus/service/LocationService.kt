@@ -14,6 +14,7 @@ import java.time.Duration
 import java.time.Instant
 import java.util.concurrent.TimeoutException
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withTimeoutOrNull
@@ -216,7 +217,7 @@ private class FusedLocationProvider(
         return GeoPosition(
             latitude = location?.latitude ?: 0.0,
             longitude = location?.longitude ?: 0.0,
-            accuracy = location?.accuracy ?: 0.0,
+            accuracy = (location?.accuracy ?: 0.0f).toDouble(),
         )
     }
 }

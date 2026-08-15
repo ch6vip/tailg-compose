@@ -614,14 +614,3 @@ private fun CommandCode.toBleCommandCode(): com.tailg.plus.data.ble.CommandCode 
     CommandCode.READ_STATE -> com.tailg.plus.data.ble.CommandCode.readState
     CommandCode.READ_ANTI_THEFT -> com.tailg.plus.data.ble.CommandCode.readAntiTheft
   }
-
-private fun CommandCode.toBleCommandCode(): com.tailg.plus.data.ble.CommandCode = when (this) {
-  CommandCode.LOCK -> com.tailg.plus.data.ble.CommandCode.lock
-  CommandCode.UNLOCK -> com.tailg.plus.data.ble.CommandCode.unlock
-  CommandCode.OPEN_SEAT -> com.tailg.plus.data.ble.CommandCode.openSeat
-  CommandCode.POWER_ON -> com.tailg.plus.data.ble.CommandCode.powerOn
-  CommandCode.POWER_OFF -> com.tailg.plus.data.ble.CommandCode.powerOff
-  CommandCode.FIND -> com.tailg.plus.data.ble.CommandCode.find
-  CommandCode.READ_STATE -> com.tailg.plus.data.ble.CommandCode.readState
-  CommandCode.READ_ANTI_THEFT -> com.tailg.plus.data.ble.CommandCode.readAntiTheft
-}

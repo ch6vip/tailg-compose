@@ -165,7 +165,7 @@ fun ReplaceBatteryScreen(
           modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 20.dp, top = 8.dp, bottom = 24.dp),
+            .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 24.dp),
         ) {
           val v = vehicle
           if (v != null) {

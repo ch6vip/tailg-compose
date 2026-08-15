@@ -194,6 +194,9 @@ fun TailgNavHost() {
       ) { entry ->
         BatteryDetailsScreen(
           cloudService = cloudService,
+          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
@@ -273,7 +276,6 @@ fun TailgNavHost() {
         InductionSettingsScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           onBack = { navController.popBackStack() },
-          cloudService = cloudService,
         )
       }
 
@@ -292,7 +294,6 @@ fun TailgNavHost() {
       composable(Routes.NOTIFICATION_PREFS) {
         NotificationPrefsScreen(
           onBack = { navController.popBackStack() },
-          cloudService = cloudService,
         )
       }
       composable(Routes.CLOUD_TOKEN) {

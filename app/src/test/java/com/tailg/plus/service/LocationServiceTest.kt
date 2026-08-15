@@ -11,7 +11,6 @@ import com.tailg.plus.log.LogService
 import com.tailg.plus.permission.AppPermissionService
 import com.tailg.plus.permission.PermissionCheckResult
 import io.mockk.Runs
-import io.mockk.capture
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.every

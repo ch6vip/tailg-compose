@@ -87,7 +87,7 @@ class OfficialControlRouteTest {
   }
 
   @Test
-  fun `modelType 10/14 C39 follow isGps hybrid gate with standard stack`() {
+  fun `modelType 10-14 C39 follow isGps hybrid gate with standard stack`() {
     for (type in OfficialControlRoute.c39ModelTypes) {
       val remote = OfficialControlRoute.resolve(
         bindingCar = true,

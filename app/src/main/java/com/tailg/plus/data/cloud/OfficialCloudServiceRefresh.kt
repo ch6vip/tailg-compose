@@ -80,7 +80,7 @@ internal class OfficialCloudRefreshLogic(
 
     // -- user profile --------------------------------------------------------
 
-    suspend fun refreshUserProfile(silent: Boolean, force: Boolean) {
+    suspend fun refreshUserProfile(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         if (token.isEmpty()) return
         val refreshKey = "userProfile"
@@ -130,9 +130,9 @@ internal class OfficialCloudRefreshLogic(
 
     suspend fun refreshVehicles(
         silent: Boolean,
-        refreshReplicaDetails: Boolean,
-        force: Boolean,
-        preferredVehicleKey: String?,
+        refreshReplicaDetails: Boolean = true,
+        force: Boolean = false,
+        preferredVehicleKey: String? = null,
     ) {
         val token = service.state.token
         if (token.isEmpty()) return
@@ -250,9 +250,9 @@ internal class OfficialCloudRefreshLogic(
 
     suspend fun refreshMessages(
         silent: Boolean,
-        force: Boolean,
-        pageSize: Int,
-        pageIndex: Int,
+        force: Boolean = false,
+        pageSize: Int = 20,
+        pageIndex: Int = 1,
     ) {
         val token = service.state.token
         if (token.isEmpty()) {
@@ -335,7 +335,7 @@ internal class OfficialCloudRefreshLogic(
 
     // -- battery / BMS -------------------------------------------------------
 
-    suspend fun refreshBatteryInfo(silent: Boolean, force: Boolean) {
+    suspend fun refreshBatteryInfo(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         if (token.isEmpty()) return
         val refreshKey = "batteryInfo"
@@ -388,7 +388,7 @@ internal class OfficialCloudRefreshLogic(
         }
     }
 
-    suspend fun refreshBmsInfo(silent: Boolean, force: Boolean) {
+    suspend fun refreshBmsInfo(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         val uid = service.state.userId.trim()
@@ -525,7 +525,7 @@ internal class OfficialCloudRefreshLogic(
 
     // -- parking location / fence --------------------------------------------
 
-    suspend fun refreshVehicleLocation(silent: Boolean, force: Boolean) {
+    suspend fun refreshVehicleLocation(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null || vehicle.carId.isEmpty()) {
@@ -592,7 +592,7 @@ internal class OfficialCloudRefreshLogic(
         }
     }
 
-    suspend fun refreshFenceData(silent: Boolean, force: Boolean) {
+    suspend fun refreshFenceData(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null || vehicle.carId.isEmpty()) {
@@ -658,7 +658,7 @@ internal class OfficialCloudRefreshLogic(
 
     // -- today ride mileage --------------------------------------------------
 
-    suspend fun refreshTodayRideMileage(silent: Boolean, force: Boolean) {
+    suspend fun refreshTodayRideMileage(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         val userId = service.state.userId.trim()
@@ -714,8 +714,8 @@ internal class OfficialCloudRefreshLogic(
 
     suspend fun refreshRideStatistics(
         period: OfficialRidePeriod,
-        silent: Boolean,
-        force: Boolean,
+        silent: Boolean = false,
+        force: Boolean = false,
     ) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
@@ -843,7 +843,11 @@ internal class OfficialCloudRefreshLogic(
 
     // -- travel history ------------------------------------------------------
 
-    suspend fun refreshTravelHistory(month: String?, silent: Boolean, force: Boolean) {
+    suspend fun refreshTravelHistory(
+        month: String? = null,
+        silent: Boolean = false,
+        force: Boolean = false,
+    ) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null) return
@@ -976,7 +980,7 @@ internal class OfficialCloudRefreshLogic(
 
     // -- smart service status ------------------------------------------------
 
-    suspend fun refreshSelectedSmartServiceStatus(silent: Boolean, force: Boolean) {
+    suspend fun refreshSelectedSmartServiceStatus(silent: Boolean = true, force: Boolean = false) {
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null) return

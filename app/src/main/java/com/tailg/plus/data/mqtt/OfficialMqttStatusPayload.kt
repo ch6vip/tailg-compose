@@ -147,7 +147,7 @@ data class OfficialMqttStatusPayload(
                 }
                 else -> value.toString()
             }.trim()
-            return text.ifEmpty { null }
+            return text.takeIf { it.isNotEmpty() }
         }
 
         private fun asInt(value: Any?): Int? = when (value) {

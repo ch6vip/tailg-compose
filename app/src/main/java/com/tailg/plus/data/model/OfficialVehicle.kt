@@ -397,6 +397,7 @@ data class OfficialVehicle(
                 value.isNotEmpty()
             }
             else -> value != null
+            }
         }
 
         private val FALSY_FEATURE_TEXTS = setOf("0", "false", "no", "n", "off", "关闭", "无", "none", "null")

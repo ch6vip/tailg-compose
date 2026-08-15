@@ -435,7 +435,7 @@ private fun AnimatedStatusIcon(online: Boolean, bluetoothConnected: Boolean) {
 /** Tiny vehicle thumbnail (placeholder disc; painter when image deferred). */
 @Composable
 private fun VehicleThumb(powered: Boolean?, isLocked: Boolean) {
-  Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+  Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
     LucideIcon(
       icon = if (powered == true) Lucide.power else if (isLocked) Lucide.lock else Lucide.unlock,
       size = 18.dp,

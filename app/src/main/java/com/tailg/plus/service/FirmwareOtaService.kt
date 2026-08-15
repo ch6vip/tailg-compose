@@ -131,7 +131,13 @@ class FirmwareOtaService(
     val orderOk = if (orderOverride != null) {
       orderOverride(order)
     } else {
-      connectionManager.writeOtaOrder(byteArrayOf(0x01, (bytes.size shr 8) and 0xFF, bytes.size and 0xFF))
+      connectionManager.writeOtaOrder(
+        byteArrayOf(
+          0x01.toByte(),
+          ((bytes.size shr 8) and 0xFF).toByte(),
+          (bytes.size and 0xFF).toByte(),
+        ),
+      )
     }
     if (!orderOk) {
       emit(

@@ -88,9 +88,9 @@ fun AppPressable(
 
   // Dart `excludeSemantics: true` when a label is set; button/enabled/selected
   // states ride on combinedClickable's own semantics (role + enabled).
-  val semanticsModifier = if (label != null) {
+  val semanticsModifier = if (semanticsLabel != null) {
     Modifier.clearAndSetSemantics {
-      contentDescription = label
+      contentDescription = semanticsLabel
     }
   } else {
     Modifier

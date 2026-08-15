@@ -139,7 +139,7 @@ fun ControlAndUnlockCard(
       SingleChoiceSegmentedButtonRow(
         modifier = Modifier.height(40.dp),
       ) {
-        val segmentShape: @Composable (Int) -> androidx.compose.foundation.shape.CornerBasedShape = { index ->
+        val segmentShape: @Composable (Int) -> androidx.compose.ui.graphics.Shape = { index ->
           SegmentedButtonDefaults.itemShape(
             index = index,
             count = 3,

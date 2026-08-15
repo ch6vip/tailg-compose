@@ -261,7 +261,7 @@ fun SlidePowerButton(
               },
               onHorizontalDrag = { change, dragAmount ->
                 change.consume()
-                dragPositionPx = (dragPositionPx + dragAmount.x).coerceIn(0f, maxDragPx)
+                dragPositionPx = (dragPositionPx + dragAmount).coerceIn(0f, maxDragPx)
               },
             )
           },

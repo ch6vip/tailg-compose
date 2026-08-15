@@ -88,6 +88,55 @@ class AppPermissionService(private val context: Context) {
         return PermissionCheckResult.granted()
     }
 
+    /**
+     * Port of Dart `ensureLocationPermission({required bool request})`.
+     *
+     * Checks the device location service, then the app location permission;
+     * when [request] is true and the permission is denied, prompts via the
+     * activity result launcher. [activity] is only touched on the request and
+     * permanent-denial paths, so check-only calls may pass null.
+     *
+     * Deviation from Dart: the geolocator plugin hides the activity plumbing;
+     * here the caller must supply the [activity] when [request] is true.
+     */
+    suspend fun ensureLocationPermission(
+        activity: ComponentActivity?,
+        request: Boolean,
+    ): PermissionCheckResult {
+        if (!isLocationServiceEnabled()) {
+            return PermissionCheckResult.denied("定位服务未开启", openSettingsRecommended = true)
+        }
+        var granted = LOCATION_PERMISSIONS.any { isGranted(it) }
+        if (!granted && request) {
+            val target =
+                requireNotNull(activity) { "activity is required to request location permission" }
+            val result = requestPermissions(target, LOCATION_PERMISSIONS)
+            granted = result.values.any { it }
+        }
+        if (!granted) {
+            val permanently = request &&
+                activity?.shouldShowRequestPermissionRationale(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                ) == false
+            return PermissionCheckResult.denied(
+                if (permanently) "定位权限已被永久拒绝，请到系统设置开启" else "未授予定位权限",
+                openSettingsRecommended = permanently,
+            )
+        }
+        return PermissionCheckResult.granted()
+    }
+
+    private fun isLocationServiceEnabled(): Boolean {
+        val manager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+            ?: return false
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            manager.isLocationEnabled
+        } else {
+            manager.isProviderEnabled(LocationManager.GPS_PROVIDER) ||
+                manager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+        }
+    }
+
     /** Notification permission (background induction needs it). */
     suspend fun requestNotificationPermission(
         activity: ComponentActivity,
@@ -153,6 +202,10 @@ class AppPermissionService(private val context: Context) {
     }
 
     companion object {
+        private val LOCATION_PERMISSIONS = arrayOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        )
         private val launchers =
             HashMap<ComponentActivity, ActivityResultLauncher<Array<String>>>()
         private val pendingResults =

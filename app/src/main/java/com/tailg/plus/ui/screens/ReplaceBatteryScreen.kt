@@ -579,7 +579,7 @@ private fun BindDatePickerDialog(
   )
   DatePickerDialog(
     onDismissRequest = onDismiss,
-    confirmButton = @Composable {
+    confirmButton = {
       Button(
         onClick = {
           val millis = state.selectedDateMillis
@@ -588,14 +588,7 @@ private fun BindDatePickerDialog(
           }
         },
         colors = cyberFilledButtonColors(),
-        content = { Text("确定") },
-      )
-    },
-    dismissButton = @Composable {
-      TextButton(
-        onClick = onDismiss,
-        content = { Text("取消", color = CyberHomeColors.inkMuted) },
-      )
+      ) { Text("确定") }
     },
   )
 }

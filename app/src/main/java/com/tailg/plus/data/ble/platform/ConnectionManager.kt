@@ -1022,14 +1022,14 @@ class ConnectionManager(
 
       val response = runGattOperation(priority = GattOperationPriority.HIGH) {
         val current = readCharacteristic(fcc1)
-        val data = buildQgjRidingModeFrame(current.toList(), mode)
+        val data = buildQgjRidingModeFrame(current.map { it.toInt() }, mode)
           ?: throw IllegalArgumentException("fcc1 状态数据不完整")
         val frame = ByteArray(data.size) { data[it].toByte() }
         writeCharacteristic(fcc1, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
         delay(BleTimings.fccReadbackDelay)
         readCharacteristic(fcc1)
       }
-      _ridingMode.value = parseQgjRidingMode(response.toList()) ?: mode
+      _ridingMode.value = parseQgjRidingMode(response.map { it.toInt() }) ?: mode
 
       addRidingMode(_ridingMode.value)
       log.operation("模式已切换: ${_ridingMode.value.label}", level = LogLevel.INFO)
@@ -1792,7 +1792,7 @@ class ConnectionManager(
   /** Port of Dart `_onStandardNotify` — feb6 (KKS/TLink) notification. */
   private fun onStandardNotify(value: ByteArray) {
     if (_disposed) return
-    log.ble("← 收到数据", detail = bytesToSpacedHex(value.toList()))
+    log.ble("← 收到数据", detail = bytesToSpacedHex(value.map { it.toInt() }))
     if (_protocol == ProtocolType.TLINK) {
       val response = parseTLinkResponse(_model.aesKey, value)
       scope.launch { handleTLinkResponse(response) }
@@ -1961,7 +1961,7 @@ class ConnectionManager(
   /** Port of Dart `_onQgjNotify` — feb2 (QGJ) notification; login / setStatus ACK. */
   private fun onQgjNotify(value: ByteArray) {
     if (_disposed) return
-    log.ble("← QGJ 响应", detail = bytesToSpacedHex(value.toList()))
+    log.ble("← QGJ 响应", detail = bytesToSpacedHex(value.map { it.toInt() }))
     val response = parseQgjResponse(value) ?: return
 
     if (response.cmdId == QgjCommandIds.login && response.success) {
@@ -1984,7 +1984,7 @@ class ConnectionManager(
     if (value.isEmpty()) return
     log.ble(
       "← QGJ GPS 通知",
-      detail = bytesToSpacedHex(value.toList()),
+      detail = bytesToSpacedHex(value.map { it.toInt() }),
       level = LogLevel.DEBUG,
     )
   }
@@ -2077,6 +2077,8 @@ class ConnectionManager(
               publishBikeState(bikeState)
             }
           }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
         } catch (e: Exception) {
           failCount++
           if (failCount == 3) {

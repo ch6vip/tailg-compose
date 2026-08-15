@@ -229,6 +229,13 @@ data class BatterySnapshot(
     }
 }
 
+/**
+ * Dart `toStringAsFixed(digits)` — fixed-point with [digits] fraction digits,
+ * locale-independent '.' decimal separator, HALF_UP rounding.
+ */
+private fun formatFixed(value: Double, digits: Int): String =
+    String.format(java.util.Locale.US, "%.${digits}f", value)
+
 private fun dataSource(
     officialBatteryValue: Any? = null,
     officialBmsValue: Any? = null,

@@ -126,27 +126,27 @@ object BleUuids {
  * GATT/BLE waits will use coroutine `delay(Duration)` in the connection-manager port.
  */
 object BleTimings {
-  val connectTimeout: Duration = Duration.seconds(10)
-  val reconnectConnectTimeout: Duration = Duration.seconds(8)
-  val initialConnectRetryDelay: Duration = Duration.milliseconds(500)
-  val failedConnectRecoveryDelay: Duration = Duration.milliseconds(600)
-  val androidGattErrorRecoveryDelay: Duration = Duration.milliseconds(1200)
+  val connectTimeout: Duration = 10.seconds
+  val reconnectConnectTimeout: Duration = 8.seconds
+  val initialConnectRetryDelay: Duration = 500.milliseconds
+  val failedConnectRecoveryDelay: Duration = 600.milliseconds
+  val androidGattErrorRecoveryDelay: Duration = 1200.milliseconds
   val qgjRequestedMtu: Int = 515
-  val autoConnectScanTimeout: Duration = Duration.seconds(8)
-  val manualScanTimeout: Duration = Duration.seconds(30)
-  val proximityScanTimeout: Duration = Duration.seconds(30)
-  val serviceSetupDelay: Duration = Duration.milliseconds(500)
-  val heartbeatInitialDelay: Duration = Duration.milliseconds(500)
-  val heartbeatInterval: Duration = Duration.seconds(5)
-  val qgjStatusPollInterval: Duration = Duration.seconds(1)
-  val commandAckTimeout: Duration = Duration.seconds(5)
-  val fccReadbackDelay: Duration = Duration.milliseconds(200)
-  val fccRetryDelay: Duration = Duration.milliseconds(500)
-  val locationCaptureTimeout: Duration = Duration.seconds(8)
-  val silentLocationThrottle: Duration = Duration.seconds(60)
-  val qgjSearchCountdown: Duration = Duration.seconds(30)
-  val gpsSearchCountdown: Duration = Duration.seconds(6)
-  val gattOperationTimeout: Duration = Duration.seconds(30)
+  val autoConnectScanTimeout: Duration = 8.seconds
+  val manualScanTimeout: Duration = 30.seconds
+  val proximityScanTimeout: Duration = 30.seconds
+  val serviceSetupDelay: Duration = 500.milliseconds
+  val heartbeatInitialDelay: Duration = 500.milliseconds
+  val heartbeatInterval: Duration = 5.seconds
+  val qgjStatusPollInterval: Duration = 1.seconds
+  val commandAckTimeout: Duration = 5.seconds
+  val fccReadbackDelay: Duration = 200.milliseconds
+  val fccRetryDelay: Duration = 500.milliseconds
+  val locationCaptureTimeout: Duration = 8.seconds
+  val silentLocationThrottle: Duration = 60.seconds
+  val qgjSearchCountdown: Duration = 30.seconds
+  val gpsSearchCountdown: Duration = 6.seconds
+  val gattOperationTimeout: Duration = 30.seconds
 
   /**
    * Max time to wait for the device to deliver the token (standard) or QGJ
@@ -155,7 +155,7 @@ object BleTimings {
    * reconnection is attempted — prevents the UI from hanging on
    * "连接中" forever when a device silently drops the handshake.
    */
-  val readyHandshakeTimeout: Duration = Duration.seconds(8)
+  val readyHandshakeTimeout: Duration = 8.seconds
 }
 
 /** Port of Dart `class QgjCommandHeaders`. */

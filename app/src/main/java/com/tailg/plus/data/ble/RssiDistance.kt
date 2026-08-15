@@ -40,7 +40,7 @@ const val defaultMaxDistanceM = 3.0
 const val rssiSampleWindow = 10
 
 /** Dart `rssiPollInterval` — poll interval matching `Thread.sleep(200)` in `startReadRssi`. */
-val rssiPollInterval: Duration = Duration.milliseconds(200)
+val rssiPollInterval: Duration = 200.milliseconds
 
 /**
  * Port of Dart `estimateDistanceFromRssiSamples` — log-distance path-loss model.

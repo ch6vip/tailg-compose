@@ -3,6 +3,7 @@ package com.tailg.plus.data.cloud
 import com.tailg.plus.util.SensitiveTextRedactor
 import com.tailg.plus.util.SensitiveValueMasker
 import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
  * Port of `lib/services/official_cloud_api_client.dart` foundation types
@@ -11,7 +12,7 @@ import okhttp3.HttpUrl
  * [OfficialCloudApiClient].
  */
 class OfficialCloudApiException(
-    val message: String,
+    override val message: String,
     val statusCode: Int? = null,
 ) : Exception(message) {
     override fun toString(): String = message

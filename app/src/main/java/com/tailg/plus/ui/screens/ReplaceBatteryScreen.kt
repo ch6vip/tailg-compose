@@ -577,7 +577,7 @@ private fun BindDatePickerDialog(
   val state = rememberDatePickerState(
     initialSelectedDateMillis = currentDate?.toEpochDay()?.let { it * 24L * 60L * 60L * 1000L },
   )
-  DatePickerDialog(
+  androidx.compose.material3.AlertDialog(
     onDismissRequest = onDismiss,
     confirmButton = {
       Button(
@@ -589,6 +589,12 @@ private fun BindDatePickerDialog(
         },
         colors = cyberFilledButtonColors(),
       ) { Text("确定") }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) { Text("取消") }
+    },
+    text = {
+      DatePicker(state = state)
     },
   )
 }

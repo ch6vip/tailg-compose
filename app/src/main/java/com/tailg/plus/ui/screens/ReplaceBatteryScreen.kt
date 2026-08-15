@@ -588,14 +588,14 @@ private fun BindDatePickerDialog(
           }
         },
         colors = cyberFilledButtonColors(),
-      ) {
-        Text("确定")
-      }
+        content = { Text("确定") },
+      )
     },
     dismissButton = @Composable {
-      TextButton(onClick = onDismiss) {
-        Text("取消", color = CyberHomeColors.inkMuted)
-      }
+      TextButton(
+        onClick = onDismiss,
+        content = { Text("取消", color = CyberHomeColors.inkMuted) },
+      )
     },
   )
 }

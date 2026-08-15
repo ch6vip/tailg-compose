@@ -210,7 +210,7 @@ private class FusedLocationProvider(
                 val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 task.addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                 task.addOnFailureListener { e -> if (cont.isActive) cont.resumeWithException(e) }
-                task.addOnCanceledListener { if (cont.isActive) cont.cancel(CancellationException("Location task canceled")) }
+                task.addOnCanceledListener { if (cont.isActive) cont.resumeWithException(CancellationException("Location task canceled")) }
                 cont.invokeOnCancellation { task.cancel() }
             }
         } ?: throw TimeoutException("定位超时: ${timeout.inWholeSeconds}s 内未获取到位置")

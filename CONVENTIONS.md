@@ -28,6 +28,9 @@ this Kotlin + Compose project. **All subagent ports MUST follow this file.**
 - Keep the Dart name where possible (`VehicleStatus`, `ControlCommandType`).
 - Protocol constants keep their exact official values; `const_identifier_names` is intentionally NOT enforced.
 - **No emoji anywhere.** Icons come from Material icons for now (Lucide swap is a later cosmetic pass).
+- **Kotlin comments nest block comments**: NEVER write a literal `/*` inside a KDoc/comment
+  (e.g. `` `lib/models/*` `` or `` `app/device/cmd/*` ``). Reword to avoid the `/*` sequence,
+  otherwise the outer comment never closes and compilation fails with "Unclosed comment".
 
 ## Data modeling
 

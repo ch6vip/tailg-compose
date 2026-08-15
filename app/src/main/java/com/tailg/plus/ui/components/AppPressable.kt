@@ -4,6 +4,7 @@ import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
@@ -55,6 +56,8 @@ fun AppPressable(
   pressedShadowElevation: Dp? = null,
   shadowColor: Color = Color.Transparent,
   pressedShadowColor: Color? = null,
+  borderWidth: Dp = 0.dp,
+  borderColor: Color = Color.Transparent,
   haptic: Boolean = true,
   semanticsLabel: String? = null,
   semanticsButton: Boolean = true,
@@ -122,6 +125,7 @@ fun AppPressable(
       )
       .clip(shape)
       .background(bg)
+      .then(if (borderWidth > 0.dp) Modifier.border(borderWidth, borderColor, shape) else Modifier)
       .then(roleModifier)
       .then(semanticsModifier)
       .combinedClickable(

@@ -2,7 +2,7 @@
  * Port of `lib/models/command_types.dart` (tailg-ble-app) → package `com.tailg.plus.data.ble`.
  *
  * `lib/ble/constants.dart` re-exports this enum (`export '../models/command_types.dart'
- * show CommandCode;`). Per CONVENTIONS.md, `lib/models/*` belongs in
+ * show CommandCode;`). Per CONVENTIONS.md, `lib/models` (directory) belongs in
  * `com.tailg.plus.data.model`; this copy lives in the BLE package so the BLE protocol
  * layer compiles standalone. When the `data.model` port lands, move this file there and
  * re-export/alias from the BLE package.

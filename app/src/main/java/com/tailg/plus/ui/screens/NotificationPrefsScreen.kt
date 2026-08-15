@@ -39,7 +39,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberPageHeader
@@ -58,11 +57,9 @@ import kotlinx.coroutines.launch
  * per entry, and persists changes via `setMessagePushConfig()`. Here the same
  * flow is reproduced with a `remember`-held mutable map and a coroutine scope.
  *
- * Service access: [OfficialCloudService] requires storage / api client / vehicle
- * store collaborators that are not yet wired through Hilt at this screen's call
- * site (the NavHost invokes it with only `onBack`). When [cloudService] is null
- * the screen renders a placeholder with a TODO; once Hilt provides the shared
- * instance, pass it here (mirrors `VehicleSettingsScreen`).
+ * Service access: [OfficialCloudService] is obtained via
+ * [rememberOfficialCloudService] (constructs storage / api client / vehicle
+ * store from the current context until Hilt is wired).
  *
  * Token mapping (Dart → Compose): `CyberHomeColors.card/line/primary/...` are
  * used 1:1; `AppRadii.tile` for card radius; `Lucide.*` for row icons.
@@ -70,8 +67,8 @@ import kotlinx.coroutines.launch
 @Composable
 fun NotificationPrefsScreen(
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
 ) {
+  val cloudService = rememberOfficialCloudService()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
@@ -82,10 +79,6 @@ fun NotificationPrefsScreen(
 
   // Dart `initState` → `unawaited(_load())`.
   LaunchedEffect(cloudService) {
-    if (cloudService == null) {
-      loading = false
-      return@LaunchedEffect
-    }
     loading = true
     error = null
     try {
@@ -109,11 +102,6 @@ fun NotificationPrefsScreen(
       CyberPageHeader(title = "通知偏好", onBack = onBack)
       Box(modifier = Modifier.fillMaxSize()) {
         when {
-          cloudService == null -> NotificationPlaceholder(
-            icon = Lucide.cloudOff,
-            title = "通知偏好暂未开放",
-            subtitle = "官方云端服务尚未接入，待 Hilt 注入后可加载消息开关。",
-          )
           loading -> LoadingState()
           error != null -> NotificationState(
             icon = Lucide.wifiOff,
@@ -336,52 +324,6 @@ private fun NotificationState(
         Text(actionLabel)
       }
     }
-  }
-}
-
-/** Placeholder shown when the cloud service is not yet wired (TODO: Hilt). */
-@Composable
-private fun NotificationPlaceholder(
-  icon: ImageVector,
-  title: String,
-  subtitle: String,
-) {
-  Column(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(horizontal = 36.dp, vertical = 28.dp),
-    horizontalAlignment = Alignment.CenterHorizontally,
-    verticalArrangement = Arrangement.Center,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(64.dp)
-        .clip(CircleShape)
-        .background(CyberHomeColors.card),
-      contentAlignment = Alignment.Center,
-    ) {
-      LucideIcon(icon = icon, size = 28.dp, color = CyberHomeColors.inkMuted)
-    }
-    Spacer(Modifier.height(16.dp))
-    Text(
-      text = title,
-      textAlign = TextAlign.Center,
-      style = TextStyle(
-        fontSize = 18.sp,
-        fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
-      ),
-    )
-    Spacer(Modifier.height(7.dp))
-    Text(
-      text = subtitle,
-      textAlign = TextAlign.Center,
-      style = TextStyle(
-        fontSize = 13.sp,
-        lineHeight = 13.sp * 1.45f,
-        color = CyberHomeColors.inkMuted,
-      ),
-    )
   }
 }
 

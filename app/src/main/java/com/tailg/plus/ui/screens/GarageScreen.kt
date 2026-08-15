@@ -22,9 +22,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -888,7 +889,7 @@ private fun GarageAddBar(label: String, onTap: () -> Unit) {
       .background(CyberHomeColors.pageBg)
       .padding(start = 40.dp, top = 10.dp, end = 40.dp, bottom = 14.dp),
   ) {
-    FilledButton(
+    Button(
       onClick = onTap,
       modifier = Modifier
         .fillMaxWidth()
@@ -970,7 +971,7 @@ private fun GarageMessage(
       )
       if (actionLabel != null && onAction != null) {
         Spacer(Modifier.height(18.dp))
-        FilledButton(
+        Button(
           onClick = onAction,
           colors = cyberFilledButtonColors(),
           shape = cyberButtonShape,

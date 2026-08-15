@@ -2,8 +2,6 @@ package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -20,6 +18,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DatePickerDialog
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -29,6 +28,8 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -104,6 +105,7 @@ fun ReplaceBatteryScreen(
 
   var voltage by remember { mutableStateOf("") }
   var ah by remember { mutableStateOf("") }
+  var showDatePicker by remember { mutableStateOf(false) }
 
   val vehicle = cloudService.currentState.selectedVehicle
 
@@ -330,10 +332,7 @@ fun ReplaceBatteryScreen(
             AppPressable(
               onClick = {
                 if (!submitting) {
-                  showDatePicker(
-                    currentDate = bindDate,
-                    onPick = { picked -> bindDate = picked },
-                  )
+                  showDatePicker = true
                 }
               },
               enabled = !submitting,
@@ -462,6 +461,17 @@ fun ReplaceBatteryScreen(
       }
     }
   }
+
+  if (showDatePicker) {
+    BindDatePickerDialog(
+      currentDate = bindDate,
+      onDismiss = { showDatePicker = false },
+      onPick = { picked ->
+        bindDate = picked
+        showDatePicker = false
+      },
+    )
+  }
 }
 
 private suspend fun bootstrap(
@@ -558,14 +568,35 @@ private fun SectionCard(
   }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun showDatePicker(
+private fun BindDatePickerDialog(
   currentDate: LocalDate?,
+  onDismiss: () -> Unit,
   onPick: (LocalDate) -> Unit,
 ) {
-  // TODO: integrate Material3 DatePickerDialog once the project targets a
-  // Compose version with a stable date picker. For now this is a no-op
-  // placeholder; the bind date stays as-is when the row is tapped.
-  // The real implementation should show a DatePickerDialog and call onPick
-  // with the selected date.
+  val state = rememberDatePickerState(
+    initialSelectedDateMillis = currentDate?.toEpochDay()?.let { it * 24L * 60L * 60L * 1000L },
+  )
+  DatePickerDialog(
+    onDismissRequest = onDismiss,
+    confirmButton = {
+      Button(
+        onClick = {
+          val millis = state.selectedDateMillis
+          if (millis != null) {
+            onPick(LocalDate.ofEpochDay(millis / (24L * 60L * 60L * 1000L)))
+          }
+        },
+        colors = cyberFilledButtonColors(),
+      ) {
+        Text("确定")
+      }
+    },
+    dismissButton = {
+      TextButton(onClick = onDismiss) {
+        Text("取消", color = CyberHomeColors.inkMuted)
+      }
+    },
+  )
 }

@@ -57,12 +57,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.NfcKeyRecord
 import com.tailg.plus.data.model.ShareMemberRecord
 import com.tailg.plus.data.model.FenceConfig
 import com.tailg.plus.data.model.VehicleLocation
 import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
+import com.tailg.plus.log.LogCategory
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.service.BleNfcService
@@ -442,7 +444,7 @@ private fun NfcKeyEditDialog(
               .fillMaxWidth()
               .menuAnchor(),
           )
-          androidx.compose.material3.ExposedDropdownMenu(
+          androidx.compose.material3.DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
           ) {
@@ -955,7 +957,7 @@ private fun RideRecordTab(
   val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
   val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: "未绑定"
   val logs = remember(log) {
-    log.byCategory(com.tailg.plus.log.LogCategory.OPERATION).takeLast(12).reversed()
+    log.byCategory(LogCategory.OPERATION).takeLast(12).reversed()
   }
 
   LazyColumn(

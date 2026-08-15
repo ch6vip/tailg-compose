@@ -31,7 +31,8 @@ app/src/main/java/com/tailg/plus/
 | 阶段 | 状态 |
 |------|------|
 | 工程骨架 + M3 主题 + CI | ✅ |
-| 模型 / 平台层（BLE/MQTT/云） | ⏳ |
-| 服务层（48 个服务移植） | ⏳ |
-| UI 29 页 | ⏳ |
-| 测试移植 | ⏳ |
+| 模型 / 平台层（BLE/MQTT/云） | ✅ |
+| 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
+| UI 30 页 + 导航图 | ✅ |
+| 测试移植 | ✅ (19 个测试文件) |
+| CI 编译通过 | 🔧 修复中 |

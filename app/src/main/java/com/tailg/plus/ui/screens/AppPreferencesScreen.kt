@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -37,9 +37,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.OfficialCloudApiClient
-import com.tailg.plus.data.cloud.OfficialCloudService
-import com.tailg.plus.data.cloud.OfficialCloudStorage
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
@@ -93,7 +90,7 @@ fun LanguageSettingsScreen(
   }
 
   val confirm: () -> Unit = {
-    if (saving) return
+    if (saving) return@confirm
     saving = true
     scope.launch {
       prefs.setLanguage(selected)
@@ -136,7 +133,7 @@ fun LanguageSettingsScreen(
           .fillMaxWidth()
           .padding(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 20.dp),
       ) {
-        FilledButton(
+        Button(
           onClick = confirm,
           enabled = !saving,
           shape = cyberButtonShape,
@@ -219,13 +216,7 @@ fun AboutAppScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  val cloud = remember {
-    OfficialCloudService(
-      storage = OfficialCloudStorage(context),
-      apiClient = OfficialCloudApiClient(),
-      vehicleStore = VehicleStore(context),
-    )
-  }
+  val cloud = rememberOfficialCloudService()
   val vehicleStore = remember { VehicleStore(context) }
   val exportService = remember {
     DiagnosticExportService(

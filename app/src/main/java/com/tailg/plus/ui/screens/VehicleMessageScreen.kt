@@ -19,7 +19,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.HorizontalPager
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
@@ -719,7 +720,7 @@ private fun MessageState(
       }
       if (actionLabel != null && onAction != null) {
         Spacer(Modifier.height(18.dp))
-        FilledButton(
+        Button(
           onClick = onAction,
           modifier = Modifier.width(148.dp).height(46.dp),
           colors = cyberFilledButtonColors(),
@@ -772,7 +773,7 @@ private fun MessageDetailSheet(
         ))
       }
       Spacer(Modifier.height(18.dp))
-      FilledButton(
+      Button(
         onClick = onDismiss,
         modifier = Modifier.fillMaxWidth().height(48.dp),
         colors = cyberFilledButtonColors(),

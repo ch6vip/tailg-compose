@@ -18,7 +18,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
@@ -43,9 +44,6 @@ import com.tailg.plus.log.LogEntry
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.service.DiagnosticExportService
-import com.tailg.plus.data.cloud.OfficialCloudApiClient
-import com.tailg.plus.data.cloud.OfficialCloudService
-import com.tailg.plus.data.cloud.OfficialCloudStorage
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberEmptyState
@@ -85,13 +83,7 @@ fun LogScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  val cloud = remember {
-    OfficialCloudService(
-      storage = OfficialCloudStorage(context),
-      apiClient = OfficialCloudApiClient(),
-      vehicleStore = VehicleStore(context),
-    )
-  }
+  val cloud = rememberOfficialCloudService()
   val vehicleStore = remember { VehicleStore(context) }
   val exportService = remember {
     DiagnosticExportService(
@@ -131,7 +123,7 @@ fun LogScreen(
       title = { Text("清空日志") },
       text = { Text("清空后无法恢复。") },
       confirmButton = {
-        FilledButton(
+        Button(
           onClick = {
             showClearDialog = false
             log.clear()

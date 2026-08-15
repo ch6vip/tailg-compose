@@ -42,7 +42,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.platform.ConnectionManager
-import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.permission.AppPermissionService
 import com.tailg.plus.service.DataStoreInductionPrefs
 import com.tailg.plus.service.InductionModeService
@@ -71,11 +70,10 @@ import kotlinx.coroutines.launch
  *
  * Service access: [InductionModeService] needs a [ConnectionManager] (Android
  * BLE wrapper) and an [com.tailg.plus.service.InductionPrefs]; both are
- * constructable from the current [android.content.Context]. The optional
- * [OfficialCloudService] supplies the selected vehicle for `bindVehicle`; when
- * null the screen binds with nulls and the induction service falls back to
- * `resolveStack` from the live BLE protocol. [AppPermissionService] is used
- * only on the RSSI path to request notification permission.
+ * constructable from the current [android.content.Context]. [OfficialCloudService]
+ * is obtained via [rememberOfficialCloudService] and supplies the
+ * selected vehicle for `bindVehicle`. [AppPermissionService] is used only on the
+ * RSSI path to request notification permission.
  *
  * Token mapping (Dart → Compose): `CyberHomeColors.*` 1:1; `AppRadii.tile` for
  * card radius; `Lucide.sensors/pointer/bluetooth/alertCircle/refresh` for
@@ -88,9 +86,9 @@ import kotlinx.coroutines.launch
 fun InductionSettingsScreen(
   vehicleId: String,
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
 ) {
   val context = LocalContext.current
+  val cloudService = rememberOfficialCloudService()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
@@ -119,7 +117,7 @@ fun InductionSettingsScreen(
 
   // Dart `initState`: bind vehicle, seed snapshot, init manual mode, refresh.
   LaunchedEffect(Unit) {
-    val vehicle = cloudService?.currentState?.selectedVehicle
+    val vehicle = cloudService.currentState.selectedVehicle
     inductionService.bindVehicle(
       modelType = vehicle?.modelType,
       carId = vehicle?.carId,

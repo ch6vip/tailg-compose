@@ -50,7 +50,6 @@ import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.OfficialVehicle
-import com.tailg.plus.data.model.OfficialVehicleSelfCheck
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
@@ -68,7 +67,6 @@ import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
-import com.tailg.plus.util.SensitiveValueMasker
 import com.tailg.plus.util.SmsCountdown
 import kotlinx.coroutines.launch
 
@@ -175,7 +173,6 @@ fun OfficialCloudScreen(
         item {
           VehicleListCard(
             state = cloudState,
-            cloudService = cloudService,
             onNavigate = onNavigate,
             onSelectVehicle = { vehicle ->
               scope.launch {
@@ -361,7 +358,6 @@ private fun LoginCard(
 @Composable
 private fun VehicleListCard(
   state: OfficialCloudState,
-  cloudService: OfficialCloudService,
   onNavigate: (String) -> Unit,
   onSelectVehicle: (OfficialVehicle) -> Unit,
 ) {

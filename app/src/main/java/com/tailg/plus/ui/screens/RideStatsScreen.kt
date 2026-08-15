@@ -16,7 +16,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -42,6 +44,9 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.model.OfficialRidePeriod
 import com.tailg.plus.data.model.OfficialRideStatistics
+import com.tailg.plus.data.model.carbonTitle
+import com.tailg.plus.data.model.mileageTitle
+import com.tailg.plus.data.model.tabLabel
 import com.tailg.plus.ui.components.AnimatedValueText
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.Lucide
@@ -639,7 +644,7 @@ private fun GateState(
         style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted, lineHeight = 13.sp * 1.45f),
       )
       Spacer(Modifier.height(14.dp))
-      FilledButton(
+      Button(
         onClick = onAction,
         modifier = Modifier.width(120.dp).height(48.dp),
         colors = cyberFilledButtonColors(),
@@ -678,6 +683,7 @@ private fun ErrorState(
 
 // ── Info sheet ────────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun InfoSheet(
   title: String,

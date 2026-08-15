@@ -15,7 +15,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.FilledButton
+import androidx.compose.material3.Button
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
@@ -32,11 +32,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.data.ble.platform.ConnectionManager
-import com.tailg.plus.data.cloud.OfficialCloudApiClient
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
-import com.tailg.plus.data.cloud.OfficialCloudStorage
-import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.service.FirmwareOtaPhase
 import com.tailg.plus.service.FirmwareOtaProgress
 import com.tailg.plus.service.FirmwareOtaService
@@ -70,13 +67,7 @@ fun FirmwareOtaScreen(
   connectionManager: ConnectionManager? = null,
 ) {
   val context = LocalContext.current
-  val cloud = remember(cloudService) {
-    cloudService ?: OfficialCloudService(
-      storage = OfficialCloudStorage(context),
-      apiClient = OfficialCloudApiClient(),
-      vehicleStore = VehicleStore(context),
-    )
-  }
+  val cloud = cloudService ?: rememberOfficialCloudService()
   val connection = remember(connectionManager) { connectionManager ?: ConnectionManager(context) }
   val ota = remember(cloud, connection) { FirmwareOtaService(cloud = cloud, connectionManager = connection) }
   val snackbarHostState = remember { SnackbarHostState() }
@@ -88,7 +79,7 @@ fun FirmwareOtaScreen(
   var running by remember { mutableStateOf(false) }
 
   val start: () -> Unit = {
-    if (running) return
+    if (running) return@start
     running = true
     progress = FirmwareOtaProgress(FirmwareOtaPhase.QUERYING, 0.0, "启动…")
     scope.launch {
@@ -160,7 +151,7 @@ fun FirmwareOtaScreen(
             style = cyberCaptionStyle,
           )
           Spacer(Modifier.height(16.dp))
-          FilledButton(
+          Button(
             onClick = start,
             enabled = !running,
             shape = cyberButtonShape,

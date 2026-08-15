@@ -29,7 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.BikeState
-import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
@@ -38,6 +37,7 @@ import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.cloud.resolveVehicleLocation
 import com.tailg.plus.data.model.BatterySnapshot
+import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.ControlCommandActivityLog
 import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.data.model.OfficialVehicle
@@ -45,6 +45,7 @@ import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
+import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.domain.control.ControlCommandExecutor
 import com.tailg.plus.domain.control.ControlCommandPolicy
 import com.tailg.plus.domain.control.ControlCommandResult
@@ -110,7 +111,7 @@ fun ControlScreen(
 
   val commandExecutor = remember {
     ControlCommandExecutor(
-      sendBleCommand = { command -> connectionManager.sendCommand(command) },
+      sendBleCommand = { command -> connectionManager.sendCommand(command.toBleCommandCode()) },
       sendCloudCommand = { command -> mqttService.sendCommandPreferMqtt(command, cloudService) },
     )
   }
@@ -137,7 +138,7 @@ fun ControlScreen(
 
   val controlAvailability = remember(cloudState, bleState, busy, controlChannel, networkReady) {
     ControlChannelResolver.resolve(
-      cloudState = cloudState,
+      cloudState = cloudState.asControlCloudState(),
       bleReady = connectionManager.isProtocolLoggedIn,
       bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
       defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -161,7 +162,7 @@ fun ControlScreen(
   val findAvailability = remember(cloudState, controlChannel) {
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
-        cloudState = cloudState,
+        cloudState = cloudState.asControlCloudState(),
         bleReady = connectionManager.isProtocolLoggedIn,
         bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
         defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -178,7 +179,7 @@ fun ControlScreen(
     val cmd = if (isPowerOn == true) CommandCode.POWER_OFF else CommandCode.POWER_ON
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
-        cloudState = cloudState,
+        cloudState = cloudState.asControlCloudState(),
         bleReady = connectionManager.isProtocolLoggedIn,
         bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
         defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -195,7 +196,7 @@ fun ControlScreen(
     val cmd = if (isArmed == true) CommandCode.UNLOCK else CommandCode.LOCK
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
-        cloudState = cloudState,
+        cloudState = cloudState.asControlCloudState(),
         bleReady = connectionManager.isProtocolLoggedIn,
         bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
         defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -211,7 +212,7 @@ fun ControlScreen(
   val seatAvailability = remember(cloudState, controlChannel) {
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
-        cloudState = cloudState,
+        cloudState = cloudState.asControlCloudState(),
         bleReady = connectionManager.isProtocolLoggedIn,
         bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
         defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -359,12 +360,12 @@ fun ControlScreen(
       item {
         Column {
           when (gateKind) {
-            VehicleControlHomeGateKind.SIGNED_OUT -> VehicleControlGateBanner(
+            VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
               title = "请先登录官方账号",
               actionLabel = "去登录",
               onAction = { onNavigate("login") },
             )
-            VehicleControlHomeGateKind.LOADING -> {
+            VehicleControlHomeGateKind.Loading -> {
               VehicleControlGateBanner(
                 title = "正在同步官方车辆…",
                 actionLabel = "刷新中",
@@ -374,17 +375,17 @@ fun ControlScreen(
               Spacer(Modifier.height(18.dp))
               CyberHomeSkeleton()
             }
-            VehicleControlHomeGateKind.ERROR -> VehicleControlGateBanner(
+            VehicleControlHomeGateKind.Error -> VehicleControlGateBanner(
               title = cloudState.error?.trim()?.ifEmpty { null } ?: "车辆同步失败，请重试",
               actionLabel = "重试",
               onAction = { handleRefresh() },
             )
-            VehicleControlHomeGateKind.NO_VEHICLE -> VehicleControlGateBanner(
+            VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
               title = "暂无车辆，请先同步官方车辆",
               actionLabel = "添加车辆",
               onAction = { onNavigate("add_vehicle") },
             )
-            VehicleControlHomeGateKind.NEAR_FIELD, VehicleControlHomeGateKind.NONE -> {}
+            VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
           }
         }
       }
@@ -428,7 +429,7 @@ fun ControlScreen(
             powered = isPowerOn,
             armed = isArmed,
             busy = busy,
-            activeCommand = activeCommand,
+            activeCommand = activeCommand?.toBleCommandCode(),
             findAvailability = findAvailability,
             powerAvailability = powerAvailability,
             armAvailability = armAvailability,
@@ -600,4 +601,34 @@ private fun CyberHomeSkeleton() {
         .background(CyberHomeColors.mapPlaceholder),
     )
   }
+}
+
+private fun OfficialCloudState.asControlCloudState(): ControlCloudState = object : ControlCloudState {
+  override val signedIn: Boolean get() = this@asControlCloudState.signedIn
+  override val selectedVehicle: OfficialVehicle? get() = this@asControlCloudState.selectedVehicle
+  override fun linkedLocalVehicleId(officialVehicleKey: String): String? =
+    this@asControlCloudState.linkedLocalVehicleId(officialVehicleKey)
+}
+
+private fun CommandCode.toBleCommandCode(): com.tailg.plus.data.ble.CommandCode =
+  when (this) {
+    CommandCode.LOCK -> com.tailg.plus.data.ble.CommandCode.lock
+    CommandCode.UNLOCK -> com.tailg.plus.data.ble.CommandCode.unlock
+    CommandCode.OPEN_SEAT -> com.tailg.plus.data.ble.CommandCode.openSeat
+    CommandCode.POWER_ON -> com.tailg.plus.data.ble.CommandCode.powerOn
+    CommandCode.POWER_OFF -> com.tailg.plus.data.ble.CommandCode.powerOff
+    CommandCode.FIND -> com.tailg.plus.data.ble.CommandCode.find
+    CommandCode.READ_STATE -> com.tailg.plus.data.ble.CommandCode.readState
+    CommandCode.READ_ANTI_THEFT -> com.tailg.plus.data.ble.CommandCode.readAntiTheft
+  }
+
+private fun CommandCode.toBleCommandCode(): com.tailg.plus.data.ble.CommandCode = when (this) {
+  CommandCode.LOCK -> com.tailg.plus.data.ble.CommandCode.lock
+  CommandCode.UNLOCK -> com.tailg.plus.data.ble.CommandCode.unlock
+  CommandCode.OPEN_SEAT -> com.tailg.plus.data.ble.CommandCode.openSeat
+  CommandCode.POWER_ON -> com.tailg.plus.data.ble.CommandCode.powerOn
+  CommandCode.POWER_OFF -> com.tailg.plus.data.ble.CommandCode.powerOff
+  CommandCode.FIND -> com.tailg.plus.data.ble.CommandCode.find
+  CommandCode.READ_STATE -> com.tailg.plus.data.ble.CommandCode.readState
+  CommandCode.READ_ANTI_THEFT -> com.tailg.plus.data.ble.CommandCode.readAntiTheft
 }

@@ -11,8 +11,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilledButton
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -33,12 +33,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.tailg.plus.data.cloud.OfficialCloudApiClient
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
-import com.tailg.plus.data.cloud.OfficialCloudStorage
-import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppSnack
@@ -74,13 +71,7 @@ fun CloudTokenScreen(
   cloudService: OfficialCloudService? = null,
 ) {
   val context = LocalContext.current
-  val cloud = remember(cloudService) {
-    cloudService ?: OfficialCloudService(
-      storage = OfficialCloudStorage(context),
-      apiClient = OfficialCloudApiClient(),
-      vehicleStore = VehicleStore(context),
-    )
-  }
+  val cloud = cloudService ?: rememberOfficialCloudService()
   val log = remember { LogService() }
   val clipboard = remember { ClipboardText(context) }
   val snackbarHostState = remember { SnackbarHostState() }
@@ -113,18 +104,18 @@ fun CloudTokenScreen(
     val text = clipboard.readClipboardText()
     if (text == null) {
       AppSnack.info(scope, snackbarHostState, "剪贴板为空")
-      return
+      return@pasteFromClipboard
     }
     tokenText = text
     AppSnack.success(scope, snackbarHostState, "已从剪贴板粘贴")
   }
 
   val loginWithToken: () -> Unit = {
-    if (busy) return
+    if (busy) return@loginWithToken
     val raw = tokenText.trim()
     if (raw.isEmpty()) {
       AppSnack.info(scope, snackbarHostState, "请先粘贴 Token")
-      return
+      return@loginWithToken
     }
     scope.launch {
       busy = true
@@ -234,7 +225,7 @@ fun CloudTokenScreen(
             modifier = Modifier.fillMaxWidth(),
           )
           Spacer(Modifier.height(12.dp))
-          FilledButton(
+          Button(
             onClick = loginWithToken,
             enabled = !loading,
             shape = cyberButtonShape,

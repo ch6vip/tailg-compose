@@ -35,6 +35,7 @@ import com.tailg.plus.ui.screens.OfficialCloudScreen
 import com.tailg.plus.ui.screens.OfficialReplicaScreen
 import com.tailg.plus.ui.screens.ProfileMineScreen
 import com.tailg.plus.ui.screens.QgjSettingsScreen
+import com.tailg.plus.ui.screens.ReplaceBatteryScreen
 import com.tailg.plus.ui.screens.RideStatsScreen
 import com.tailg.plus.ui.screens.ScanScreen
 import com.tailg.plus.ui.screens.ServiceHubScreen
@@ -181,6 +182,9 @@ fun TailgNavHost() {
       ) { entry ->
         LocationScreen(
           cloudService = cloudService,
+          vehicleStore = com.tailg.plus.data.store.VehicleStore(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
           onBack = { navController.popBackStack() },
         )
       }
@@ -312,6 +316,12 @@ fun TailgNavHost() {
       composable(Routes.OFFICIAL_REPLICA) {
         OfficialReplicaScreen(
           cloudService = cloudService,
+          vehicleStore = com.tailg.plus.data.store.VehicleStore(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
+          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
+            context = androidx.compose.ui.platform.LocalContext.current,
+          ),
           onBack = { navController.popBackStack() },
         )
       }

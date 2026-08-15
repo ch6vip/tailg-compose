@@ -211,7 +211,8 @@ private class FusedLocationProvider(
                 task.addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                 task.addOnFailureListener { e -> if (cont.isActive) cont.resumeWithException(e) }
                 task.addOnCanceledListener { if (cont.isActive) cont.resumeWithException(CancellationException("Location task canceled")) }
-                cont.invokeOnCancellation { task.cancel() }
+                // Google Play Services Task has no cancel(); the timeout or
+                // addOnCanceledListener above handles cleanup.
             }
         } ?: throw TimeoutException("定位超时: ${timeout.inWholeSeconds}s 内未获取到位置")
         return GeoPosition(

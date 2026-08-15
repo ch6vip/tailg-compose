@@ -16,6 +16,7 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
+import androidx.compose.material3.SingleChoiceSegmentedButtonRowScope
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
@@ -194,7 +195,7 @@ fun ControlAndUnlockCard(
 }
 
 @Composable
-private fun Segment(
+private fun SingleChoiceSegmentedButtonRowScope.Segment(
   value: OfficialControlChannel,
   label: String,
   selected: OfficialControlChannel,

@@ -611,7 +611,7 @@ class InductionModeService(
     if (_rssiSamples.size < rssiSampleWindow) return
 
     val distance = estimateDistanceFromRssiSamples(
-      _rssiSamples,
+      _rssiSamples.toList(),
       rssiA = _rssiCalibration.rssiA,
       rssiFactor = _rssiCalibration.rssiFactor,
     )

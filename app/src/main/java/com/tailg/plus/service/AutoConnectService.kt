@@ -353,8 +353,8 @@ class AutoConnectService(
       log.operation("自动连接: 已开启手动模式，跳过", level = LogLevel.INFO)
       return
     }
-    val targetDeviceId = lastDeviceId
-    val targetDeviceName = lastDeviceName
+    val targetDeviceId = _lastDeviceId
+    val targetDeviceName = _lastDeviceName
     val targetContext = _officialContext
     _scanContext = targetContext
     if (!enabled || targetDeviceId == null) return

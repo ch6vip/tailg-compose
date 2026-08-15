@@ -1,6 +1,7 @@
 package com.tailg.plus.service
 
 import android.content.Context
+import android.location.Location
 import androidx.activity.ComponentActivity
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
@@ -204,7 +205,7 @@ private class FusedLocationProvider(
     override suspend fun getCurrentPosition(): GeoPosition {
         val client = LocationServices.getFusedLocationProviderClient(context)
         val location = withTimeoutOrNull(timeout) {
-            suspendCancellableCoroutine { cont ->
+            suspendCancellableCoroutine<Location?> { cont ->
                 val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
                 task.addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
                 task.addOnFailureListener { e -> if (cont.isActive) cont.resumeWithException(e) }

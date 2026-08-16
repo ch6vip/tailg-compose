@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -12,6 +13,8 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -63,6 +67,9 @@ import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.AppSkeleton
+import com.tailg.plus.ui.components.CyberCard
+import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberControlGrid
@@ -982,22 +989,78 @@ private fun unconfirmedMessage(command: CommandCode): String = when (command) {
 
 @Composable
 private fun CyberHomeSkeleton() {
+  // Dart `_CyberHomeSkeleton`: hero card + control grid (3 circles) + map placeholder.
+  val base = CyberHomeColors.control
+  val highlight = CyberHomeColors.cardMuted
   Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-    Box(
-      modifier = Modifier
-        .height(300.dp)
-        .background(CyberHomeColors.card),
-    )
+    // Hero skeleton.
+    CyberCard(modifier = Modifier.height(300.dp)) {
+      Column(horizontalAlignment = Alignment.Start) {
+        AppSkeleton(
+          width = 160.dp,
+          height = 22.dp,
+          baseColor = base,
+          highlightColor = highlight,
+        )
+        Spacer(Modifier.height(22.dp))
+        AppSkeleton(
+          width = 110.dp,
+          height = 44.dp,
+          baseColor = base,
+          highlightColor = highlight,
+        )
+        Spacer(Modifier.weight(1f))
+        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+          AppSkeleton(
+            width = 200.dp,
+            height = 90.dp,
+            borderRadius = RoundedCornerShape(AppRadii.tile),
+            baseColor = base,
+            highlightColor = highlight,
+          )
+        }
+        Spacer(Modifier.height(16.dp))
+        AppSkeleton(
+          width = 240.dp,
+          height = 12.dp,
+          baseColor = base,
+          highlightColor = highlight,
+        )
+      }
+    }
     Spacer(Modifier.height(18.dp))
-    Box(
-      modifier = Modifier
-        .height(168.dp)
-        .background(CyberHomeColors.card),
-    )
+    // Control grid skeleton.
+    CyberCard(modifier = Modifier.height(168.dp)) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceEvenly,
+      ) {
+        repeat(3) {
+          Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            AppSkeleton(
+              width = 56.dp,
+              height = 56.dp,
+              borderRadius = CircleShape,
+              baseColor = base,
+              highlightColor = highlight,
+            )
+            Spacer(Modifier.height(12.dp))
+            AppSkeleton(
+              width = 56.dp,
+              height = 12.dp,
+              baseColor = base,
+              highlightColor = highlight,
+            )
+          }
+        }
+      }
+    }
     Spacer(Modifier.height(18.dp))
+    // Map skeleton.
     Box(
       modifier = Modifier
         .height(180.dp)
+        .clip(RoundedCornerShape(AppRadii.sheet))
         .background(CyberHomeColors.mapPlaceholder),
     )
   }

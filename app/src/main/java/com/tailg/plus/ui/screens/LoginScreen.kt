@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +19,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -46,6 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
@@ -109,6 +112,7 @@ fun LoginScreen(
   }
   var agreed by remember { mutableStateOf(false) }
   var busy by remember { mutableStateOf(false) }
+  var navigated by remember { mutableStateOf(false) }
   var mode by remember { mutableStateOf(LoginMode.SMS) }
 
   // React to signed-in state changes (Dart `_onStateChanged`). This is a
@@ -116,7 +120,8 @@ fun LoginScreen(
   // (matching the Dart original), but this catches cases where signedIn
   // changes from outside the handlers (e.g. session restore).
   LaunchedEffect(cloudState.signedIn, busy) {
-    if (cloudState.signedIn && !busy) {
+    if (!navigated && cloudState.signedIn && !busy) {
+      navigated = true
       onSignedIn(null)
     }
   }
@@ -193,6 +198,7 @@ fun LoginScreen(
                 // Navigate immediately (Dart AppSnack.success is fire-and-forget;
                 // M3 showSnackbar suspends ~4s and would block navigation). The
                 // success toast is shown by the host on the destination screen.
+                navigated = true
                 onSignedIn("登录成功")
               } catch (e: Exception) {
                 log.operation(
@@ -241,6 +247,7 @@ fun LoginScreen(
                   userId = cloudService.currentState.userId,
                 )
                 // Navigate immediately; success toast shown by the host.
+                navigated = true
                 onSignedIn("Token 登录成功")
               } catch (e: Exception) {
                 log.operation(
@@ -502,28 +509,49 @@ private fun AgreementRow(
   agreed: Boolean,
   onChanged: (Boolean) -> Unit,
 ) {
+  // Dart `_AgreementRow`: whole row is tappable (GestureDetector with opaque
+  // hit test) and the terms names are rendered in primary via RichText.
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .height(AppTouchTargets.min),
+      .height(AppTouchTargets.min)
+      .clickable(onClick = { onChanged(!agreed) }),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Checkbox(
-      checked = agreed,
-      onCheckedChange = onChanged,
-      colors = androidx.compose.material3.CheckboxDefaults.colors(
-        checkedColor = CyberHomeColors.primary,
-        uncheckedColor = CyberHomeColors.lineStrong,
-        checkmarkColor = CyberHomeColors.white,
-      ),
-    )
+    // Dart Checkbox(shape: RoundedRectangleBorder(AppRadii.xs=6dp),
+    // side: BorderSide(lineStrong)). M3 Checkbox has no shape param, so we
+    // draw the 6dp rounded-square box + check mark ourselves.
+    Box(
+      modifier = Modifier
+        .size(AppTouchTargets.min)
+        .clip(RoundedCornerShape(AppRadii.xs))
+        .background(if (agreed) CyberHomeColors.primary else Color.Transparent)
+        .border(1.dp, if (agreed) CyberHomeColors.primary else CyberHomeColors.lineStrong, RoundedCornerShape(AppRadii.xs)),
+      contentAlignment = Alignment.Center,
+    ) {
+      if (agreed) {
+        LucideIcon(icon = Lucide.check, size = 18.dp, color = CyberHomeColors.white)
+      }
+    }
     Spacer(Modifier.width(4.dp))
     Text(
-      text = "我已阅读并同意《用户协议》和《隐私政策》",
+      text = buildAnnotatedString {
+        withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
+          append("我已阅读并同意")
+        }
+        withStyle(SpanStyle(color = CyberHomeColors.primary)) {
+          append("《用户协议》")
+        }
+        withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
+          append("和")
+        }
+        withStyle(SpanStyle(color = CyberHomeColors.primary)) {
+          append("《隐私政策》")
+        }
+      },
       style = TextStyle(
         fontSize = 12.sp,
         lineHeight = 12.sp * 1.5f,
-        color = CyberHomeColors.inkMuted,
       ),
       maxLines = 2,
       overflow = TextOverflow.Ellipsis,

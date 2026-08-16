@@ -59,4 +59,55 @@ class OfficialCloudAuthParserTest {
     assertEquals("", OfficialCloudAuthParser.extractUserId(emptyMap()))
     assertEquals("", OfficialCloudAuthParser.extractUserId(mapOf("uid" to "  ")))
   }
+
+  // -- normalizeAuthorizationToken -------------------------------------------
+
+  @Test
+  fun `bare token gets Bearer prefix`() {
+    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("abc123"))
+  }
+
+  @Test
+  fun `Bearer token is preserved`() {
+    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer abc123"))
+    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("bearer abc123"))
+  }
+
+  @Test
+  fun `Authorization header line is extracted`() {
+    assertEquals(
+      "Bearer abc123",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("Authorization: Bearer abc123"),
+    )
+  }
+
+  @Test
+  fun `URL-encoded bare token is decoded and gets Bearer prefix`() {
+    // %2F=/, %2B=+, %3D==
+    assertEquals(
+      "Bearer a/b+c=",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("a%2Fb%2Bc%3D"),
+    )
+  }
+
+  @Test
+  fun `URL-encoded Bearer token is decoded`() {
+    assertEquals(
+      "Bearer a/b+c=",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer a%2Fb%2Bc%3D"),
+    )
+  }
+
+  @Test
+  fun `empty input returns empty`() {
+    assertEquals("", OfficialCloudAuthParser.normalizeAuthorizationToken(""))
+    assertEquals("", OfficialCloudAuthParser.normalizeAuthorizationToken("   "))
+  }
+
+  @Test
+  fun `real-world URL-encoded token is decoded`() {
+    val encoded = "c3fwod5KRO6B%2FPX7o6YOu81xVzPu24uGlaH5jEOudIG2d%2FKZ6i51depGp9NkWDN"
+    val expected = "Bearer c3fwod5KRO6B/PX7o6YOu81xVzPu24uGlaH5jEOudIG2d/KZ6i51depGp9NkWDN"
+    assertEquals(expected, OfficialCloudAuthParser.normalizeAuthorizationToken(encoded))
+  }
 }

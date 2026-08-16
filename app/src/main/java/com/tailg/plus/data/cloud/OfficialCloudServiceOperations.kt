@@ -921,19 +921,7 @@ internal class OfficialCloudOperationLogic(
         )
     }
 
-    /** Dart `_normalizeAuthorizationToken`. */
-    private fun normalizeAuthorizationToken(raw: String): String {
-        var token = raw.trim()
-        if (token.isEmpty()) return ""
-        val authLine = Regex("(?i)authorization\\s*:\\s*(.+)$", RegexOption.MULTILINE).find(token)
-        if (authLine != null) {
-            token = authLine.groupValues[1].trim()
-        }
-        token = Regex("\\s+").replace(token, " ").trim()
-        if (token.lowercase().startsWith("bearer ")) {
-            val value = token.substring(7).trim()
-            return if (value.isEmpty()) "" else "Bearer $value"
-        }
-        return token
-    }
+    /** Delegates to [OfficialCloudAuthParser.normalizeAuthorizationToken]. */
+    private fun normalizeAuthorizationToken(raw: String): String =
+        OfficialCloudAuthParser.normalizeAuthorizationToken(raw)
 }

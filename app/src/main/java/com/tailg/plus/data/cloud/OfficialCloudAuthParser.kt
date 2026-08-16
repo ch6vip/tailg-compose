@@ -41,6 +41,51 @@ object OfficialCloudAuthParser {
 
     fun extractUserId(body: Map<String, Any?>): String = findUserId(body) ?: ""
 
+    /**
+     * Normalize a user-pasted token into a valid `Authorization` header value.
+     *
+     * Handles three common paste formats:
+     * - `Authorization: Bearer xxx` (full header line) → extract `Bearer xxx`
+     * - `Bearer xxx` → normalize to `Bearer xxx`
+     * - bare token (possibly URL-encoded) → decode + prepend `Bearer `
+     *
+     * The official server expects `Bearer <token>` (see decompiled
+     * `PlatfromTailgRetrofit.java`). Tokens copied from URLs / cookies are
+     * often percent-encoded (`%2F`, `%2B`, `%3D`); decode them so the server
+     * receives the raw base64 value.
+     */
+    fun normalizeAuthorizationToken(raw: String): String {
+        var token = raw.trim()
+        if (token.isEmpty()) return ""
+        val authLine = Regex("(?i)authorization\\s*:\\s*(.+)$", RegexOption.MULTILINE).find(token)
+        if (authLine != null) {
+            token = authLine.groupValues[1].trim()
+        }
+        token = Regex("\\s+").replace(token, " ").trim()
+        if (token.lowercase().startsWith("bearer ")) {
+            var value = token.substring(7).trim()
+            if (value.contains("%")) {
+                value = try {
+                    java.net.URLDecoder.decode(value, "UTF-8")
+                } catch (_: Exception) {
+                    value
+                }
+            }
+            return if (value.isEmpty()) "" else "Bearer $value"
+        }
+        // Bare token: URL-decode if percent-encoded, then prepend Bearer.
+        val decoded = if (token.contains("%")) {
+            try {
+                java.net.URLDecoder.decode(token, "UTF-8")
+            } catch (_: Exception) {
+                token
+            }
+        } else {
+            token
+        }
+        return if (decoded.isEmpty()) "" else "Bearer $decoded"
+    }
+
     private fun findUserId(value: Any?): String? {
         if (value is Map<*, *>) {
             for (key in listOf("uid", "userId")) {

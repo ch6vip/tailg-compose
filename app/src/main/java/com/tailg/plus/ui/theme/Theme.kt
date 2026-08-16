@@ -1,6 +1,5 @@
 package com.tailg.plus.ui.theme
 
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
 import androidx.compose.material3.lightColorScheme
@@ -83,11 +82,13 @@ private val LightColorScheme = lightColorScheme(
 
 /**
  * Root theme — VOID COCKPIT tokens mapped onto Material 3.
- * Dark is the primary mode; light only follows the system setting.
+ * Fixed to light color scheme (Dart: ThemeMode.light). Dark scheme is kept
+ * for reference but never activated by default.
  */
 @Composable
 fun TailgTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Dart: ThemeMode.light — fixed light theme (the app is Cyber-light only).
+    darkTheme: Boolean = false,
     content: @Composable () -> Unit,
 ) {
     val colorScheme = if (darkTheme) DarkColorScheme else LightColorScheme

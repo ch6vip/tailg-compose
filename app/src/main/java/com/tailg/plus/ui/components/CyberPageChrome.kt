@@ -229,6 +229,19 @@ fun cyberTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
   focusedContainerColor = CyberHomeColors.card,
   unfocusedContainerColor = CyberHomeColors.card,
   disabledContainerColor = CyberHomeColors.cardMuted,
+  // Dart `_inputDecoration`: hintStyle = inkFaint, errorText = danger.
+  focusedPlaceholderColor = CyberHomeColors.inkFaint,
+  unfocusedPlaceholderColor = CyberHomeColors.inkFaint,
+  disabledPlaceholderColor = CyberHomeColors.inkFaint,
+  errorPlaceholderColor = CyberHomeColors.inkFaint,
+  focusedSupportingTextColor = CyberHomeColors.inkMuted,
+  unfocusedSupportingTextColor = CyberHomeColors.inkMuted,
+  disabledSupportingTextColor = CyberHomeColors.inkFaint,
+  errorSupportingTextColor = CyberHomeColors.danger,
+  focusedLabelColor = CyberHomeColors.inkMuted,
+  unfocusedLabelColor = CyberHomeColors.inkMuted,
+  disabledLabelColor = CyberHomeColors.inkFaint,
+  errorLabelColor = CyberHomeColors.danger,
 )
 
 /** Cyber outlined text-field shape (Dart `AppRadii.tile`). */

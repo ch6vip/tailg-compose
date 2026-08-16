@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanner
@@ -108,6 +109,21 @@ fun GarageCodeScannerScreen(
   LaunchedEffect(Unit) {
     if (!hasCameraPermission) {
       permissionLauncher.launch(Manifest.permission.CAMERA)
+    }
+  }
+
+  // Dart: AnnotatedRegion<SystemUiOverlayStyle> — dark scanner page needs
+  // LIGHT status/nav bar icons; restore the app's dark-icon default on exit.
+  val scannerWindow = androidx.compose.ui.platform.LocalContext.current as android.app.Activity
+  DisposableEffect(scannerWindow) {
+    val controller = WindowCompat.getInsetsController(scannerWindow.window, scannerWindow.window.decorView)
+    val prevLightStatus = controller.isAppearanceLightStatusBars
+    val prevLightNav = controller.isAppearanceLightNavigationBars
+    controller.isAppearanceLightStatusBars = false
+    controller.isAppearanceLightNavigationBars = false
+    onDispose {
+      controller.isAppearanceLightStatusBars = prevLightStatus
+      controller.isAppearanceLightNavigationBars = prevLightNav
     }
   }
 

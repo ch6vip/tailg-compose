@@ -81,6 +81,13 @@ class OfficialMqttService(
         var liveConnectEnabled: Boolean = true
 
         /**
+         * Per-topic SUBACK wait. Deliberately below the connect timeout so the
+         * lifecycle mutex cannot be held for connect + N x connect-timeout on
+         * a dead broker (logout / next command used to queue behind that).
+         */
+        private const val SUBSCRIBE_TIMEOUT_MS = 5_000L
+
+        /**
          * Compact raw error for logs/diagnostics (type + message, no stack).
          * Dart `formatConnectError` (dart:io types mapped to JVM equivalents:
          * SocketException, SSLException for Handshake/Tls, TimeoutException).
@@ -230,6 +237,14 @@ class OfficialMqttService(
             val maxAttempts = 1 + OfficialMqttConfig.PRECONNECT_MAX_RETRIES
             for (attempt in 1..maxAttempts) {
                 if (_disposed) return
+                // Stop retrying once the session moved on (sign-out, vehicle
+                // switch) — otherwise the loop reopens a session for the OLD
+                // vehicle right after disconnect().
+                val bound = _boundCloud
+                if (bound != null) {
+                    val s = bound.currentState
+                    if (!s.signedIn || s.selectedVehicle?.key != vehicle.key) return
+                }
                 try {
                     ensureConnected(vehicle = vehicle, userId = userId)
                     _lastPreconnectError = null
@@ -310,6 +325,8 @@ class OfficialMqttService(
         _pendingCommandApiName = null
         _pendingCommandError = null
         _latestStatusPayload = null
+        _lastPreconnectError = null
+        _lastPreconnectRawError = null
         _subscribedTopics.value = emptyList()
         if (old != null) {
             teardownClient(old)
@@ -390,7 +407,10 @@ class OfficialMqttService(
             }
             created.setCallback(object : MqttCallback {
                 override fun connectionLost(cause: Throwable?) {
-                    if (_disposed) return
+                    // Ignore events from superseded clients (a vehicle switch or
+                    // a reconnect already replaced this session) — they would
+                    // clobber the live link state.
+                    if (_disposed || _client !== created) return
                     log.operation(
                         "官方 MQTT 连接丢失",
                         detail = formatConnectError(cause ?: Throwable("unknown")),
@@ -438,12 +458,27 @@ class OfficialMqttService(
         // The catch block always throws, so the connect succeeded here.
         val client = checkNotNull(newClient) { "MQTT client lost after connect" }
 
+        // Subscribe failures must not leak the connected client or leave the
+        // link state parked at CONNECTING (a SUBACK miss used to strand the
+        // socket AND the state machine).
         val topics = OfficialMqttConfig.subscribeTopics(vehicle, imei)
-        withContext(Dispatchers.IO) {
-            for (topic in topics) {
-                val token = client.subscribe(topic, OfficialMqttConfig.QOS)
-                token.waitForCompletion(OfficialMqttConfig.CONNECT_TIMEOUT.inWholeMilliseconds)
+        try {
+            withContext(Dispatchers.IO) {
+                for (topic in topics) {
+                    val token = client.subscribe(topic, OfficialMqttConfig.QOS)
+                    token.waitForCompletion(SUBSCRIBE_TIMEOUT_MS)
+                }
             }
+        } catch (e: Throwable) {
+            if (e is CancellationException) throw e
+            _linkState.value = OfficialMqttLinkState.DISCONNECTED
+            log.operation(
+                "官方 MQTT 订阅失败",
+                detail = formatConnectError(e),
+                level = LogLevel.WARNING,
+            )
+            teardownClient(client)
+            throw translateConnectError(e, broker)
         }
 
         _client = client
@@ -609,8 +644,10 @@ class OfficialMqttService(
             return "mqtt:success"
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
-            _pendingCommandApiName = null
-            _pendingCommandError = null
+            synchronized(lock) {
+                _pendingCommandApiName = null
+                _pendingCommandError = null
+            }
             _lastSendPath = OfficialRemoteSendPath.HTTP
             _lastPreconnectRawError = formatConnectError(e)
             _lastPreconnectError = OfficialRemoteErrorMessages.describe(e)

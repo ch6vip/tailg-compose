@@ -5,6 +5,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
@@ -12,6 +13,7 @@ import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -21,6 +23,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.BikeState
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.ble.platform.ConnectionState
@@ -33,20 +36,27 @@ import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.ControlCommandActivityLog
 import com.tailg.plus.data.model.ControlCommandActivityStatus
+import com.tailg.plus.data.model.OfficialCloudCommand
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.mqtt.OfficialMqttService
+import com.tailg.plus.data.mqtt.OfficialRemoteSendPath
+import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
 import com.tailg.plus.domain.control.ControlCloudState
+import com.tailg.plus.domain.control.ControlCommandConfirmation
 import com.tailg.plus.domain.control.ControlCommandExecutor
 import com.tailg.plus.domain.control.ControlCommandPolicy
 import com.tailg.plus.domain.control.ControlCommandResult
 import com.tailg.plus.domain.control.ControlCommandRoute
+import com.tailg.plus.domain.control.ControlCommandTransport
+import com.tailg.plus.domain.control.ControlCommandVehicleStateSnapshot
 import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
+import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberControlGrid
@@ -77,6 +87,7 @@ private const val CONTROL_COMMAND_SEND_DELAY_MS = 500L
  * - near-field BLE: auto link + top-right chip / banner
  * - pull-to-refresh: refreshVehicles + battery / location
  */
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
 fun ControlScreen(
   cloudService: OfficialCloudService,
@@ -88,6 +99,7 @@ fun ControlScreen(
   modifier: Modifier = Modifier,
 ) {
   val scope = rememberCoroutineScope()
+  val ctx = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val log = remember { LogService() }
   val cloudState by cloudService.stateFlow.collectAsState()
@@ -98,9 +110,37 @@ fun ControlScreen(
   var busy by remember { mutableStateOf(false) }
   var activeCommand by remember { mutableStateOf<CommandCode?>(null) }
   var controlChannel by remember { mutableStateOf(OfficialControlChannel.AUTOMATIC) }
-  var networkReady by remember { mutableStateOf(true) }
+  var showChannelSheet by remember { mutableStateOf(false) }
+  var lastCommandAtMs by remember { mutableStateOf(0L) }
   val commandLog = remember { ControlCommandActivityLog() }
   var commandVersion by remember { mutableStateOf(0) }
+
+  // Dart subscribes to networkAvailabilityService.changes; BLE must keep
+  // working offline, so the flow fails open (NetworkAvailabilityService).
+  val networkService = remember { NetworkAvailabilityService(ctx) }
+  var networkReady by remember { mutableStateOf(true) }
+  LaunchedEffect(Unit) {
+    networkService.changes.collect { ready -> networkReady = ready }
+  }
+  val locationService = remember(ctx) {
+    com.tailg.plus.service.LocationService(ctx, vehicleStore)
+  }
+
+  // Foreground resume → retry a failed/absent MQTT preconnect (Dart 229-237).
+  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+  DisposableEffect(lifecycleOwner) {
+    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+      if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+        scope.launch {
+          if (!mqttService.isConnected && mqttService.lastPreconnectError != null) {
+            mqttService.retryPreconnect(cloudService)
+          }
+        }
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   val commandExecutor = remember {
     ControlCommandExecutor(
@@ -152,7 +192,7 @@ fun ControlScreen(
     )
   }
 
-  val findAvailability = remember(cloudState, controlChannel) {
+  val findAvailability = remember(cloudState, controlChannel, bleState, networkReady) {
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
         cloudState = cloudState.asControlCloudState(),
@@ -168,7 +208,7 @@ fun ControlScreen(
     )
   }
 
-  val powerAvailability = remember(cloudState, controlChannel, isPowerOn) {
+  val powerAvailability = remember(cloudState, controlChannel, isPowerOn, bleState, networkReady) {
     val cmd = if (isPowerOn == true) CommandCode.POWER_OFF else CommandCode.POWER_ON
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
@@ -185,7 +225,7 @@ fun ControlScreen(
     )
   }
 
-  val armAvailability = remember(cloudState, controlChannel, isArmed) {
+  val armAvailability = remember(cloudState, controlChannel, isArmed, bleState, networkReady) {
     val cmd = if (isArmed == true) CommandCode.UNLOCK else CommandCode.LOCK
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
@@ -202,7 +242,7 @@ fun ControlScreen(
     )
   }
 
-  val seatAvailability = remember(cloudState, controlChannel) {
+  val seatAvailability = remember(cloudState, controlChannel, bleState, networkReady) {
     ControlCommandRoute.resolve(
       base = ControlChannelResolver.resolve(
         cloudState = cloudState.asControlCloudState(),
@@ -257,9 +297,122 @@ fun ControlScreen(
     }
   }
 
+  fun vehicleStateSnapshot(): ControlCommandVehicleStateSnapshot {
+    val vehicle = cloudService.currentState.selectedVehicle
+    return ControlCommandVehicleStateSnapshot(
+      isLocked = vehicle?.isLocked,
+      isPowerOn = vehicle?.isPowerOn,
+    )
+  }
+
+  suspend fun refreshStateForConfirmation(preferBle: Boolean = false) {
+    try {
+      if (preferBle) {
+        connectionManager.refreshBikeState()
+      } else {
+        cloudService.refreshVehicles(silent = true, refreshReplicaDetails = false, force = true)
+      }
+    } catch (e: Exception) {
+      log.operation("Cyber 控车后确认车辆状态失败", detail = e.toString(), level = LogLevel.WARNING)
+    }
+  }
+
+  /**
+   * Port of Dart `_waitForCommandConfirmation`: a cloud publish is only
+   * "done" once the MQTT pending command clears or ACC/defence reaches the
+   * expected post-command state (and changed from the baseline).
+   */
+  suspend fun waitForCommandConfirmation(
+    command: CommandCode,
+    transport: ControlCommandTransport,
+    expectedOfficialVehicleKey: String?,
+    baseline: ControlCommandVehicleStateSnapshot,
+    mqttPendingAtSend: String?,
+  ): Boolean {
+    if (transport == ControlCommandTransport.BLE) {
+      return ControlCommandConfirmation.isConfirmed(
+        command = command,
+        transport = transport,
+        expectedOfficialVehicleKey = expectedOfficialVehicleKey,
+        currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
+        baseline = baseline,
+        current = vehicleStateSnapshot(),
+        mqttAcked = false,
+      )
+    }
+    val needsMqttResponse = ControlCommandConfirmation.needsMqttResponse(command, mqttPendingAtSend)
+    if (!ControlCommandConfirmation.needsVehicleStateConfirmation(command) && !needsMqttResponse) {
+      return ControlCommandConfirmation.isConfirmed(
+        command = command,
+        transport = transport,
+        expectedOfficialVehicleKey = expectedOfficialVehicleKey,
+        currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
+        baseline = baseline,
+        current = vehicleStateSnapshot(),
+        mqttAcked = false,
+      )
+    }
+    val startedAt = System.currentTimeMillis()
+    while (true) {
+      if (mqttService.pendingCommandError != null) return false
+      val mqttAcked = ControlCommandConfirmation.mqttPendingAcknowledged(
+        pendingAtSend = mqttPendingAtSend,
+        pendingNow = mqttService.pendingCommandApiName,
+      )
+      if (needsMqttResponse && mqttAcked) {
+        return ControlCommandConfirmation.guard.allows(
+          context = com.tailg.plus.domain.control.ControlCommandConfirmationContext(
+            transport = transport,
+            officialVehicleKey = expectedOfficialVehicleKey,
+          ),
+          currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
+        )
+      }
+      if (needsMqttResponse) {
+        if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+        delay(CONTROL_CONFIRM_POLL_DELAY_MS)
+        continue
+      }
+      val confirmed = ControlCommandConfirmation.isConfirmed(
+        command = command,
+        transport = transport,
+        expectedOfficialVehicleKey = expectedOfficialVehicleKey,
+        currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
+        baseline = baseline,
+        current = vehicleStateSnapshot(),
+        mqttAcked = mqttAcked,
+      )
+      if (confirmed) return true
+      if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+      refreshStateForConfirmation()
+      if (mqttService.pendingCommandError != null) return false
+      val mqttAckedAfterRefresh = ControlCommandConfirmation.mqttPendingAcknowledged(
+        pendingAtSend = mqttPendingAtSend,
+        pendingNow = mqttService.pendingCommandApiName,
+      )
+      val confirmedAfterRefresh = ControlCommandConfirmation.isConfirmed(
+        command = command,
+        transport = transport,
+        expectedOfficialVehicleKey = expectedOfficialVehicleKey,
+        currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
+        baseline = baseline,
+        current = vehicleStateSnapshot(),
+        mqttAcked = mqttAckedAfterRefresh,
+      )
+      if (confirmedAfterRefresh) return true
+      if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+      delay(CONTROL_CONFIRM_POLL_DELAY_MS)
+    }
+  }
+
   fun sendCommand(cmd: CommandCode) {
     if (busy) {
       scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令，请稍候") }
+      return
+    }
+    val now = System.currentTimeMillis()
+    if (now - lastCommandAtMs < CONTROL_COMMAND_DEBOUNCE_MS) {
+      scope.launch { AppSnack.info(snackbarHostState, "指令发送过于频繁，请稍候") }
       return
     }
     val policy = ControlCommandPolicy.evaluate(command = cmd, isPowerOn = isPowerOn == true)
@@ -276,25 +429,89 @@ fun ControlScreen(
       scope.launch { AppSnack.error(snackbarHostState, availability.disabledReason.ifEmpty { "当前不可控车，请检查蓝牙或网络" }) }
       return
     }
+    // QGJ open-seat firmware preflight (Dart checkQgjSeatSupport gate) runs
+    // inside the send coroutine below (suspend check).
+    lastCommandAtMs = now
     busy = true
     activeCommand = cmd
+    val vehicleAtSend = cloudService.currentState.selectedVehicle
+    val vehicleKeyAtSend = vehicleAtSend?.key
+    val baseline = vehicleStateSnapshot()
     val activityId = commandLog.start(cmd, "${cmd.label}中…", "指令已发送，等待回执")
     commandVersion++
     scope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)
+        // Abort if the selected vehicle changed mid-send (Dart 798-811).
+        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend) {
+          AppSnack.error(snackbarHostState, "车辆或控车渠道已变化，本次指令已取消")
+          commandLog.finish(activityId, "${cmd.label}已取消", "目标车辆或连接已变化", ControlCommandActivityStatus.CANCELLED)
+          return@launch
+        }
+        if (cmd == CommandCode.OPEN_SEAT && availability.willUseBle) {
+          val supported = connectionManager.checkQgjSeatSupport()
+          if (supported == false) {
+            AppSnack.error(snackbarHostState, "当前车辆固件不支持开坐垫")
+            commandLog.finish(activityId, "${cmd.label}失败", "当前车辆固件不支持开坐垫", ControlCommandActivityStatus.FAILED)
+            return@launch
+          }
+        }
         val result = commandExecutor.send(command = cmd, availability = availability)
         if (result.success) {
-          if (result.shouldRefreshBikeState) {
-            connectionManager.refreshBikeState()
+          if (vehicleAtSend != null) {
+            try {
+              cloudService.syncCarOperatorAfterCommand(command = cmd, vehicle = vehicleAtSend)
+            } catch (e: Exception) {
+              log.operation("同步官方车辆操作人失败", detail = e.toString(), level = LogLevel.WARNING)
+            }
           }
-          AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}成功")
-          commandLog.finish(activityId, successTitle(cmd), successSubtitle(cmd), ControlCommandActivityStatus.SUCCEEDED)
+          if (result.shouldRefreshBikeState) {
+            refreshStateForConfirmation(preferBle = true)
+          }
+          try {
+            locationService.recordDefaultVehicleLocation()
+          } catch (e: Exception) {
+            log.operation("控车后记录车辆位置失败", detail = e.toString(), level = LogLevel.WARNING)
+          }
+          // Capture the pending command set by the MQTT publish, if any.
+          val mqttPendingForConfirm =
+            if (result.transport == ControlCommandTransport.OFFICIAL_CLOUD &&
+              mqttService.lastSendPath == OfficialRemoteSendPath.MQTT
+            ) {
+              mqttService.pendingCommandApiName
+                ?: OfficialCloudCommand.fromCommandCode(cmd)?.apiName
+            } else {
+              null
+            }
+          val confirmed = waitForCommandConfirmation(
+            command = cmd,
+            transport = result.transport,
+            expectedOfficialVehicleKey = vehicleKeyAtSend,
+            baseline = baseline,
+            mqttPendingAtSend = mqttPendingForConfirm,
+          )
+          if (!confirmed) {
+            refreshStateForConfirmation()
+            val commandError = mqttService.pendingCommandError
+            AppSnack.error(snackbarHostState, commandError ?: unconfirmedMessage(cmd))
+            commandLog.finish(
+              activityId,
+              if (commandError == null) "${cmd.label}未确认" else "${cmd.label}失败",
+              commandError ?: "请稍后重试",
+              ControlCommandActivityStatus.FAILED,
+            )
+          } else {
+            AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}成功")
+            commandLog.finish(activityId, successTitle(cmd), successSubtitle(cmd), ControlCommandActivityStatus.SUCCEEDED)
+          }
         } else {
           log.operation("Cyber 控车失败: ${cmd.label}", detail = "渠道=${result.transport} 原因=${result.failureMessage}", level = LogLevel.ERROR)
+          refreshStateForConfirmation()
           AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage))
           commandLog.finish(activityId, "${cmd.label}失败", result.failureMessage?.trim()?.ifEmpty { null } ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
         }
+      } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
       } catch (e: Exception) {
         log.operation("Cyber 控车异常: ${cmd.label}", detail = e.toString(), level = LogLevel.ERROR)
         AppSnack.error(snackbarHostState, failureMessage(cmd, e.message))
@@ -403,15 +620,44 @@ fun ControlScreen(
             scope.launch {
               if (connectionManager.isProtocolLoggedIn) {
                 AppSnack.info(snackbarHostState, "蓝牙已连接")
-              } else {
-                AppSnack.info(snackbarHostState, "正在连接车辆蓝牙…")
+                return@launch
+              }
+              // Dart `_ensureNearFieldLink`: link the official vehicle's BLE
+              // target when its MAC is known, else fall back to the scan page.
+              val state = cloudService.currentState
+              val vehicle = state.selectedVehicle
+              val mac = vehicle?.normalizedDeviceMac
+              if (vehicle == null || mac.isNullOrEmpty()) {
+                AppSnack.info(snackbarHostState, "未获取车辆蓝牙地址，请在扫码页手动连接")
+                onNavigate("scan")
+                return@launch
+              }
+              AppSnack.info(snackbarHostState, "正在连接车辆蓝牙…")
+              try {
+                val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                val device = adapter?.getRemoteDevice(mac)
+                if (device == null) {
+                  AppSnack.error(snackbarHostState, "蓝牙不可用，请检查蓝牙开关")
+                  return@launch
+                }
+                connectionManager.connect(
+                  device,
+                  com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
+                    vehicle,
+                    state.userId,
+                  ),
+                )
+                AppSnack.success(snackbarHostState, "蓝牙已连接")
+              } catch (e: SecurityException) {
+                AppSnack.error(snackbarHostState, "缺少蓝牙权限，请到系统设置开启")
+              } catch (e: Exception) {
+                log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
+                AppSnack.error(snackbarHostState, "蓝牙连接失败，请靠近车辆重试")
               }
             }
           },
           onMessages = { onNavigate("vehicle_message/current") },
-          onChannelTap = {
-            // TODO: show channel selection bottom sheet (CyberChannelStrip)
-          },
+          onChannelTap = { showChannelSheet = true },
         )
       }
       // Control grid + map stats + recent commands.
@@ -450,6 +696,59 @@ fun ControlScreen(
             CyberRecentCommands(commands = commandActivities)
           }
           Spacer(Modifier.height(24.dp))
+        }
+      }
+    }
+  }
+
+  // Channel selection sheet (Dart CyberChannelStrip bottom sheet).
+  if (showChannelSheet) {
+    androidx.compose.material3.ModalBottomSheet(
+      onDismissRequest = { showChannelSheet = false },
+      containerColor = CyberHomeColors.card,
+    ) {
+      Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
+        androidx.compose.material3.Text(
+          text = "控车渠道",
+          style = androidx.compose.ui.text.TextStyle(
+            fontSize = 16.sp,
+            fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
+            color = CyberHomeColors.ink,
+          ),
+        )
+        Spacer(Modifier.height(12.dp))
+        listOf(
+          Triple(OfficialControlChannel.AUTOMATIC, "自动", "按官方车型与蓝牙状态自动分流"),
+          Triple(OfficialControlChannel.BLE, "近场蓝牙", "仅车辆蓝牙直连时可控"),
+          Triple(OfficialControlChannel.OFFICIAL_CLOUD, "云端", "仅 MQTT 远程通道"),
+        ).forEach { (channel, label, subtitle) ->
+          val active = controlChannel == channel
+          com.tailg.plus.ui.components.AppPressable(
+            onClick = {
+              controlChannel = channel
+              showChannelSheet = false
+            },
+            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+            background = if (active) CyberHomeColors.primarySoft else CyberHomeColors.cardMuted,
+            semanticsLabel = label,
+          ) {
+            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
+              androidx.compose.material3.Text(
+                text = label,
+                style = androidx.compose.ui.text.TextStyle(
+                  fontSize = 14.sp,
+                  fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
+                  color = if (active) CyberHomeColors.primary else CyberHomeColors.ink,
+                ),
+              )
+              Spacer(Modifier.height(2.dp))
+              androidx.compose.material3.Text(
+                text = subtitle,
+                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
+              )
+            }
+          }
+          Spacer(Modifier.height(8.dp))
         }
       }
     }
@@ -571,6 +870,15 @@ private fun failureMessage(command: CommandCode, detail: String?): String {
   if (text.isEmpty()) return "${command.label}失败，请稍后重试"
   if (text.contains(command.label)) return text
   return "${command.label}失败：$text"
+}
+
+/** Dart `_unconfirmedMessage` — cloud publish landed but the vehicle never confirmed. */
+private fun unconfirmedMessage(command: CommandCode): String = when (command) {
+  CommandCode.POWER_ON -> "上电未确认，请稍后重试"
+  CommandCode.POWER_OFF -> "断电未确认，请稍后重试"
+  CommandCode.LOCK -> "设防未确认，请稍后重试"
+  CommandCode.UNLOCK -> "解防未确认，请稍后重试"
+  else -> "${command.label}未确认，请稍后重试"
 }
 
 @Composable

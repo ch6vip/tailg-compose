@@ -177,7 +177,12 @@ private sealed interface GattEvent {
   ) : GattEvent
   data class DescriptorWrite(val descriptor: BluetoothGattDescriptor, val status: Int) : GattEvent
   data class CharacteristicChanged(
-    val characteristic: BluetoothGattCharacteristic,
+    /**
+     * Null on API 33+ when the framework fires the characteristic-less
+     * `onCharacteristicChanged(gatt, value)` overload; consumers must match
+     * on the value payload in that case.
+     */
+    val characteristic: BluetoothGattCharacteristic?,
     val value: ByteArray,
   ) : GattEvent
   data class MtuChanged(val mtu: Int, val status: Int) : GattEvent
@@ -253,14 +258,16 @@ class ConnectionManager(
   @Volatile private var _disconnectHandled = false
   @Volatile private var _reconnectAttempt = 0
 
-  // Pending command completers (Dart Completer fields).
-  private var _cmdAckDeferred: CompletableDeferred<Boolean>? = null
-  private var _standardCommandAckDeferred: CompletableDeferred<Boolean>? = null
+  // Pending command completers (Dart Completer fields). Volatile: written by
+  // the drain/event-loop coroutines and cleared from caller threads (Compose
+  // main) — without the annotation a clear can be invisible to the loop.
+  @Volatile private var _cmdAckDeferred: CompletableDeferred<Boolean>? = null
+  @Volatile private var _standardCommandAckDeferred: CompletableDeferred<Boolean>? = null
   @Volatile private var _standardPendingCommandType: String? = null
-  private var _standardStateDeferred: CompletableDeferred<BikeState?>? = null
-  private var _tlinkInductionStatusDeferred: CompletableDeferred<TLinkInductionStatusResponse?>? = null
-  private var _tlinkInductionSetDeferred: CompletableDeferred<Boolean>? = null
-  private var _tlinkProximityDistanceDeferred: CompletableDeferred<Boolean>? = null
+  @Volatile private var _standardStateDeferred: CompletableDeferred<BikeState?>? = null
+  @Volatile private var _tlinkInductionStatusDeferred: CompletableDeferred<TLinkInductionStatusResponse?>? = null
+  @Volatile private var _tlinkInductionSetDeferred: CompletableDeferred<Boolean>? = null
+  @Volatile private var _tlinkProximityDistanceDeferred: CompletableDeferred<Boolean>? = null
   private val _qgjResponseDeferreds = ConcurrentHashMap<Int, CompletableDeferred<QgjResponse?>>()
 
   // GATT operation queue (Dart `_gattPendingByPriority` / `_activeGattOperation`).
@@ -1137,6 +1144,26 @@ class ConnectionManager(
       )
     }
 
+    // API 33+ invokes ONLY these value-carrying overloads (note: non-null
+    // parameter types, unlike the deprecated pair); without them reads and
+    // notifications are dead on Android 13+.
+    override fun onCharacteristicRead(
+      gatt: BluetoothGatt,
+      characteristic: BluetoothGattCharacteristic,
+      value: ByteArray,
+      status: Int,
+    ) {
+      gattEvents.trySend(GattEvent.CharacteristicRead(characteristic, status, value))
+    }
+
+    override fun onCharacteristicChanged(
+      gatt: BluetoothGatt,
+      characteristic: BluetoothGattCharacteristic,
+      value: ByteArray,
+    ) {
+      gattEvents.trySend(GattEvent.CharacteristicChanged(characteristic, value))
+    }
+
     override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
       gattEvents.trySend(GattEvent.MtuChanged(mtu, status))
     }
@@ -1207,16 +1234,19 @@ class ConnectionManager(
       }
 
       is GattEvent.CharacteristicChanged -> {
-        val char = event.characteristic
+        val uuid = event.characteristic?.uuid
         when {
-          _notifyChar?.uuid == char.uuid -> {
+          // char==null is the API-33+ characteristic-less overload: route
+          // best-effort to the primary notify slot (the app only subscribes
+          // a handful of characteristics and feb6/feb2 carries the protocol).
+          event.characteristic == null || uuid == _notifyChar?.uuid -> {
             // _notifyChar is feb6 for KKS/TLink, feb2 for QGJ (Dart attaches
             // _onStandardNotify / _onQgjNotify to the same slot).
             if (_protocol == ProtocolType.QGJ) onQgjNotify(event.value)
             else onStandardNotify(event.value)
           }
-          _gpsNotifyChar?.uuid == char.uuid -> onQgjGpsNotify(event.value)
-          _fbb2Char?.uuid == char.uuid -> onFbb2Notify(event.value)
+          uuid == _gpsNotifyChar?.uuid -> onQgjGpsNotify(event.value)
+          uuid == _fbb2Char?.uuid -> onFbb2Notify(event.value)
         }
       }
 

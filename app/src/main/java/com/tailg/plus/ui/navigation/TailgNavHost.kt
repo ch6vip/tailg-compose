@@ -57,6 +57,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import com.tailg.plus.di.rememberTailgEntryPoint
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 /**
  * Root navigation host — wires all 30 screens into a single NavHost.
@@ -93,7 +94,7 @@ fun TailgNavHost() {
     } catch (e: Exception) {
       // A corrupted store / keystore must degrade to signed-out, never a
       // startup crash loop.
-      android.util.Log.w("TailgNavHost", "cloud session restore failed", e)
+      Timber.tag("TailgNavHost").w(e, "cloud session restore failed")
     }
     bootstrapped = true
   }
@@ -265,13 +266,13 @@ fun TailgNavHost() {
                   }
                   connectionManager.connect(device, context)
                   if (deviceName.isNotEmpty()) {
-                    android.util.Log.i("TailgNavHost", "BLE connected: $deviceName")
+                    Timber.tag("TailgNavHost").i("BLE connected: $deviceName")
                   }
                 }
               } catch (e: SecurityException) {
-                android.util.Log.w("TailgNavHost", "BLE connect missing permission", e)
+                Timber.tag("TailgNavHost").w(e, "BLE connect missing permission")
               } catch (e: Exception) {
-                android.util.Log.w("TailgNavHost", "BLE connect failed", e)
+                Timber.tag("TailgNavHost").w(e, "BLE connect failed")
               } finally {
                 navController.popBackStack()
               }
@@ -452,7 +453,6 @@ fun TailgNavHost() {
       composable(Routes.CLOUD_TOKEN) {
         CloudTokenScreen(
           onBack = { navController.popBackStack() },
-          cloudService = cloudService,
         )
       }
       composable(Routes.LOG) {

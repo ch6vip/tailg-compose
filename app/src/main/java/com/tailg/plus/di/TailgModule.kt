@@ -11,6 +11,7 @@ import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.screens.VehicleStoreCloudAdapter
+import com.tailg.plus.util.ClipboardText
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -102,4 +103,10 @@ object TailgModule {
   ): OfficialMqttService = OfficialMqttService(
     log = log,
   )
+
+  @Provides
+  @Singleton
+  fun provideClipboardText(
+    @ApplicationContext context: Context,
+  ): ClipboardText = ClipboardText(context)
 }

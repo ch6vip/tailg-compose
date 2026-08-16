@@ -42,6 +42,7 @@ import androidx.core.content.ContextCompat
 import com.tailg.plus.MainActivity
 import com.tailg.plus.R
 import kotlinx.coroutines.CancellationException
+import timber.log.Timber
 
 class InductionForegroundService : Service() {
 
@@ -86,7 +87,7 @@ class InductionForegroundService : Service() {
         startForeground(NOTIFICATION_ID, notification)
       }
     } catch (e: Exception) {
-      android.util.Log.w("InductionFgs", "startForeground failed; stopping", e)
+      Timber.tag("InductionFgs").w(e, "startForeground failed; stopping")
       stopSelf()
     }
     return START_NOT_STICKY

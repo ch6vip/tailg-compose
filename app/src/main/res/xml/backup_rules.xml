@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Backup rules for tailg-compose.
+
+  - sharedpref is excluded entirely: session tokens live in
+    EncryptedSharedPreferences (androidx.security). The master key stays in
+    Android Keystore, which never migrates, so restoring those files would
+    produce undecryptable blobs and a broken session.
+  - osmdroid tile cache under filesDir is excluded (re-downloadable, bulky).
+  - Vehicle JSON stores and DataStore preferences are kept so a device
+    transfer restores the user's vehicle list without a re-login + re-sync.
+-->
+<full-backup-content>
+    <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="osmdroid" />
+</full-backup-content>

@@ -27,6 +27,24 @@ jobs:
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          # Cache ~/.gradle/caches + ~/.gradle/wrapper across runs
+          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/develop' }}
+          gradle-home-cache-includes: |
+            caches
+            wrapper
+
+      # Cache Android SDK packages (platforms, build-tools) so setup-android
+      # does not re-download them on every run.
+      - name: Cache Android SDK
+        uses: actions/cache@v4
+        with:
+          path: |
+            ${{ runner.os == 'Linux' && '~/.android' || '' }}
+            /usr/local/lib/android/sdk
+          key: android-sdk-${{ runner.os }}
+          restore-keys: |
+            android-sdk-
 
       - name: Assemble + unit tests + lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace

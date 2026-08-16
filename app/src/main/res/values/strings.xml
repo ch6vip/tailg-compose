@@ -1,4 +1,399 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">台铃智能 Plus</string>
+
+    <!-- Bottom navigation (VoidNav) -->
+    <string name="nav_service">服务</string>
+    <string name="nav_control">控车</string>
+    <string name="nav_mine">我的</string>
+
+    <!-- Login -->
+    <string name="login_title">登录</string>
+    <string name="login_brand">TAILG</string>
+    <string name="login_subtitle">台铃智能 · VOID COCKPIT</string>
+    <string name="login_hint">登录后同步车辆,享受控车、定位、电池等服务</string>
+    <string name="login_phone_label">手机号</string>
+    <string name="login_phone_hint">请输入手机号</string>
+    <string name="login_phone_error">请输入 11 位手机号</string>
+    <string name="login_sms_label">验证码</string>
+    <string name="login_sms_hint">请输入验证码</string>
+    <string name="login_sms_error">请输入短信验证码</string>
+    <string name="login_get_code">获取验证码</string>
+    <string name="login_button">登录</string>
+    <string name="login_success">登录成功</string>
+    <string name="login_failed">登录失败</string>
+    <string name="login_use_token">使用 Token 登录</string>
+    <string name="login_use_sms">返回手机号登录</string>
+    <string name="login_token_field">粘贴 Token</string>
+    <string name="login_token_hint">粘贴 Token 或 Authorization: Bearer ...</string>
+    <string name="login_token_desc">支持直接粘贴 Authorization 值,或带 Bearer 前缀 / Authorization 头整行。登录后写入安全存储并同步车辆。</string>
+    <string name="login_token_button">用 Token 登录</string>
+    <string name="login_token_success">Token 登录成功</string>
+    <string name="login_token_warning">Token 等同于账号登录凭证,请勿分享给不可信的人或页面。复制仅用于你自己的多设备调试与迁移。</string>
+    <string name="login_agree_prefix">我已阅读并同意</string>
+    <string name="login_agreement">用户协议</string>
+    <string name="login_privacy">隐私政策</string>
+    <string name="login_agree_and">和</string>
+    <string name="login_agree_required">请先阅读并同意用户协议与隐私政策</string>
+    <string name="login_sms_sent">验证码已发送</string>
+    <string name="login_sms_send_failed">验证码发送失败</string>
+    <string name="login_clipboard_empty">剪贴板为空</string>
+    <string name="login_clipboard_pasted">已从剪贴板粘贴</string>
+    <string name="login_re_login">用此 Token 重新登录</string>
+
+    <!-- Common UI -->
+    <string name="common_cancel">取消</string>
+    <string name="common_confirm">确认</string>
+    <string name="common_save">保存</string>
+    <string name="common_delete">删除</string>
+    <string name="common_edit">编辑</string>
+    <string name="common_add">添加</string>
+    <string name="common_retry">重试</string>
+    <string name="common_refresh">刷新</string>
+    <string name="common_search">搜索</string>
+    <string name="common_clear">清空</string>
+    <string name="common_copy">复制</string>
+    <string name="common_paste">粘贴</string>
+    <string name="common_back">返回</string>
+    <string name="common_close">关闭</string>
+    <string name="common_done">确定</string>
+    <string name="common_loading">加载中</string>
+    <string name="common_online">在线</string>
+    <string name="common_offline">离线</string>
+    <string name="common_connected">已连接</string>
+    <string name="common_disconnected">未连接</string>
+    <string name="common_unknown">未知</string>
+    <string name="common_no_data">暂无数据</string>
+    <string name="common_success">成功</string>
+    <string name="common_failed">失败</string>
+    <string name="common_error">错误</string>
+    <string name="common_info">提示</string>
+    <string name="common_warning">警告</string>
+    <string name="common_details">详情</string>
+    <string name="common_switch">切换</string>
+    <string name="common_unbind">解绑</string>
+    <string name="common_logout">退出登录</string>
+    <string name="common_enable">开启</string>
+    <string name="common_disable">关闭</string>
+    <string name="common_read">已读</string>
+    <string name="common_unread">未读</string>
+    <string name="common_confirm_unbind">确认解绑</string>
+
+    <!-- Vehicle state -->
+    <string name="vehicle_yes">是</string>
+    <string name="vehicle_no">否</string>
+    <string name="vehicle_unknown">未知</string>
+    <string name="vehicle_available">可用</string>
+    <string name="vehicle_unavailable">不可用</string>
+    <string name="vehicle_offline">离线</string>
+    <string name="vehicle_online">在线</string>
+
+    <!-- Control Screen -->
+    <string name="control_channel">控车渠道</string>
+    <string name="control_smart">智能</string>
+    <string name="control_ble_only">仅蓝牙</string>
+    <string name="control_cloud_only">仅云端</string>
+    <string name="control_induction">感应</string>
+    <string name="control_arm">设防/解防</string>
+    <string name="control_disarm">解防</string>
+    <string name="control_arm_enable">设防</string>
+    <string name="control_find_car">寻车</string>
+    <string name="control_settings">设置</string>
+    <string name="control_seat">坐垫</string>
+    <string name="control_power_off">左滑关闭</string>
+    <string name="control_power_on">右滑启动</string>
+    <string name="control_powering_off">正在断电</string>
+    <string name="control_powering_on">正在通电</string>
+    <string name="control_executing">指令执行中</string>
+    <string name="control_unavailable">当前不可用</string>
+    <string name="control_busy_format">%s中</string>
+    <string name="control_unavailable_format">%s,不可用</string>
+    <string name="control_unavailable_reason_format">%s,不可用:%s</string>
+    <string name="control_unknown">车辆状态未知</string>
+    <string name="control_need_login">请先登录官方账号</string>
+    <string name="control_syncing">正在同步官方车辆...</string>
+    <string name="control_no_vehicle">暂无车辆,请先同步官方车辆</string>
+    <string name="control_recent_commands">最近命令</string>
+    <string name="control_recent_none">暂无</string>
+
+    <!-- Garage / Vehicle list -->
+    <string name="garage_login_to_view">登录后查看我的车库</string>
+    <string name="garage_login_subtitle">车辆搜索、切换、改名和解绑需要官方账号。</string>
+    <string name="garage_select_hint">点击卡片选择设备</string>
+    <string name="garage_loading_failed">车库加载失败</string>
+    <string name="garage_search_type">搜索方式</string>
+    <string name="garage_switch_title">切换车辆</string>
+    <string name="garage_switch_message">切换到「%s」?将断开当前车辆的蓝牙与云端连接。</string>
+    <string name="garage_in_use">使用中</string>
+    <string name="garage_shared_count">已分享 %s 次</string>
+    <string name="garage_vehicle_code">车辆码</string>
+    <string name="garage_rename">修改</string>
+    <string name="garage_unbind">解绑</string>
+    <string name="garage_rename_title">修改设备名称</string>
+    <string name="garage_rename_hint">请输入设备名称</string>
+    <string name="garage_unbind_verify">验证后解绑</string>
+    <string name="garage_unbind_hint">请输入绑定号码 %s 的中间 4 位</string>
+    <string name="garage_unbind_phone_hint">手机号中间 4 位</string>
+    <string name="garage_unbind_confirm">确认解绑</string>
+
+    <!-- Profile / Mine -->
+    <string name="profile_login_now">立即登录</string>
+    <string name="profile_default_name">台铃用户</string>
+    <string name="profile_logged_in">已登录</string>
+    <string name="profile_guest">游客</string>
+    <string name="profile_login_sync">登录后同步车辆和消息</string>
+    <string name="profile_no_vehicle">暂无车辆</string>
+    <string name="profile_unbound">未绑定</string>
+    <string name="profile_not_logged_in">未登录</string>
+    <string name="profile_phone">手机号</string>
+    <string name="profile_edit_nickname">修改昵称</string>
+    <string name="profile_nickname_hint">输入昵称</string>
+    <string name="profile_nickname_empty">昵称不能为空</string>
+    <string name="profile_nickname_updated">昵称已更新</string>
+    <string name="profile_logout_title">退出登录?</string>
+    <string name="profile_logout_message">下次登录需验证手机号。本机车辆缓存会保留。</string>
+    <string name="profile_logout">退出</string>
+    <string name="profile_section_account">账户与支持</string>
+    <string name="profile_settings">设置</string>
+    <string name="profile_message_center">消息中心</string>
+    <string name="profile_about_us">关于我们</string>
+    <string name="profile_switch_vehicle">切换默认车辆</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="settings_my_vehicles">我的车辆</string>
+    <string name="settings_message_center">消息中心</string>
+    <string name="settings_vehicle_settings">车辆设置</string>
+    <string name="settings_battery">电池/BMS</string>
+    <string name="settings_language">语言设置</string>
+    <string name="settings_unit">单位设置</string>
+    <string name="settings_font_size">跟随系统字号</string>
+    <string name="settings_diagnostic">高级诊断</string>
+    <string name="settings_token">官方会话 / Token</string>
+    <string name="settings_about">关于台铃智能</string>
+    <string name="settings_go_login">去登录</string>
+    <string name="settings_add_vehicle">添加车辆</string>
+    <string name="settings_unbind_vehicle">解绑车辆</string>
+    <string name="settings_unbind_desc">解除当前账号与车辆的绑定</string>
+    <string name="settings_unbind_confirm">解绑后将无法继续查看或控制「%s」。确认解绑?</string>
+    <string name="settings_unbind_success">已解绑并刷新列表</string>
+    <string name="settings_unbind_failed">解绑车辆失败</string>
+    <string name="settings_no_vehicle">未选择车辆</string>
+    <string name="settings_please_login">请先登录并选择一辆车</string>
+
+    <!-- Vehicle Message -->
+    <string name="message_center">消息中心</string>
+    <string name="message_all">全部</string>
+    <string name="message_system">系统消息</string>
+    <string name="message_device">设备消息</string>
+    <string name="message_no_data">暂无消息</string>
+    <string name="message_no_data_subtitle">车辆告警和系统通知会显示在这里</string>
+    <string name="message_load_failed">消息加载失败</string>
+    <string name="message_need_login">请先登录官方账号</string>
+    <string name="message_need_login_subtitle">登录后可同步车辆消息与系统通知</string>
+    <string name="message_mark_all_read">全部已读</string>
+    <string name="message_clear_all">清空全部消息</string>
+    <string name="message_cleared">已清空 %s 条消息</string>
+    <string name="message_got_it">知道了</string>
+    <string name="message_no_content">暂无详细内容</string>
+
+    <!-- Vehicle Info -->
+    <string name="vehicle_frame_number">车架号</string>
+    <string name="vehicle_imei">IMEI</string>
+    <string name="vehicle_model_type">车型编号</string>
+
+    <!-- Battery -->
+    <string name="battery_info">电池信息</string>
+    <string name="battery_power">当前电量</string>
+    <string name="battery_voltage">电压</string>
+    <string name="battery_temperature">温度</string>
+    <string name="battery_last_sync">最后同步</string>
+    <string name="battery_bms_details">BMS 详情</string>
+    <string name="battery_coulomb">库仑计</string>
+    <string name="battery_coulomb_desc">开启后可自学习电量(锂电不可用)</string>
+    <string name="battery_coulomb_ble_required">需先近场连接并完成协议登录</string>
+    <string name="battery_coulomb_refresh">刷新状态</string>
+    <string name="battery_bind_info">电池绑定信息</string>
+    <string name="battery_current_use">当前使用</string>
+    <string name="battery_bind_date">绑定日期</string>
+    <string name="battery_type_id">电池类型 ID</string>
+    <string name="battery_bms_tlv">BMS TLV</string>
+    <string name="battery_replace">更正电池</string>
+    <string name="battery_service">电池服务</string>
+    <string name="battery_service_desc">当前页面用于查看电量、电压、温度、健康状态和 BMS 信息。涉及电池校准、更换和升级的操作,请通过官方服务渠道完成。</string>
+
+    <!-- Location / Map -->
+    <string name="location_title">车辆位置</string>
+    <string name="location_no_data">暂无位置信息</string>
+    <string name="location_no_parking">暂无停车位置,可下拉或点刷新同步</string>
+    <string name="location_login_required">登录官方账号后同步停车位置</string>
+    <string name="location_source">定位来源</string>
+    <string name="location_recent_update">最近更新</string>
+    <string name="location_accuracy">定位精度</string>
+    <string name="location_refresh">刷新</string>
+    <string name="location_copy">复制</string>
+    <string name="location_navigate">导航</string>
+    <string name="location_coordinates_copied">坐标已复制</string>
+    <string name="location_no_map_app">未找到地图应用,坐标链接已复制</string>
+    <string name="location_travel_title">历史轨迹</string>
+    <string name="location_travel_current_month">本月轨迹</string>
+    <string name="location_travel_loading">正在读取官方历史轨迹</string>
+    <string name="location_travel_no_data">暂无轨迹记录</string>
+    <string name="location_travel_no_data_hint">本月还没有可显示的骑行轨迹,可点右上角刷新或切换月份。</string>
+    <string name="location_travel_not_available">历史轨迹暂不可用</string>
+    <string name="location_travel_need_login">未登录官方账号</string>
+    <string name="location_travel_need_login_hint">登录官方账号后可同步本月骑行轨迹。</string>
+    <string name="location_fence_title">电子围栏</string>
+    <string name="location_fence_sync_desc">围栏配置已同步</string>
+    <string name="location_fence_no_data">暂无围栏配置</string>
+    <string name="location_fence_login_required">登录后同步围栏配置</string>
+    <string name="location_fence_settings">围栏设置</string>
+    <string name="location_fence_range">范围设置</string>
+    <string name="location_fence_time">时间设置</string>
+    <string name="location_fence_saved">围栏设置已保存</string>
+    <string name="location_fence_save_failed">保存失败,请重试</string>
+    <string name="map_no_location">暂无位置数据</string>
+
+    <!-- Add Vehicle -->
+    <string name="add_vehicle_title">添加车辆</string>
+    <string name="add_vehicle_my_vehicles">我的车辆</string>
+    <string name="add_vehicle_my_vehicles_subtitle">登录官方账号后同步账号下已绑定车辆</string>
+    <string name="add_vehicle_imei">IMEI 绑车</string>
+    <string name="add_vehicle_imei_subtitle">手写/粘贴坐垫二维码中的设备 IMEI</string>
+    <string name="add_vehicle_scan">扫描附近车辆</string>
+    <string name="add_vehicle_scan_subtitle">通过蓝牙扫描并连接本地车辆</string>
+    <string name="add_vehicle_desc">支持官方云端同步、IMEI 绑定与本地蓝牙直连。蓝牙连接成功后会绑定为默认本地车辆,控车优先走 BLE。</string>
+    <string name="add_vehicle_sync_cloud">同步你的台铃车辆</string>
+    <string name="add_vehicle_sync_cloud_desc">登录官方账号后,可使用控车、定位、轨迹、电池和车辆服务。</string>
+
+    <!-- Bind IMEI -->
+    <string name="bind_imei_title">IMEI 绑车</string>
+    <string name="bind_imei_hint">请输入 15 位左右 IMEI</string>
+    <string name="bind_imei_confirm">确认绑定</string>
+    <string name="bind_imei_success">绑车成功,已刷新车辆列表</string>
+
+    <!-- Scan / BLE -->
+    <string name="scan_bluetooth_off">蓝牙未开启</string>
+    <string name="scan_scanning">正在搜索附近设备...</string>
+    <string name="scan_connecting">连接中</string>
+    <string name="scan_start">扫描</string>
+
+    <!-- Induction Settings -->
+    <string name="induction_title">感应设置</string>
+    <string name="induction_manual">手动</string>
+    <string name="induction_auto">感应</string>
+    <string name="induction_near">近</string>
+    <string name="induction_far">远</string>
+    <string name="induction_open_success">感应解锁已开启</string>
+    <string name="induction_close_success">感应解锁已关闭</string>
+    <string name="induction_ble_only">当前车型仅支持手动控车</string>
+    <string name="induction_please_pair">请在系统弹窗中允许蓝牙配对,否则靠近解锁可能无效</string>
+
+    <!-- Log -->
+    <string name="log_title">日志</string>
+    <string name="log_copy_all">复制全部</string>
+    <string name="log_clear_confirm">清空日志</string>
+    <string name="log_clear_message">清空后无法恢复。</string>
+    <string name="log_clear">清空</string>
+    <string name="log_no_data">暂无日志</string>
+    <string name="log_no_data_subtitle">云端控车与诊断操作的运行日志会显示在这里。</string>
+
+    <!-- Cloud Token -->
+    <string name="token_title">云端 Token</string>
+    <string name="token_current_session">当前会话</string>
+    <string name="token_signed_in">已登录</string>
+    <string name="token_not_signed_in">未登录 · 可粘贴 Token 直接进入官方会话</string>
+    <string name="token_copy">复制 Token</string>
+    <string name="token_copied">Token 已复制到剪贴板</string>
+    <string name="token_no_token">当前未登录,没有可复制的 Token</string>
+    <string name="token_paste_title">粘贴 Token 登录</string>
+    <string name="token_paste_hint">粘贴 Token 或 Authorization: Bearer ...</string>
+    <string name="token_login_success">Token 登录成功,车辆已同步</string>
+    <string name="token_login_failed">Token 登录失败</string>
+    <string name="token_paste_placeholder">请先粘贴 Token</string>
+
+    <!-- Official Cloud -->
+    <string name="official_cloud_my_vehicles">我的车辆</string>
+    <string name="official_cloud_refresh">刷新车辆</string>
+    <string name="official_cloud_login_success">官方账号登录成功</string>
+    <string name="official_cloud_login_failed">官方账号登录失败</string>
+    <string name="official_cloud_vehicles_refreshed">官方车辆已刷新</string>
+    <string name="official_cloud_vehicle_switched">已切换车辆</string>
+    <string name="official_cloud_need_login">登录后查看车辆</string>
+    <string name="official_cloud_no_vehicles">暂无车辆,请确认当前账号已完成车辆绑定。</string>
+    <string name="official_cloud_login_desc">登录后会同步账号下已绑定车辆。车辆绑定、解绑和转让请按官方服务流程完成。</string>
+    <string name="official_cloud_battery_format">电量 %s%%</string>
+    <string name="official_cloud_voltage_format">%sV</string>
+    <string name="official_cloud_phone_label">手机号</string>
+    <string name="official_cloud_sms_label">短信验证码</string>
+    <string name="official_cloud_phone_error">请输入 11 位手机号</string>
+    <string name="official_cloud_sms_error">请输入短信验证码</string>
+    <string name="official_cloud_sms_sent">验证码已发送</string>
+    <string name="official_cloud_sms_failed">验证码发送失败</string>
+
+    <!-- Notification Preferences -->
+    <string name="notification_title">通知偏好</string>
+    <string name="notification_load_failed">通知偏好加载失败</string>
+    <string name="notification_no_items">暂无可配置项</string>
+    <string name="notification_no_items_subtitle">当前账号没有可同步的消息开关</string>
+    <string name="notification_saved">通知偏好已保存</string>
+    <string name="notification_save_failed">保存失败,请重试</string>
+    <string name="notification_push">消息推送</string>
+    <string name="notification_save">保存设置</string>
+
+    <!-- Replace Battery -->
+    <string name="replace_battery_title">更正电池信息</string>
+    <string name="replace_battery_type">电池类型</string>
+    <string name="replace_battery_custom">自定义电压 / 安时</string>
+    <string name="replace_battery_voltage">电压 (V)</string>
+    <string name="replace_battery_ah">安时 (AH)</string>
+    <string name="replace_battery_spec">电池规格</string>
+    <string name="replace_battery_date">绑定日期</string>
+    <string name="replace_battery_submit">确认提交</string>
+    <string name="replace_battery_submit_desc">提交后将调用官方接口,并自动刷新车辆与电池信息。</string>
+    <string name="replace_battery_current_format">当前:%s</string>
+
+    <!-- Ride Stats -->
+    <string name="ride_stats_title">骑行统计</string>
+    <string name="ride_stats_rides">骑行次数</string>
+    <string name="ride_stats_mileage">总里程</string>
+    <string name="ride_stats_duration">总时长</string>
+    <string name="ride_stats_times">总次数</string>
+    <string name="ride_stats_empty">本月暂无轨迹记录</string>
+
+    <!-- Firmware OTA -->
+    <string name="ota_title">固件升级 OTA</string>
+    <string name="ota_firmware">车辆固件</string>
+    <string name="ota_desc">检查官方固件版本并通过蓝牙更新车辆中控。升级期间请保持车辆通电和手机靠近车辆。</string>
+
+    <!-- Diagnostic -->
+    <string name="diagnostic_title">故障诊断</string>
+    <string name="diagnostic_offline">实时故障诊断暂不可用,当前仅显示历史记录</string>
+    <string name="diagnostic_no_data">暂无诊断记录</string>
+    <string name="diagnostic_history_hint">历史诊断记录将在此显示</string>
+
+    <!-- About -->
+    <string name="about_title">关于台铃智能</string>
+    <string name="about_app_name">台铃智能</string>
+    <string name="about_app_subtitle">智慧用车服务</string>
+    <string name="about_version">应用版本</string>
+    <string name="about_git_commit">Git 提交</string>
+    <string name="about_diagnostic">服务诊断</string>
+    <string name="about_diagnostic_subtitle">复制信息用于客服排查问题</string>
+    <string name="about_agreement">用户协议</string>
+    <string name="about_agreement_subtitle">查看服务使用条款</string>
+    <string name="about_privacy">隐私政策</string>
+    <string name="about_privacy_subtitle">了解个人信息保护规则</string>
+    <string name="about_copyright">Copyright 2026</string>
+
+    <!-- App Preferences -->
+    <string name="app_language_title">语言设置</string>
+    <string name="app_unit_title">单位设置</string>
+
+    <!-- Service Hub -->
+    <string name="service_hub_status">车辆状态</string>
+
+    <!-- Cloud Token Screen -->
+    <string name="token_phone_format">手机号 %s</string>
+    <string name="token_masked_format">%s</string>
 </resources>

@@ -78,6 +78,45 @@ private class CameraTarget {
 }
 
 /**
+ * Data-driven overlay instances reused across recompositions.
+ *
+ * The `update` block of [androidx.compose.ui.viewinterop.AndroidView] runs on
+ * every recomposition (live location tracking, fence toggles, loading flags).
+ * Rebuilding `Polyline`/`Polygon`/`Marker` per call allocated objects and made
+ * osmdroid re-register overlays each frame. Instead the instances are created
+ * once and mutated in place; they are added to / removed from the map's
+ * overlay list only when their visibility actually flips.
+ */
+private class MapOverlayState(
+  val trackCasing: Polyline,
+  val trackLine: Polyline,
+  val fence: Polygon,
+  val pin: Marker,
+  val overlays: MutableList<Overlay> = mutableListOf(),
+) {
+  var trackVisible = false
+  var fenceVisible = false
+  var pinVisible = false
+
+  /** Re-apply visibility after a mutation so the map overlay list stays canonical. */
+  fun sync(mapView: MapView) {
+    val desired = buildList {
+      if (trackVisible) {
+        add(trackCasing)
+        add(trackLine)
+      }
+      if (fenceVisible) add(fence)
+      if (pinVisible) add(pin)
+    }
+    // Cheap diffs: remove what is no longer wanted, add what is missing.
+    overlays.forEach { if (it !in desired) mapView.overlays.remove(it) }
+    desired.forEach { if (it !in overlays) mapView.overlays.add(it) }
+    overlays.clear()
+    overlays.addAll(desired)
+  }
+}
+
+/**
  * Shared map composable — port of the Dart `_MapPanel` (lib/pages/location_page.dart):
  * tile layer (+ Tianditu annotation overlay when configured), vehicle pin,
  * fence circle (green enabled / amber warning, 0.12 fill + 0.55 border alpha),
@@ -110,7 +149,6 @@ fun CyberMapView(
     labelTemplate?.let { MapTileProviderBasic(context, TemplateTileSource(it, subdomains, "tailg-label")) }
   }
 
-  val dynamicOverlays = remember { mutableListOf<Overlay>() }
   val camera = remember { CameraTarget() }
 
   val mapView = remember {
@@ -123,6 +161,28 @@ fun CyberMapView(
       maxZoomLevel = 18.0
       isTilesScaledToDpi = true
     }
+  }
+
+  // Reusable data overlays — created once per map view instance.
+  val overlayState = remember {
+    MapOverlayState(
+      trackCasing = Polyline(mapView).apply {
+        outlinePaint.color = android.graphics.Color.WHITE
+        outlinePaint.strokeWidth = 9f
+        outlinePaint.alpha = (255 * 0.55f).toInt()
+      },
+      trackLine = Polyline(mapView).apply {
+        outlinePaint.color = android.graphics.Color.rgb(0x22, 0xC5, 0x5E)
+        outlinePaint.strokeWidth = 5f
+      },
+      fence = Polygon(mapView).apply {
+        outlinePaint.strokeWidth = 2f
+      },
+      pin = Marker(mapView).apply {
+        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+        title = "车辆位置"
+      },
+    )
   }
 
   DisposableEffect(lifecycleOwner) {
@@ -148,59 +208,42 @@ fun CyberMapView(
         mapView.also { mv -> labelProvider?.let { mv.overlays.add(TilesOverlay(it, context)) } }
       },
       update = { view ->
-        // Swap only the data-driven overlays; the label tiles layer stays.
-        view.overlays.removeAll(dynamicOverlays)
-        dynamicOverlays.clear()
-
         val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
 
         // Track polyline with white casing (Dart: 5px green over 3px white border).
-        if (trackPoints.size >= 2) {
-          val casing = Polyline(view).apply {
-            setPoints(trackPoints)
-            outlinePaint.color = android.graphics.Color.WHITE
-            outlinePaint.strokeWidth = 9f
-            outlinePaint.alpha = (255 * 0.55f).toInt()
-          }
-          val line = Polyline(view).apply {
-            setPoints(trackPoints)
-            outlinePaint.color = android.graphics.Color.rgb(0x22, 0xC5, 0x5E)
-            outlinePaint.strokeWidth = 5f
-          }
-          dynamicOverlays.add(casing)
-          dynamicOverlays.add(line)
+        val hasTrack = trackPoints.size >= 2
+        if (hasTrack) {
+          overlayState.trackCasing.setPoints(trackPoints)
+          overlayState.trackLine.setPoints(trackPoints)
         }
+        overlayState.trackVisible = hasTrack
 
         // Fence circle centered on the vehicle pin (Dart CircleLayer useRadiusInMeter).
         val radius = fenceRadiusMeters
-        if (center != null && radius != null && radius > 0) {
-          val circle = circleGeoPoints(center, radius)
-          val fence = Polygon(view).apply {
-            points = circle + listOf(circle.first())
-            val base = if (fenceEnabled) android.graphics.Color.rgb(0x22, 0xC5, 0x5E) else android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)
-            fillPaint.color = base
-            fillPaint.alpha = (255 * 0.12f).toInt()
-            outlinePaint.color = base
-            outlinePaint.alpha = (255 * 0.55f).toInt()
-            outlinePaint.strokeWidth = 2f
-          }
-          dynamicOverlays.add(fence)
+        val showFence = center != null && radius != null && radius > 0
+        if (showFence) {
+          val circle = circleGeoPoints(center!!, radius!!)
+          overlayState.fence.points = circle + listOf(circle.first())
+          val base = if (fenceEnabled) android.graphics.Color.rgb(0x22, 0xC5, 0x5E) else android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)
+          overlayState.fence.fillPaint.color = base
+          overlayState.fence.fillPaint.alpha = (255 * 0.12f).toInt()
+          overlayState.fence.outlinePaint.color = base
+          overlayState.fence.outlinePaint.alpha = (255 * 0.55f).toInt()
+        }
+        overlayState.fenceVisible = showFence
+
+        // Vehicle pin.
+        overlayState.pinVisible = center != null && showVehiclePin
+        if (overlayState.pinVisible) {
+          overlayState.pin.position = center
         }
 
-        if (center != null && showVehiclePin) {
-          val pin = Marker(view).apply {
-            position = center
-            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-            title = "车辆位置"
-          }
-          dynamicOverlays.add(pin)
-        }
-        view.overlays.addAll(dynamicOverlays)
+        overlayState.sync(view)
         view.invalidate()
 
         // Camera moves only when the target itself changes (Dart initialCenter /
         // CameraFit semantics); recompositions must not snap the view back.
-        val trackKey = if (trackPoints.size >= 2) {
+        val trackKey = if (hasTrack) {
           "${trackPoints.size}|${trackPoints.first().latitude},${trackPoints.first().longitude}|${trackPoints.last().latitude},${trackPoints.last().longitude}"
         } else {
           null

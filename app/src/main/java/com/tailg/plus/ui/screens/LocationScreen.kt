@@ -230,13 +230,40 @@ fun LocationScreen(
   fun openMap(loc: ResolvedVehicleLocation) {
     val lat = loc.latitude ?: return
     val lng = loc.longitude ?: return
-    val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng(${loc.address.ifEmpty { "车辆位置" }})")
+    val label = android.net.Uri.encode(loc.address.ifEmpty { "车辆位置" })
+    val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng($label)")
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
-    if (intent.resolveActivity(ctx.packageManager) != null) {
+    try {
       ctx.startActivity(intent)
-    } else {
+    } catch (e: android.content.ActivityNotFoundException) {
       clipboard.writeClipboardText(googleMapsSearchUri(lat, lng).toString())
       scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用，坐标链接已复制") }
+    }
+  }
+
+  fun loadTravelDetail(record: OfficialTravelRecord) {
+    if (!cloudService.currentState.signedIn) {
+      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore("读取轨迹")) }
+      return
+    }
+    val travelId = record.deviceTravelId.trim()
+    if (travelId.isEmpty()) {
+      scope.launch { AppSnack.info(snackbarHostState, "该记录缺少轨迹ID，暂无法读取") }
+      return
+    }
+    scope.launch {
+      try {
+        cloudService.refreshTravelDetail(travelId)
+        val points = cloudService.currentState.travelDetails[travelId]?.size ?: 0
+        if (points >= 2) {
+          AppSnack.success(snackbarHostState, "轨迹已加载 · ${points}个点")
+        } else {
+          AppSnack.info(snackbarHostState, "该记录暂无轨迹点")
+        }
+      } catch (e: Exception) {
+        log.operation("官方轨迹详情加载失败", detail = e.toString(), level = LogLevel.WARNING)
+        AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+      }
     }
   }
 
@@ -275,6 +302,7 @@ fun LocationScreen(
           cloudState = cloudState,
           onRefresh = { refreshTravelHistory() },
           onChangeMonth = { changeTravelMonth(it) },
+          onRecordTap = { loadTravelDetail(it) },
         )
         LocationTab.FENCE -> FenceTab(
           cloudState = cloudState,
@@ -673,6 +701,7 @@ private fun TravelTab(
   cloudState: OfficialCloudState,
   onRefresh: () -> Unit,
   onChangeMonth: (Int) -> Unit,
+  onRecordTap: (OfficialTravelRecord) -> Unit,
 ) {
   val records = cloudState.travelDays.flatMap { it.records }
   val dateGroups = cloudState.travelDays.filter { it.records.isNotEmpty() || it.hasData }
@@ -726,7 +755,12 @@ private fun TravelTab(
       }
       else -> items(dateGroups) { day ->
         Spacer(Modifier.height(10.dp))
-        TravelDayCard(day = day)
+        TravelDayCard(
+          day = day,
+          travelDetails = cloudState.travelDetails,
+          detailLoading = cloudState.travelDetailLoading,
+          onRecordTap = onRecordTap,
+        )
       }
     }
     item { Spacer(Modifier.height(4.dp)) }
@@ -769,7 +803,12 @@ private fun TravelMonthSelector(month: String, onPreviousMonth: (() -> Unit)?, o
 }
 
 @Composable
-private fun TravelDayCard(day: OfficialTravelDay) {
+private fun TravelDayCard(
+  day: OfficialTravelDay,
+  travelDetails: Map<String, List<com.tailg.plus.data.model.OfficialTravelPoint>>,
+  detailLoading: Boolean,
+  onRecordTap: (OfficialTravelRecord) -> Unit,
+) {
   val records = day.records
   val summedKm = sumTravelMileageKm(records)
   val totalMeters = if (day.totalMileage.trim().isNotEmpty()) parseTravelMileageMeters(day.totalMileage) else summedKm * 1000
@@ -804,7 +843,12 @@ private fun TravelDayCard(day: OfficialTravelDay) {
     if (records.isNotEmpty()) {
       Spacer(Modifier.height(12.dp))
       records.forEach { record ->
-        TravelRecordCard(record = record)
+        TravelRecordCard(
+          record = record,
+          loadedPoints = travelDetails[record.deviceTravelId.trim()]?.size,
+          loading = detailLoading,
+          onTap = { onRecordTap(record) },
+        )
         Spacer(Modifier.height(8.dp))
       }
     }
@@ -839,11 +883,17 @@ private fun SummaryValue(label: String, value: String, unit: String, modifier: M
 }
 
 @Composable
-private fun TravelRecordCard(record: OfficialTravelRecord) {
-  val timeLabel = if (record.startTime.isEmpty() && record.endTime.isEmpty()) {
-    if (record.travelDate.isEmpty()) "时间未知" else record.travelDate
-  } else {
-    "${if (record.startTime.isEmpty()) "--" else record.startTime} 至 ${if (record.endTime.isEmpty()) "--" else record.endTime}"
+private fun TravelRecordCard(
+  record: OfficialTravelRecord,
+  loadedPoints: Int?,
+  loading: Boolean,
+  onTap: () -> Unit,
+) {
+  val actionText = when {
+    loading && loadedPoints == null -> "读取中…"
+    loadedPoints != null && loadedPoints >= 2 -> "已加载 ${loadedPoints}点"
+    loadedPoints != null -> "无轨迹点"
+    else -> "点击读取"
   }
   Row(
     modifier = Modifier
@@ -851,7 +901,8 @@ private fun TravelRecordCard(record: OfficialTravelRecord) {
       .height(86.dp)
       .clip(RoundedCornerShape(AppRadii.tile))
       .background(CyberHomeColors.card)
-      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
+      .clickable(onClick = onTap),
     verticalAlignment = Alignment.CenterVertically,
   ) {
     Spacer(Modifier.width(12.dp))
@@ -883,7 +934,7 @@ private fun TravelRecordCard(record: OfficialTravelRecord) {
       )
     }
     Text(
-      text = "点击读取",
+      text = actionText,
       style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
     )
     Spacer(Modifier.width(8.dp))

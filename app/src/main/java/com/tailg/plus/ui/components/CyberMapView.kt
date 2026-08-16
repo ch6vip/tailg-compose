@@ -5,14 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -21,14 +19,17 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.tailg.plus.ui.theme.CyberHomeColors
+import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
 import org.osmdroid.util.BoundingBox
 import org.osmdroid.util.GeoPoint
 import org.osmdroid.util.MapTileIndex
 import org.osmdroid.views.MapView
 import org.osmdroid.views.overlay.Marker
+import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
+import org.osmdroid.views.overlay.TilesOverlay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
@@ -68,11 +69,23 @@ fun circleGeoPoints(center: GeoPoint, radiusMeters: Double, segments: Int = 64):
   }
 }
 
+/** Remembers the last camera target so recompositions never fight user gestures. */
+private class CameraTarget {
+  var centerLat: Double? = null
+  var centerLng: Double? = null
+  var trackKey: String? = null
+  var initialized = false
+}
+
 /**
  * Shared map composable — port of the Dart `_MapPanel` (lib/pages/location_page.dart):
  * tile layer (+ Tianditu annotation overlay when configured), vehicle pin,
  * fence circle (green enabled / amber warning, 0.12 fill + 0.55 border alpha),
  * track polyline (green with white casing) and track bounds auto-fit.
+ *
+ * The camera only moves when the target (vehicle pin or track) actually
+ * changes; plain recompositions (loading flags, fence toggle) leave the user's
+ * pan/zoom alone.
  */
 @Composable
 fun CyberMapView(
@@ -87,9 +100,18 @@ fun CyberMapView(
 ) {
   val context = LocalContext.current
   val lifecycleOwner = LocalLifecycleOwner.current
-  val annotationTemplate = remember { MapTileConfig.annotationUrlTemplate() }
   val baseTemplate = remember { MapTileConfig.baseUrlTemplate() }
   val subdomains = remember { MapTileConfig.subdomains() }
+  val labelTemplate = remember { MapTileConfig.annotationUrlTemplate() }
+
+  // Tiles providers own thread pools: create once, detach once. Rebuilding
+  // them per recomposition would leak threads/bitmats.
+  val labelProvider = remember(labelTemplate) {
+    labelTemplate?.let { MapTileProviderBasic(context, TemplateTileSource(it, subdomains, "tailg-label")) }
+  }
+
+  val dynamicOverlays = remember { mutableListOf<Overlay>() }
+  val camera = remember { CameraTarget() }
 
   val mapView = remember {
     MapView(context).apply {
@@ -115,79 +137,92 @@ fun CyberMapView(
     onDispose {
       lifecycleOwner.lifecycle.removeObserver(observer)
       mapView.onDetach()
+      labelProvider?.detach()
     }
-  }
-
-  fun rebuildOverlays() {
-    mapView.overlays.clear()
-    if (annotationTemplate != null) {
-      // Tianditu label overlay (cva_w) as a second tiles-only layer.
-      val labelProvider = org.osmdroid.tileprovider.MapTileProviderBasic(
-        context,
-        TemplateTileSource(annotationTemplate, subdomains, "tailg-label"),
-      )
-      mapView.overlays.add(org.osmdroid.views.overlay.TilesOverlay(labelProvider, context))
-    }
-    val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
-
-    // Track polyline with white casing (Dart: 5px green over 3px white border).
-    if (trackPoints.size >= 2) {
-      val casing = Polyline(mapView).apply {
-        setPoints(trackPoints)
-        outlinePaint.color = android.graphics.Color.WHITE
-        outlinePaint.strokeWidth = 9f
-        outlinePaint.alpha = (255 * 0.55f).toInt()
-      }
-      val line = Polyline(mapView).apply {
-        setPoints(trackPoints)
-        outlinePaint.color = android.graphics.Color.rgb(0x22, 0xC5, 0x5E)
-        outlinePaint.strokeWidth = 5f
-      }
-      mapView.overlays.add(casing)
-      mapView.overlays.add(line)
-    }
-
-    // Fence circle centered on the vehicle pin (Dart CircleLayer useRadiusInMeter).
-    val radius = fenceRadiusMeters
-    if (center != null && radius != null && radius > 0) {
-      val fence = Polygon(mapView).apply {
-        points = circleGeoPoints(center, radius) + listOf(circleGeoPoints(center, radius).first())
-        val base = if (fenceEnabled) android.graphics.Color.rgb(0x22, 0xC5, 0x5E) else android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)
-        fillPaint.color = base
-        fillPaint.alpha = (255 * 0.12f).toInt()
-        outlinePaint.color = base
-        outlinePaint.alpha = (255 * 0.55f).toInt()
-        outlinePaint.strokeWidth = 2f
-      }
-      mapView.overlays.add(fence)
-    }
-
-    if (center != null && showVehiclePin) {
-      val pin = Marker(mapView).apply {
-        position = center
-        setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        title = "车辆位置"
-      }
-      mapView.overlays.add(pin)
-    }
-    mapView.invalidate()
   }
 
   Box(modifier = modifier) {
     androidx.compose.ui.viewinterop.AndroidView(
       modifier = Modifier.matchParentSize(),
-      factory = { mapView },
+      factory = {
+        mapView.also { mv -> labelProvider?.let { mv.overlays.add(TilesOverlay(it, context)) } }
+      },
       update = { view ->
-        rebuildOverlays()
+        // Swap only the data-driven overlays; the label tiles layer stays.
+        view.overlays.removeAll(dynamicOverlays)
+        dynamicOverlays.clear()
+
         val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
+
+        // Track polyline with white casing (Dart: 5px green over 3px white border).
+        if (trackPoints.size >= 2) {
+          val casing = Polyline(view).apply {
+            setPoints(trackPoints)
+            outlinePaint.color = android.graphics.Color.WHITE
+            outlinePaint.strokeWidth = 9f
+            outlinePaint.alpha = (255 * 0.55f).toInt()
+          }
+          val line = Polyline(view).apply {
+            setPoints(trackPoints)
+            outlinePaint.color = android.graphics.Color.rgb(0x22, 0xC5, 0x5E)
+            outlinePaint.strokeWidth = 5f
+          }
+          dynamicOverlays.add(casing)
+          dynamicOverlays.add(line)
+        }
+
+        // Fence circle centered on the vehicle pin (Dart CircleLayer useRadiusInMeter).
+        val radius = fenceRadiusMeters
+        if (center != null && radius != null && radius > 0) {
+          val circle = circleGeoPoints(center, radius)
+          val fence = Polygon(view).apply {
+            points = circle + listOf(circle.first())
+            val base = if (fenceEnabled) android.graphics.Color.rgb(0x22, 0xC5, 0x5E) else android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)
+            fillPaint.color = base
+            fillPaint.alpha = (255 * 0.12f).toInt()
+            outlinePaint.color = base
+            outlinePaint.alpha = (255 * 0.55f).toInt()
+            outlinePaint.strokeWidth = 2f
+          }
+          dynamicOverlays.add(fence)
+        }
+
+        if (center != null && showVehiclePin) {
+          val pin = Marker(view).apply {
+            position = center
+            setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
+            title = "车辆位置"
+          }
+          dynamicOverlays.add(pin)
+        }
+        view.overlays.addAll(dynamicOverlays)
+        view.invalidate()
+
+        // Camera moves only when the target itself changes (Dart initialCenter /
+        // CameraFit semantics); recompositions must not snap the view back.
+        val trackKey = if (trackPoints.size >= 2) {
+          "${trackPoints.size}|${trackPoints.first().latitude},${trackPoints.first().longitude}|${trackPoints.last().latitude},${trackPoints.last().longitude}"
+        } else {
+          null
+        }
         when {
-          trackPoints.size >= 2 -> {
+          trackKey != null && camera.trackKey != trackKey -> {
+            camera.trackKey = trackKey
             val box = BoundingBox.fromGeoPoints(trackPoints).increaseByScale(1.25f)
             view.post { view.zoomToBoundingBox(box, false, 64) }
           }
-          center != null -> view.controller.animateTo(center)
-          else -> view.controller.setCenter(GeoPoint(30.2741, 120.1551))
+          trackKey == null && center != null &&
+            (camera.centerLat != center.latitude || camera.centerLng != center.longitude) -> {
+            camera.centerLat = center.latitude
+            camera.centerLng = center.longitude
+            view.controller.animateTo(center)
+          }
+          center == null && !camera.initialized -> {
+            camera.initialized = true
+            view.controller.setCenter(GeoPoint(30.2741, 120.1551))
+          }
         }
+        camera.initialized = true
       },
     )
     if (latitude == null || longitude == null) {

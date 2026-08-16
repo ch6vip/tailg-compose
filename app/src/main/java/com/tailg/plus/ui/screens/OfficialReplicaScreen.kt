@@ -678,9 +678,9 @@ private fun ElectricFenceTab(
               } else {
                 val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
-                if (intent.resolveActivity(context.packageManager) != null) {
+                try {
                   context.startActivity(intent)
-                } else {
+                } catch (e: android.content.ActivityNotFoundException) {
                   scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用") }
                 }
               }

@@ -38,3 +38,4 @@ app/src/main/java/com/tailg/plus/
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
 | Hilt DI 图 | ✅ (8 个单例 provider;屏幕仍走 factory 回退) |
 | 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |
+| 地图 SDK | ✅ osmdroid（高德瓦片默认 / 天地图 token 可选）——位置/轨迹/围栏三 tab + ControlScreen 迷你图 |

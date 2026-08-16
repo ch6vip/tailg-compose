@@ -1,7 +1,7 @@
 package com.tailg.plus.ui.components
 
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -17,11 +17,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -80,6 +80,7 @@ fun CyberMapStatsRow(
         location = location,
         address = address,
         height = if (stacked) 210.dp else 260.dp,
+        onMapTap = onMapTap,
       )
     }
     val rideCard = AppPressable(
@@ -113,16 +114,17 @@ fun CyberMapStatsRow(
   }
 }
 
-/** Placeholder mini map — real tiles deferred to the map SDK pass. */
+/** Mini map on osmdroid tiles (Dart flutter_map embed); tap opens the map page. */
 @Composable
 private fun MiniMap(
   location: ResolvedVehicleLocation?,
   address: String,
   height: Dp,
+  onMapTap: () -> Unit,
 ) {
   val hasPin = location?.hasCoordinate == true
-  val lat = location?.latitude ?: 30.2741
-  val lng = location?.longitude ?: 120.1551
+  val lat = location?.latitude
+  val lng = location?.longitude
 
   Box(
     modifier = Modifier
@@ -131,56 +133,23 @@ private fun MiniMap(
       .clip(RoundedCornerShape(AppRadii.sheet))
       .background(CyberHomeColors.mapPlaceholder),
   ) {
-    // Grid hint lines (stand-in for tile roads).
-    Canvas(modifier = Modifier.matchParentSize()) {
-      val step = 32.dp.toPx()
-      var x = step
-      while (x < size.width) {
-        drawLine(
-          color = CyberHomeColors.line.copy(alpha = 0.5f),
-          start = Offset(x, 0f),
-          end = Offset(x, size.height),
-          strokeWidth = 1f,
-        )
-        x += step
-      }
-      var y = step
-      while (y < size.height) {
-        drawLine(
-          color = CyberHomeColors.line.copy(alpha = 0.5f),
-          start = Offset(0f, y),
-          end = Offset(size.width, y),
-          strokeWidth = 1f,
-        )
-        y += step
-      }
-    }
-    // Centered map glyph.
-    Box(modifier = Modifier.align(Alignment.Center)) {
-      LucideIcon(icon = Lucide.map, size = 40.dp, color = CyberHomeColors.inkFaint.copy(alpha = 0.6f))
-    }
-    // Pin marker when a usable coordinate exists (Dart flutter_map marker).
+    CyberMapView(
+      latitude = if (hasPin) lat else null,
+      longitude = if (hasPin) lng else null,
+      modifier = Modifier.matchParentSize(),
+    )
+    // The AndroidView consumes gestures, so re-surface the card tap on top.
+    Box(
+      modifier = Modifier
+        .matchParentSize()
+        .clickable(
+          interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+          indication = null,
+        ) { onMapTap() },
+    )
     if (hasPin) {
-      Canvas(modifier = Modifier.matchParentSize()) {
-        val c = Offset(size.width / 2f, size.height / 2f)
-        drawCircle(
-          color = CyberHomeColors.primary.copy(alpha = 0.15f),
-          radius = 26.dp.toPx(),
-          center = c,
-        )
-        drawCircle(
-          color = CyberHomeColors.primary,
-          radius = 8.dp.toPx(),
-          center = c,
-        )
-        drawCircle(
-          color = CyberHomeColors.white,
-          radius = 3.dp.toPx(),
-          center = c,
-        )
-      }
       Text(
-        text = "%.5f, %.5f".format(lat, lng),
+        text = "%.5f, %.5f".format(lat ?: 0.0, lng ?: 0.0),
         style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = CyberHomeColors.inkFaint),
         modifier = Modifier
           .align(Alignment.BottomCenter)

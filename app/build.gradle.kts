@@ -17,6 +17,14 @@ android {
         versionCode = 1
         versionName = "0.1.0"
 
+        // Map tiles: optional Tianditu token (Gradle property `tiandituToken`),
+        // mirroring the Dart TIANDITU_TOKEN dart-define; blank falls back to AutoNavi.
+        buildConfigField(
+            "String",
+            "TIANDITU_TOKEN",
+            "\"${(project.findProperty("tiandituToken") as String?)?.replace("\"", "") ?: ""}\"",
+        )
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
@@ -101,6 +109,9 @@ dependencies {
 
     // Location
     implementation(libs.play.services.location)
+
+    // Map (osmdroid — new dep for the map SDK pass, see UI_PORT_PLAN map TODO)
+    implementation(libs.osmdroid.android)
 
     // Camera / scanner
     implementation(libs.camerax.core)

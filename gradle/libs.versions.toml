@@ -16,6 +16,7 @@ moshi = "1.15.2"
 datastore = "1.1.4"
 securityCrypto = "1.1.0-alpha06"
 playServicesLocation = "21.3.0"
+osmdroid = "6.1.20"
 camerax = "1.4.2"
 mlkitBarcode = "17.3.0"
 lottie = "6.6.4"
@@ -75,6 +76,8 @@ androidx-security-crypto = { group = "androidx.security", name = "security-crypt
 
 # Location / map
 play-services-location = { group = "com.google.android.gms", name = "play-services-location", version.ref = "playServicesLocation" }
+# Map: osmdroid (OpenStreetMap) — replaces flutter_map in the Dart line; free, no API key
+osmdroid-android = { group = "org.osmdroid", name = "osmdroid-android", version.ref = "osmdroid" }
 
 # Camera / scanner
 camerax-core = { group = "androidx.camera", name = "camera-core", version.ref = "camerax" }

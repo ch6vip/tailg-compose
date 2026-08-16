@@ -5,17 +5,10 @@ package com.tailg.plus.ui.components
  * provider.
  *
  * The Dart class extends flutter_map's `TileProvider` and wraps
- * `CachedNetworkImageProvider` for on-disk tile caching. This project has no
- * map SDK yet (UI_PORT_PLAN: "map SDK choice TODO"), so this file only fixes
- * the contract the map layer must implement once a map composable is chosen
- * (e.g. MapLibre / osmdroid / google-maps-compose). No code depends on it yet;
- * it exists to keep the 25-widget port 1:1.
- *
- * Requirements for the future provider (mirroring the Dart):
- * - URL template `{z}/{x}/{y}` resolved from the tile server config
- *   (Dart `lib/config/map_tile_config.dart` — tianditu/web-tile server).
- * - Disk caching across page switches / restarts (Dart disk cache; Compose
- *   equivalent: OkHttp cache or the map SDK's own tile cache).
+ * `CachedNetworkImageProvider` for on-disk tile caching. The Compose line uses
+ * osmdroid (see `CyberMapView.kt` / `MapTileConfig.kt`): template resolution
+ * reuses this contract and on-disk caching comes from osmdroid's tile cache
+ * (configured in `TailgApplication`).
  */
 interface CachedTileProvider {
   /** Resolve the tile URL for a Web-Mercator tile coordinate. */

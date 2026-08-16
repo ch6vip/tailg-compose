@@ -546,6 +546,7 @@ private fun ElectricFenceTab(
   var radiusText by remember { mutableStateOf("500") }
   var loading by remember { mutableStateOf(true) }
   var lastLocation by remember { mutableStateOf<VehicleLocation?>(null) }
+  val context = androidx.compose.ui.platform.LocalContext.current
 
   LaunchedEffect(Unit) {
     vehicleStore.init()
@@ -670,8 +671,19 @@ private fun ElectricFenceTab(
           }
           OutlinedButton(
             onClick = {
-              // TODO: launch external map via Intent
-              scope.launch { AppSnack.info(snackbarHostState, "坐标已复制，可粘贴到地图应用") }
+              val lat = latText.trim().toDoubleOrNull()
+              val lng = lngText.trim().toDoubleOrNull()
+              if (lat == null || lng == null) {
+                scope.launch { AppSnack.info(snackbarHostState, "请输入有效坐标") }
+              } else {
+                val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
+                val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
+                if (intent.resolveActivity(context.packageManager) != null) {
+                  context.startActivity(intent)
+                } else {
+                  scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用") }
+                }
+              }
             },
             shape = cyberButtonShape,
             colors = cyberOutlinedButtonColors(),

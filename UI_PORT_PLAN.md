@@ -14,7 +14,7 @@ Source: `E:\ctf-aaa\tlddc\tailg-ble-app\lib\pages\*.dart` → `com.tailg.plus.ui
 | 7 | garage_code_scanner_page | | GarageCodeScannerScreen | |
 | 8 | location_page | 1310 | LocationScreen | 3 tabs (fence/map/travel) |
 | 9 | location_fence_tab | | LocationFenceTab | |
-| 10 | location_map_tab | | LocationMapTab | map SDK choice TODO |
+| 10 | location_map_tab | | LocationMapTab | 地图已接 osmdroid（CyberMapView） |
 | 11 | location_travel_tab | | LocationTravelTab | |
 | 12 | battery_details_page | 1588 | BatteryDetailsScreen | |
 | 13 | replace_battery_page | | ReplaceBatteryScreen | |

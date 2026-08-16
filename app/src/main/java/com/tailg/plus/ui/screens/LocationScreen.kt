@@ -65,6 +65,7 @@ import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.CyberMapView
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.theme.AppIconSizes
@@ -93,7 +94,8 @@ private enum class LocationTab { MAP, TRAVEL, FENCE }
  * Port of `lib/pages/location_page.dart` (+ location_map_tab.dart,
  * location_travel_tab.dart, location_fence_tab.dart) — single file with tabs.
  *
- * Map SDK is deferred (TODO); the mini map is a placeholder canvas.
+ * Maps render through the shared osmdroid composable [CyberMapView]
+ * (Dart `_MapPanel` equivalent); tiles come from `MapTileConfig`.
  */
 @Composable
 fun LocationScreen(
@@ -226,10 +228,16 @@ fun LocationScreen(
   }
 
   fun openMap(loc: ResolvedVehicleLocation) {
-    val uri = googleMapsSearchUri(loc.latitude ?: 0.0, loc.longitude ?: 0.0)
-    // TODO: launch external map via Intent
-    scope.launch { AppSnack.info(snackbarHostState, "坐标已复制，可粘贴到地图应用") }
-    clipboard.writeClipboardText(uri.toString())
+    val lat = loc.latitude ?: return
+    val lng = loc.longitude ?: return
+    val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng(${loc.address.ifEmpty { "车辆位置" }})")
+    val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
+    if (intent.resolveActivity(ctx.packageManager) != null) {
+      ctx.startActivity(intent)
+    } else {
+      clipboard.writeClipboardText(googleMapsSearchUri(lat, lng).toString())
+      scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用，坐标链接已复制") }
+    }
   }
 
   Scaffold(
@@ -398,7 +406,6 @@ private fun MapTab(
     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 24.dp),
   ) {
     item {
-      // TODO: replace with real map SDK (flutter_map equivalent)
       MiniMapPlaceholder(location = location, fence = cloudState.fenceData)
     }
     item { Spacer(Modifier.height(14.dp)) }
@@ -423,6 +430,7 @@ private fun MapTab(
 
 @Composable
 private fun MiniMapPlaceholder(location: ResolvedVehicleLocation?, fence: OfficialFenceData?) {
+  val hasCoordinate = location != null && location.hasCoordinate
   Box(
     modifier = Modifier
       .fillMaxWidth()
@@ -430,17 +438,15 @@ private fun MiniMapPlaceholder(location: ResolvedVehicleLocation?, fence: Offici
       .clip(RoundedCornerShape(AppRadii.tile))
       .background(CyberHomeColors.mapPlaceholder)
       .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
-    contentAlignment = Alignment.Center,
   ) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-      LucideIcon(icon = Lucide.map, size = 58.dp, color = CyberHomeColors.inkFaint)
-      Spacer(Modifier.height(8.dp))
-      Text(
-        text = if (location != null) "位置已获取" else "暂无位置数据",
-        style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
-      )
-    }
-    if (location != null && location.hasCoordinate) {
+    CyberMapView(
+      latitude = if (hasCoordinate) location.latitude else null,
+      longitude = if (hasCoordinate) location.longitude else null,
+      modifier = Modifier.fillMaxSize(),
+      fenceRadiusMeters = if (hasCoordinate) fence?.radiusMeters else null,
+      fenceEnabled = fence?.enabled ?: true,
+    )
+    if (hasCoordinate) {
       Text(
         text = "%.5f, %.5f".format(location.latitude ?: 0.0, location.longitude ?: 0.0),
         style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = CyberHomeColors.inkFaint),
@@ -681,6 +687,30 @@ private fun TravelTab(
         onPreviousMonth = if (!cloudState.travelLoading) { { onChangeMonth(-1) } } else null,
         onNextMonth = if (!cloudState.travelLoading) { { onChangeMonth(1) } } else null,
       )
+    }
+    item { Spacer(Modifier.height(14.dp)) }
+    // Track map (Dart _MapPanel in location_travel_tab.dart).
+    item {
+      val trackPoints = cloudState.travelDetails.values.flatten().mapNotNull { p ->
+        val lat = p.latitude ?: return@mapNotNull null
+        val lng = p.longitude ?: return@mapNotNull null
+        org.osmdroid.util.GeoPoint(lat, lng)
+      }
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(260.dp)
+          .clip(RoundedCornerShape(AppRadii.tile))
+          .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+      ) {
+        CyberMapView(
+          latitude = trackPoints.lastOrNull()?.latitude,
+          longitude = trackPoints.lastOrNull()?.longitude,
+          trackPoints = trackPoints,
+          showVehiclePin = trackPoints.isEmpty(),
+          modifier = Modifier.fillMaxSize(),
+        )
+      }
     }
     item { Spacer(Modifier.height(14.dp)) }
     when {
@@ -927,14 +957,26 @@ private fun FenceTab(
       LocationSegmentedTabs(index = 2, onChanged = onTabChanged)
     }
     Spacer(Modifier.height(14.dp))
-    // TODO: full-bleed map placeholder for fence tab
+    // Full-bleed fence map centered on the vehicle pin with the fence circle.
     Box(
       modifier = Modifier
         .fillMaxWidth()
-        .height(200.dp)
-        .background(CyberHomeColors.mapPlaceholder),
-    )
-    Spacer(Modifier.weight(1f))
+        .weight(1f)
+        .padding(horizontal = 20.dp)
+        .clip(RoundedCornerShape(AppRadii.tile))
+        .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+    ) {
+      val hasCoordinate = location != null && location.hasCoordinate
+      CyberMapView(
+        latitude = if (hasCoordinate) location.latitude else null,
+        longitude = if (hasCoordinate) location.longitude else null,
+        fenceRadiusMeters = if (hasCoordinate) fence?.radiusMeters else null,
+        fenceEnabled = enabled,
+        initialZoom = 15.5,
+        modifier = Modifier.fillMaxSize(),
+      )
+    }
+    Spacer(Modifier.height(14.dp))
     // Fence settings sheet.
     Column(
       modifier = Modifier

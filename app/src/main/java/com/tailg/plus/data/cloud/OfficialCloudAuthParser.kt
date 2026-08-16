@@ -42,21 +42,26 @@ object OfficialCloudAuthParser {
     fun extractUserId(body: Map<String, Any?>): String = findUserId(body) ?: ""
 
     /**
-     * Normalize a user-pasted token into a valid `Authorization` header value.
+     * Normalize a user-pasted token into the exact `Authorization` header
+     * value the official `v1/api` stack expects.
      *
      * Handles three common paste formats:
-     * - `Authorization: Bearer xxx` (full header line) → extract `Bearer xxx`
-     * - `Bearer xxx` → normalize to `Bearer xxx`
-     * - bare token (possibly URL-encoded) → decode + prepend `Bearer `
+     * - `Authorization: Bearer xxx` (full header line) → extract the value
+     * - `Bearer xxx` → strip the scheme prefix
+     * - bare token (already percent-encoded, or decoded) → keep / restore
+     *   percent-encoding
      *
-     * The official server expects `Bearer <token>` (see decompiled
-     * `PlatfromTailgRetrofit.java`). Tokens copied from URLs / cookies are
-     * often percent-encoded (`%2F`, `%2B`, `%3D`); decode them so the server
-     * receives the raw base64 value. Decoding matches Dart
-     * `Uri.decodeComponent`: only `%XX` sequences are decoded — a literal `+`
-     * is a real base64 character and must survive (`URLDecoder.decode` would
-     * turn it into a space and corrupt mixed-encoded pastes like
-     * `a+b%2Fc%3D`, which then fail with a silent 401).
+     * Verified against the production server (2026-08): the legacy `v1/api`
+     * gateway wants the token **URL-encoded and without a `Bearer ` prefix**
+     * — exactly what the decompiled official app sends via
+     * `ResPlatfromTailgRetrofit.addHeaders()`:
+     * `builder.add("Authorization", PrefsUtil.getToken())`.
+     *
+     * Sending `Bearer <token>` makes the Spring gateway parse the value as a
+     * JWT (`Invalid JWT serialization: Missing dot delimiter(s)` → empty-body
+     * 401); sending the decoded base64 form is rejected by the app layer
+     * (`{"code":401,"msg":"认证失败"}`). Only the encoded form succeeds —
+     * `Bearer <jwt>` belongs to the separate `/v8/` platform stack, not here.
      */
     fun normalizeAuthorizationToken(raw: String): String {
         var token = raw.trim()
@@ -66,31 +71,33 @@ object OfficialCloudAuthParser {
             token = authLine.groupValues[1].trim()
         }
         token = Regex("\\s+").replace(token, " ").trim()
+        // The v1/api stack sends no auth scheme — strip a pasted `Bearer `.
         if (token.lowercase().startsWith("bearer ")) {
-            var value = token.substring(7).trim()
-            if (value.contains("%")) {
-                value = decodePercentEncoded(value)
-            }
-            return if (value.isEmpty()) "" else "Bearer $value"
+            token = token.substring(7).trim()
         }
-        // Bare token: URL-decode if percent-encoded, then prepend Bearer.
-        val decoded = if (token.contains("%")) decodePercentEncoded(token) else token
-        return if (decoded.isEmpty()) "" else "Bearer $decoded"
+        if (token.isEmpty()) return ""
+        // Already percent-encoded: the server matches this exact form, send verbatim.
+        if (percentSequence.containsMatchIn(token)) return token
+        // Decoded paste: re-encode the reserved characters the server
+        // round-trips (`/`→%2F, `+`→%2B, `=`→%3D, …).
+        return percentEncode(token)
     }
 
-    /**
-     * Percent-decode with Dart `Uri.decodeComponent` semantics: decode `%XX`
-     * sequences only and keep literal `+` intact. Malformed sequences (e.g. a
-     * trailing lone `%`) fall back to the input unchanged — more forgiving
-     * than Dart, which throws and surfaces a login error.
-     */
-    private fun decodePercentEncoded(input: String): String =
-        try {
-            // Shield literal '+' from URLDecoder's form-decoding (+ → space).
-            java.net.URLDecoder.decode(input.replace("+", "%2B"), "UTF-8")
-        } catch (_: Exception) {
-            input
+    private val percentSequence = Regex("%[0-9A-Fa-f]{2}")
+
+    private const val HEX_DIGITS = "0123456789ABCDEF"
+
+    private fun percentEncode(value: String): String = buildString(value.length) {
+        for (char in value) {
+            if (char.isLetterOrDigit() || char == '-' || char == '.' || char == '_' || char == '~') {
+                append(char)
+            } else {
+                append('%')
+                append(HEX_DIGITS[char.code ushr 4])
+                append(HEX_DIGITS[char.code and 0x0F])
+            }
         }
+    }
 
     private fun findUserId(value: Any?): String? {
         if (value is Map<*, *>) {

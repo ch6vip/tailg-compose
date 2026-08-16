@@ -61,40 +61,48 @@ class OfficialCloudAuthParserTest {
   }
 
   // -- normalizeAuthorizationToken -------------------------------------------
+  // The official v1/api gateway wants the token URL-encoded and WITHOUT a
+  // `Bearer ` prefix (decompiled ResPlatfromTailgRetrofit sends the raw
+  // stored value; verified against the production server 2026-08).
 
   @Test
-  fun `bare token gets Bearer prefix`() {
-    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("abc123"))
+  fun `bare token is kept as-is`() {
+    assertEquals("abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("abc123"))
   }
 
   @Test
-  fun `Bearer token is preserved`() {
-    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer abc123"))
-    assertEquals("Bearer abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("bearer abc123"))
+  fun `Bearer prefix is stripped`() {
+    assertEquals("abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer abc123"))
+    assertEquals("abc123", OfficialCloudAuthParser.normalizeAuthorizationToken("bearer abc123"))
   }
 
   @Test
-  fun `Authorization header line is extracted`() {
+  fun `Authorization header line is extracted and Bearer stripped`() {
     assertEquals(
-      "Bearer abc123",
+      "abc123",
       OfficialCloudAuthParser.normalizeAuthorizationToken("Authorization: Bearer abc123"),
+    )
+    assertEquals(
+      "a%2Fb",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("Authorization: a%2Fb"),
     )
   }
 
   @Test
-  fun `URL-encoded bare token is decoded and gets Bearer prefix`() {
-    // %2F=/, %2B=+, %3D==
+  fun `percent-encoded token is sent verbatim without decoding`() {
+    // The server matches the encoded form exactly — decoding it produces
+    // {"code":401,"msg":"认证失败"}.
     assertEquals(
-      "Bearer a/b+c=",
+      "a%2Fb%2Bc%3D",
       OfficialCloudAuthParser.normalizeAuthorizationToken("a%2Fb%2Bc%3D"),
     )
   }
 
   @Test
-  fun `URL-encoded Bearer token is decoded`() {
+  fun `decoded bare token is re-encoded`() {
     assertEquals(
-      "Bearer a/b+c=",
-      OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer a%2Fb%2Bc%3D"),
+      "a%2Fb%2Bc%3D",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("a/b+c="),
     )
   }
 
@@ -105,34 +113,32 @@ class OfficialCloudAuthParserTest {
   }
 
   @Test
-  fun `real-world URL-encoded token is decoded`() {
+  fun `real-world URL-encoded token passes through unchanged`() {
     val encoded = "c3fwod5KRO6B%2FPX7o6YOu81xVzPu24uGlaH5jEOudIG2d%2FKZ6i51depGp9NkWDN"
-    val expected = "Bearer c3fwod5KRO6B/PX7o6YOu81xVzPu24uGlaH5jEOudIG2d/KZ6i51depGp9NkWDN"
-    assertEquals(expected, OfficialCloudAuthParser.normalizeAuthorizationToken(encoded))
+    assertEquals(encoded, OfficialCloudAuthParser.normalizeAuthorizationToken(encoded))
   }
 
   @Test
-  fun `literal plus survives mixed URL-encoded bare token`() {
-    // Copied from a URL query string: '+' kept literal, '/'/'=' percent-encoded.
-    // URLDecoder would turn '+' into a space and silently corrupt the token.
+  fun `mixed paste with percent sequences is not re-encoded`() {
+    // Contains valid %XX → treated as already encoded and sent verbatim.
     assertEquals(
-      "Bearer a+b/c=",
+      "a+b%2Fc%3D",
       OfficialCloudAuthParser.normalizeAuthorizationToken("a+b%2Fc%3D"),
     )
   }
 
   @Test
-  fun `literal plus survives mixed URL-encoded Bearer token`() {
-    assertEquals(
-      "Bearer a+b/c=",
-      OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer a+b%2Fc%3D"),
-    )
+  fun `trailing lone percent is encoded as literal`() {
+    // No valid %XX sequence → encode path: literal '%' becomes %25.
+    assertEquals("abc%25", OfficialCloudAuthParser.normalizeAuthorizationToken("abc%"))
   }
 
   @Test
-  fun `malformed percent sequence falls back to raw token`() {
-    // Trailing lone '%' cannot be decoded; keep the paste as-is instead of
-    // failing the login outright (Dart throws here — we degrade gracefully).
-    assertEquals("Bearer abc%", OfficialCloudAuthParser.normalizeAuthorizationToken("abc%"))
+  fun `real-world decoded token is fully re-encoded`() {
+    // The decoded form of a captured official token; must round-trip back to
+    // the encoded form the server accepts.
+    val decoded = "c3fwod5KRO6B/PX7o6YOu81xVzPu24uGlaH5jEOudIG2d/KZ6i51depGp9NkWDN"
+    val expected = "c3fwod5KRO6B%2FPX7o6YOu81xVzPu24uGlaH5jEOudIG2d%2FKZ6i51depGp9NkWDN"
+    assertEquals(expected, OfficialCloudAuthParser.normalizeAuthorizationToken(decoded))
   }
 }

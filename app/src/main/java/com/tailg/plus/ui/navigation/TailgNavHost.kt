@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
@@ -20,6 +21,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.tailg.plus.ui.components.AppSnackbarHost
+import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.VoidOrbitalNav
 import com.tailg.plus.ui.screens.AboutAppScreen
 import com.tailg.plus.ui.screens.AddVehicleScreen
@@ -66,6 +68,7 @@ fun TailgNavHost() {
   val navController = rememberNavController()
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
+  val scope = rememberCoroutineScope()
   val entryPoint = rememberTailgEntryPoint()
   val cloudService = entryPoint.cloudService()
 
@@ -157,10 +160,17 @@ fun TailgNavHost() {
       composable(Routes.LOGIN) {
         LoginScreen(
           cloudService = cloudService,
-          onSignedIn = {
+          onSignedIn = { successMessage ->
             navController.navigate(Routes.SERVICE_HUB) {
               launchSingleTop = true
               popUpTo(Routes.LOGIN) { inclusive = true }
+            }
+            // Dart shows the success toast via the global ScaffoldMessenger
+            // AFTER navigating; M3 showSnackbar suspends (~4s), so firing it
+            // on the root host keeps the toast visible on the destination
+            // screen without blocking the login page.
+            if (successMessage != null) {
+              scope.launch { AppSnack.success(snackbarHostState, successMessage) }
             }
           },
         )

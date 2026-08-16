@@ -88,7 +88,7 @@ private enum class LoginMode { SMS, TOKEN }
 @Composable
 fun LoginScreen(
   cloudService: OfficialCloudService,
-  onSignedIn: () -> Unit,
+  onSignedIn: (successMessage: String?) -> Unit = { _ -> },
   modifier: Modifier = Modifier,
 ) {
   val context = LocalContext.current
@@ -117,7 +117,7 @@ fun LoginScreen(
   // changes from outside the handlers (e.g. session restore).
   LaunchedEffect(cloudState.signedIn, busy) {
     if (cloudState.signedIn && !busy) {
-      onSignedIn()
+      onSignedIn(null)
     }
   }
 
@@ -190,8 +190,10 @@ fun LoginScreen(
             scope.launch {
               try {
                 cloudService.login(normalizedPhone, smsCode.trim())
-                AppSnack.success(snackbarHostState, "登录成功")
-                onSignedIn()
+                // Navigate immediately (Dart AppSnack.success is fire-and-forget;
+                // M3 showSnackbar suspends ~4s and would block navigation). The
+                // success toast is shown by the host on the destination screen.
+                onSignedIn("登录成功")
               } catch (e: Exception) {
                 log.operation(
                   "官云登录失败",
@@ -238,8 +240,8 @@ fun LoginScreen(
                   phone = cloudService.currentState.phone,
                   userId = cloudService.currentState.userId,
                 )
-                AppSnack.success(snackbarHostState, "Token 登录成功")
-                onSignedIn()
+                // Navigate immediately; success toast shown by the host.
+                onSignedIn("Token 登录成功")
               } catch (e: Exception) {
                 log.operation(
                   "Token 登录失败",

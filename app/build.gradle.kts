@@ -113,6 +113,9 @@ dependencies {
     // Map (osmdroid — new dep for the map SDK pass, see UI_PORT_PLAN map TODO)
     implementation(libs.osmdroid.android)
 
+    // QR rendering for the garage vehicle-code sheet (zxing core, pure JVM)
+    implementation(libs.zxing.core)
+
     // Camera / scanner
     implementation(libs.camerax.core)
     implementation(libs.camerax.camera2)

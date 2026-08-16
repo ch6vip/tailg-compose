@@ -24,7 +24,7 @@ object Routes {
     const val GARAGE_CODE_SCANNER = "garage_code_scanner"
 
     // ---- Vehicle detail screens ----
-    const val LOCATION = "location/{vehicleId}"
+    const val LOCATION = "location/{vehicleId}?tab={tab}"
     const val BATTERY_DETAILS = "battery_details/{vehicleId}"
     const val REPLACE_BATTERY = "replace_battery/{vehicleId}"
     const val RIDE_STATS = "ride_stats/{vehicleId}"
@@ -46,7 +46,8 @@ object Routes {
 
     // ---- Helpers ----
     fun control(vehicleId: String) = "control/$vehicleId"
-    fun location(vehicleId: String) = "location/$vehicleId"
+    fun location(vehicleId: String, tab: String? = null) =
+      if (tab.isNullOrEmpty()) "location/$vehicleId" else "location/$vehicleId?tab=$tab"
     fun batteryDetails(vehicleId: String) = "battery_details/$vehicleId"
     fun replaceBattery(vehicleId: String) = "replace_battery/$vehicleId"
     fun rideStats(vehicleId: String) = "ride_stats/$vehicleId"

@@ -83,9 +83,9 @@ fun ServiceHubScreen(
       ServiceSectionLabel("定位服务")
       GlyphSection(
         items = listOf(
-          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.LOCATION) },
-          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.LOCATION) },
-          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.LOCATION) },
+          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.location("current")) },
+          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.location("current", "travel")) },
+          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.location("current", "fence")) },
         ),
       )
 
@@ -99,9 +99,6 @@ fun ServiceHubScreen(
       )
 
       ServiceSectionLabel("更多")
-      // TODO: map SDK pages (location / travel / fence) need a tab-arg route; the
-      //  Dart LocationPage carries an initialTab. For now all three route to the
-      //  same LOCATION route and the tab is selected inside the screen.
       ServiceListCard {
         ServiceListTile(
           icon = Lucide.stethoscope,

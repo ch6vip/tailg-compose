@@ -85,6 +85,8 @@ fun GarageScreen(
   onNavigate: (String) -> Unit,
   cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
+  mqttService: com.tailg.plus.data.mqtt.OfficialMqttService? = null,
+  connectionManager: com.tailg.plus.data.ble.platform.ConnectionManager? = null,
 ) {
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val scope = rememberCoroutineScope()
@@ -105,6 +107,7 @@ fun GarageScreen(
   var showRenameDialog by remember { mutableStateOf<OfficialVehicle?>(null) }
   var showUnbindDialog by remember { mutableStateOf<OfficialVehicle?>(null) }
   var showVehicleCodeSheet by remember { mutableStateOf<OfficialVehicle?>(null) }
+  var pendingSwitchVehicle by remember { mutableStateOf<OfficialVehicle?>(null) }
 
   val signedIn = cloudState.signedIn
   val listState = rememberLazyListState()
@@ -301,18 +304,7 @@ fun GarageScreen(
                     scope.launch { AppSnack.info(snackbarHostState, "该车辆已是当前使用车辆") }
                     return@GarageVehicleCard
                   }
-                  showRenameDialog?.let { }
-                  // TODO: confirm dialog then switch vehicle (disconnect MQTT + BLE + changeUsingVehicle)
-                  scope.launch {
-                    busyVehicleKey = vehicle.key
-                    try {
-                      cloudService.changeUsingVehicle(vehicle)
-                    } catch (e: Exception) {
-                      AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
-                    } finally {
-                      busyVehicleKey = null
-                    }
-                  }
+                  pendingSwitchVehicle = vehicle
                 },
                 onRename = { showRenameDialog = vehicle },
                 onVehicleCode = { showVehicleCodeSheet = vehicle },
@@ -398,6 +390,53 @@ fun GarageScreen(
     )
   }
 
+  // Vehicle switch confirmation (Dart: disconnect MQTT + BLE, then changeUsingVehicle).
+  pendingSwitchVehicle?.let { vehicle ->
+    AlertDialog(
+      onDismissRequest = { pendingSwitchVehicle = null },
+      title = { androidx.compose.material3.Text("切换车辆") },
+      text = {
+        androidx.compose.material3.Text("切换到「${vehicle.displayName}」？将断开当前车辆的蓝牙与云端连接。")
+      },
+      confirmButton = {
+        androidx.compose.material3.TextButton(
+          onClick = {
+            val target = vehicle
+            pendingSwitchVehicle = null
+            scope.launch {
+              busyVehicleKey = target.key
+              try {
+                try {
+                  mqttService?.disconnect()
+                } catch (_: Exception) {
+                  // Best-effort channel teardown before the switch.
+                }
+                try {
+                  connectionManager?.disconnect()
+                } catch (_: Exception) {
+                  // Best-effort channel teardown before the switch.
+                }
+                cloudService.changeUsingVehicle(target)
+                AppSnack.success(snackbarHostState, "已切换到 ${target.displayName}")
+              } catch (e: Exception) {
+                AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+              } finally {
+                busyVehicleKey = null
+              }
+            }
+          },
+        ) {
+          androidx.compose.material3.Text("切换")
+        }
+      },
+      dismissButton = {
+        androidx.compose.material3.TextButton(onClick = { pendingSwitchVehicle = null }) {
+          androidx.compose.material3.Text("取消")
+        }
+      },
+    )
+  }
+
   // Unbind verification dialog.
   showUnbindDialog?.let { vehicle ->
     val phone = cloudState.phone.trim()
@@ -458,8 +497,7 @@ fun GarageScreen(
         showVehicleCodeSheet = null
       }
     } else {
-      // TODO: QR code bottom sheet (needs a QR renderer dependency).
-      // For now, show a simple info sheet with the frame number.
+      // QR sheet renders the scannable frame-number QR via zxing.
       GarageVehicleCodeSheet(
         frame = vehicle.frame,
         onDismiss = { showVehicleCodeSheet = null },
@@ -1086,7 +1124,6 @@ private fun GarageVehicleCodeSheet(
         style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(18.dp))
-      // TODO: QR code image (needs a QR renderer dependency like zxing).
       Box(
         modifier = Modifier
           .size(220.dp)
@@ -1095,10 +1132,9 @@ private fun GarageVehicleCodeSheet(
           .padding(12.dp),
         contentAlignment = Alignment.Center,
       ) {
-        Text(
-          text = frame,
-          textAlign = TextAlign.Center,
-          style = TextStyle(fontSize = 14.sp, color = CyberHomeColors.inkSecondary),
+        com.tailg.plus.ui.components.QrImage(
+          content = frame,
+          modifier = Modifier.fillMaxWidth(),
         )
       }
       Spacer(Modifier.height(14.dp))

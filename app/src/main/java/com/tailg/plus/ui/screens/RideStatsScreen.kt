@@ -78,6 +78,7 @@ fun RideStatsScreen(
   onBack: () -> Unit,
   cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
+  onNavigate: (String) -> Unit = {},
 ) {
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val scope = rememberCoroutineScope()
@@ -210,11 +211,6 @@ fun RideStatsScreen(
       onDismiss = { showInfoSheet = null },
     )
   }
-}
-
-private fun onNavigate(route: String) {
-  // TODO: the NavHost owns navigation; RideStatsScreen currently has no onNavigate
-  // callback. Wire one through the constructor when the NavHost is updated to pass it.
 }
 
 // ── Gate ──────────────────────────────────────────────────────────────────

@@ -84,6 +84,7 @@ fun VehicleMessageScreen(
   onBack: () -> Unit,
   cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
+  onNavigate: (String) -> Unit = {},
 ) {
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val context = androidx.compose.ui.platform.LocalContext.current
@@ -220,7 +221,7 @@ fun VehicleMessageScreen(
             title = "请先登录官方账号",
             subtitle = "登录后可同步车辆消息与系统通知",
             actionLabel = "去登录",
-            onAction = { /* TODO: navigate to official cloud login */ },
+            onAction = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
           )
           loading && !initialized -> MessageListSkeleton()
           error != null && allMessages.isEmpty() -> MessageState(

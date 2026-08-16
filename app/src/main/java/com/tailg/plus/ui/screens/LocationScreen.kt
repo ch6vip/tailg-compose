@@ -90,6 +90,9 @@ import java.time.LocalDateTime
 
 private enum class LocationTab { MAP, TRAVEL, FENCE }
 
+/** Dart `LocationInitialTab` — service-hub entries deep-link into a tab. */
+enum class LocationInitialTab { MAP, TRAVEL, FENCE }
+
 /**
  * Port of `lib/pages/location_page.dart` (+ location_map_tab.dart,
  * location_travel_tab.dart, location_fence_tab.dart) — single file with tabs.
@@ -103,6 +106,7 @@ fun LocationScreen(
   vehicleStore: VehicleStore,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
+  initialTab: LocationInitialTab = LocationInitialTab.MAP,
 ) {
   val scope = rememberCoroutineScope()
   val log = remember { LogService() }
@@ -111,7 +115,7 @@ fun LocationScreen(
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val clipboard = remember(cloudService) { ClipboardText(ctx) }
 
-  var tabIndex by remember { mutableStateOf(LocationTab.MAP) }
+  var tabIndex by remember { mutableStateOf(LocationTab.valueOf(initialTab.name)) }
   var localLoading by remember { mutableStateOf(false) }
   var localError by remember { mutableStateOf<String?>(null) }
 

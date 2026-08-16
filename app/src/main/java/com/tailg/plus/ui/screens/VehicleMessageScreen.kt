@@ -53,6 +53,7 @@ import com.tailg.plus.data.store.MessageReadStore
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.AppSkeleton
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.Lucide
@@ -657,6 +658,7 @@ private fun Tag(text: String) {
 
 @Composable
 private fun MessageListSkeleton() {
+  // Dart `_MessageListSkeleton`: avatar + title + body AppSkeleton lines.
   Column(
     modifier = Modifier.padding(start = 20.dp, top = 4.dp, end = 20.dp, bottom = 28.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
@@ -668,14 +670,41 @@ private fun MessageListSkeleton() {
           .height(112.dp)
           .clip(RoundedCornerShape(AppRadii.tile))
           .background(CyberHomeColors.card)
-          .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
-        contentAlignment = Alignment.Center,
+          .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
+          .padding(14.dp),
       ) {
-        CircularProgressIndicator(
-          modifier = Modifier.size(20.dp),
-          strokeWidth = 2.dp,
-          color = CyberHomeColors.primary,
-        )
+        Row(verticalAlignment = Alignment.Top) {
+          AppSkeleton(
+            width = 42.dp,
+            height = 42.dp,
+            borderRadius = CircleShape,
+            baseColor = CyberHomeColors.control,
+            highlightColor = CyberHomeColors.cardMuted,
+          )
+          Spacer(Modifier.width(12.dp))
+          Column(horizontalAlignment = Alignment.Start) {
+            AppSkeleton(
+              width = 146.dp,
+              height = 16.dp,
+              baseColor = CyberHomeColors.control,
+              highlightColor = CyberHomeColors.cardMuted,
+            )
+            Spacer(Modifier.height(10.dp))
+            AppSkeleton(
+              width = 280.dp,
+              height = 12.dp,
+              baseColor = CyberHomeColors.control,
+              highlightColor = CyberHomeColors.cardMuted,
+            )
+            Spacer(Modifier.height(8.dp))
+            AppSkeleton(
+              width = 110.dp,
+              height = 10.dp,
+              baseColor = CyberHomeColors.control,
+              highlightColor = CyberHomeColors.cardMuted,
+            )
+          }
+        }
       }
     }
   }

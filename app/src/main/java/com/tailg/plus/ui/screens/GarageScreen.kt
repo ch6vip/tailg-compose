@@ -59,6 +59,7 @@ import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.AppSkeleton
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.Lucide
@@ -974,6 +975,7 @@ private fun GarageAddBar(label: String, onTap: () -> Unit) {
 
 @Composable
 private fun GarageListSkeleton() {
+  // Dart `_GarageListSkeleton`: card outlines with AppSkeleton placeholders.
   Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
     repeat(2) {
       Box(
@@ -985,12 +987,34 @@ private fun GarageListSkeleton() {
           .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
           .padding(18.dp),
       ) {
-        // TODO: AppSkeleton placeholders when skeleton component is available in CyberHome.
-        CircularProgressIndicator(
-          modifier = Modifier.align(Alignment.Center).size(24.dp),
-          strokeWidth = 2.dp,
-          color = CyberHomeColors.primary,
-        )
+        Column(horizontalAlignment = Alignment.Start) {
+          AppSkeleton(
+            width = 132.dp,
+            height = 20.dp,
+            baseColor = CyberHomeColors.control,
+            highlightColor = CyberHomeColors.cardMuted,
+          )
+          Spacer(Modifier.height(18.dp))
+          Box(
+            modifier = Modifier.fillMaxWidth().weight(1f),
+            contentAlignment = Alignment.Center,
+          ) {
+            AppSkeleton(
+              width = 220.dp,
+              height = 104.dp,
+              borderRadius = RoundedCornerShape(AppRadii.tile),
+              baseColor = CyberHomeColors.control,
+              highlightColor = CyberHomeColors.cardMuted,
+            )
+          }
+          Spacer(Modifier.height(16.dp))
+          AppSkeleton(
+            width = 180.dp,
+            height = 14.dp,
+            baseColor = CyberHomeColors.control,
+            highlightColor = CyberHomeColors.cardMuted,
+          )
+        }
       }
       Spacer(Modifier.height(18.dp))
     }

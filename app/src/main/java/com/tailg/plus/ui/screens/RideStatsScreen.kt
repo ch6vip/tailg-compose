@@ -42,6 +42,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialRidePeriod
 import com.tailg.plus.data.model.OfficialRideStatistics
 import com.tailg.plus.data.model.carbonTitle
@@ -75,9 +76,10 @@ private const val RIDE_NOTICE =
 fun RideStatsScreen(
   vehicleId: String,
   onBack: () -> Unit,
+  cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
 ) {
-  val cloudService = rememberOfficialCloudService()
+  val cloudService = cloudService ?: rememberOfficialCloudService()
   val scope = rememberCoroutineScope()
   val cloudState by cloudService.stateFlow.collectAsState()
 

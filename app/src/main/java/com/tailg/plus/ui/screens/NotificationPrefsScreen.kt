@@ -39,6 +39,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberPageHeader
@@ -67,8 +68,9 @@ import kotlinx.coroutines.launch
 @Composable
 fun NotificationPrefsScreen(
   onBack: () -> Unit,
+  cloudService: OfficialCloudService? = null,
 ) {
-  val cloudService = rememberOfficialCloudService()
+  val cloudService = cloudService ?: rememberOfficialCloudService()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 

@@ -83,9 +83,10 @@ import kotlinx.coroutines.launch
 fun GarageScreen(
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
+  cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
 ) {
-  val cloudService = rememberOfficialCloudService()
+  val cloudService = cloudService ?: rememberOfficialCloudService()
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudState by cloudService.stateFlow.collectAsState()

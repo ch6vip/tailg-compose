@@ -37,6 +37,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
@@ -210,6 +211,7 @@ fun UnitSettingsScreen(
 fun AboutAppScreen(
   onBack: () -> Unit,
   logService: LogService? = null,
+  cloudService: OfficialCloudService? = null,
 ) {
   val context = LocalContext.current
   val log = remember(logService) { logService ?: LogService() }
@@ -217,7 +219,7 @@ fun AboutAppScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  val cloud = rememberOfficialCloudService()
+  val cloud = cloudService ?: rememberOfficialCloudService()
   val vehicleStore = remember { VehicleStore(context) }
   val exportService = remember {
     DiagnosticExportService(

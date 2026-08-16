@@ -41,6 +41,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.permission.AppPermissionService
 import com.tailg.plus.service.DataStoreInductionPrefs
@@ -86,9 +87,10 @@ import kotlinx.coroutines.launch
 fun InductionSettingsScreen(
   vehicleId: String,
   onBack: () -> Unit,
+  cloudService: OfficialCloudService? = null,
 ) {
   val context = LocalContext.current
-  val cloudService = rememberOfficialCloudService()
+  val cloudService = cloudService ?: rememberOfficialCloudService()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 

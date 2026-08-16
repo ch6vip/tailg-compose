@@ -43,10 +43,10 @@ import com.tailg.plus.ui.screens.SettingsScreen
 import com.tailg.plus.ui.screens.UnitSettingsScreen
 import com.tailg.plus.ui.screens.VehicleMessageScreen
 import com.tailg.plus.ui.screens.VehicleSettingsScreen
-import com.tailg.plus.ui.screens.rememberOfficialCloudService
 import com.tailg.plus.ui.theme.AppColors
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
+import com.tailg.plus.di.rememberTailgEntryPoint
 
 /**
  * Root navigation host — wires all 30 screens into a single NavHost.
@@ -58,7 +58,8 @@ import androidx.compose.runtime.remember
 fun TailgNavHost() {
   val navController = rememberNavController()
   val snackbarHostState = remember { SnackbarHostState() }
-  val cloudService = rememberOfficialCloudService()
+  val entryPoint = rememberTailgEntryPoint()
+  val cloudService = entryPoint.cloudService()
 
   val backStackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = backStackEntry?.destination?.route
@@ -121,13 +122,9 @@ fun TailgNavHost() {
       ) { entry ->
         ControlScreen(
           cloudService = cloudService,
-          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
-          mqttService = com.tailg.plus.data.mqtt.OfficialMqttService(),
-          vehicleStore = com.tailg.plus.data.store.VehicleStore(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
+          connectionManager = entryPoint.connectionManager(),
+          mqttService = entryPoint.mqttService(),
+          vehicleStore = entryPoint.vehicleStore(),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
@@ -136,6 +133,7 @@ fun TailgNavHost() {
       // ---- Bottom-nav: 我的 ----
       composable(Routes.PROFILE_MINE) {
         ProfileMineScreen(
+          cloudService = cloudService,
           onNavigate = { route -> navController.navigate(route) },
           onBack = { navController.popBackStack() },
         )
@@ -144,6 +142,7 @@ fun TailgNavHost() {
       // ---- Vehicle management ----
       composable(Routes.GARAGE) {
         GarageScreen(
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
@@ -182,9 +181,7 @@ fun TailgNavHost() {
       ) { entry ->
         LocationScreen(
           cloudService = cloudService,
-          vehicleStore = com.tailg.plus.data.store.VehicleStore(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
+          vehicleStore = entryPoint.vehicleStore(),
           onBack = { navController.popBackStack() },
         )
       }
@@ -194,9 +191,7 @@ fun TailgNavHost() {
       ) { entry ->
         BatteryDetailsScreen(
           cloudService = cloudService,
-          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
+          connectionManager = entryPoint.connectionManager(),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
@@ -216,6 +211,7 @@ fun TailgNavHost() {
       ) { entry ->
         RideStatsScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -225,6 +221,7 @@ fun TailgNavHost() {
       ) { entry ->
         VehicleMessageScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -275,6 +272,7 @@ fun TailgNavHost() {
       ) { entry ->
         InductionSettingsScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -293,6 +291,7 @@ fun TailgNavHost() {
       }
       composable(Routes.NOTIFICATION_PREFS) {
         NotificationPrefsScreen(
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -304,6 +303,7 @@ fun TailgNavHost() {
       }
       composable(Routes.LOG) {
         LogScreen(
+          cloudService = cloudService,
           onBack = { navController.popBackStack() },
         )
       }
@@ -317,12 +317,8 @@ fun TailgNavHost() {
       composable(Routes.OFFICIAL_REPLICA) {
         OfficialReplicaScreen(
           cloudService = cloudService,
-          vehicleStore = com.tailg.plus.data.store.VehicleStore(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
-          connectionManager = com.tailg.plus.data.ble.platform.ConnectionManager(
-            context = androidx.compose.ui.platform.LocalContext.current,
-          ),
+          vehicleStore = entryPoint.vehicleStore(),
+          connectionManager = entryPoint.connectionManager(),
           onBack = { navController.popBackStack() },
         )
       }

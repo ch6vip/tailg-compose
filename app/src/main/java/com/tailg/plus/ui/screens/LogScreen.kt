@@ -39,6 +39,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.log.LogEntry
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
@@ -75,6 +76,7 @@ import kotlinx.coroutines.launch
 fun LogScreen(
   onBack: () -> Unit,
   logService: LogService? = null,
+  cloudService: OfficialCloudService? = null,
 ) {
   val context = LocalContext.current
   val log = remember(logService) { logService ?: LogService() }
@@ -82,7 +84,7 @@ fun LogScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  val cloud = rememberOfficialCloudService()
+  val cloud = cloudService ?: rememberOfficialCloudService()
   val vehicleStore = remember { VehicleStore(context) }
   val exportService = remember {
     DiagnosticExportService(

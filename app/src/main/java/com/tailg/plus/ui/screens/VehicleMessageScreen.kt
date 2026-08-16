@@ -46,6 +46,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
+import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialCloudMessage
 import com.tailg.plus.data.model.OfficialCloudMessageCategory
 import com.tailg.plus.data.store.MessageReadStore
@@ -81,9 +82,10 @@ import java.time.ZoneId
 fun VehicleMessageScreen(
   vehicleId: String,
   onBack: () -> Unit,
+  cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
 ) {
-  val cloudService = rememberOfficialCloudService()
+  val cloudService = cloudService ?: rememberOfficialCloudService()
   val context = androidx.compose.ui.platform.LocalContext.current
   val messageReadStore = remember { MessageReadStore(context) }
   val scope = rememberCoroutineScope()

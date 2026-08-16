@@ -73,6 +73,7 @@ import com.tailg.plus.ui.components.OfficialBleChipState
 import com.tailg.plus.ui.components.VehicleControlGateBanner
 import com.tailg.plus.ui.components.VehicleControlHomeGate
 import com.tailg.plus.ui.components.VehicleControlHomeGateKind
+import com.tailg.plus.ui.components.VehicleSwitchSheet
 import com.tailg.plus.ui.components.rememberCyberCollapseFraction
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
@@ -118,6 +119,7 @@ fun ControlScreen(
   var activeCommand by remember { mutableStateOf<CommandCode?>(null) }
   var controlChannel by remember { mutableStateOf(OfficialControlChannel.AUTOMATIC) }
   var showChannelSheet by remember { mutableStateOf(false) }
+  var showVehicleSwitchSheet by remember { mutableStateOf(false) }
   var lastCommandAtMs by remember { mutableStateOf(0L) }
   val commandLog = remember { ControlCommandActivityLog() }
   var commandVersion by remember { mutableStateOf(0) }
@@ -622,7 +624,17 @@ fun ControlScreen(
           powered = isPowerOn,
           bleChip = bleChipState,
           channelStatus = controlChannelStatus,
-          onTitleTap = { onNavigate(Routes.OFFICIAL_CLOUD) },
+          onTitleTap = {
+            // Dart `_openVehicleHeader`: switch sheet when multiple vehicles,
+            // else the official cloud page.
+            if (busy) {
+              scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令,请稍候") }
+            } else if (cloudState.vehicles.size > 1) {
+              showVehicleSwitchSheet = true
+            } else {
+              onNavigate(Routes.OFFICIAL_CLOUD)
+            }
+          },
           onBatteryTap = { onNavigate(Routes.batteryDetails("current")) },
           onBleChipTap = {
             scope.launch {
@@ -707,6 +719,25 @@ fun ControlScreen(
         }
       }
     }
+  }
+
+  // Vehicle switch sheet (Dart `showVehicleSwitchSheet`).
+  if (showVehicleSwitchSheet) {
+    VehicleSwitchSheet(
+      vehicles = cloudState.vehicles,
+      selectedKey = cloudState.selectedVehicle?.key,
+      onSelect = { target: OfficialVehicle ->
+        try {
+          cloudService.changeUsingVehicle(target)
+          showVehicleSwitchSheet = false
+          true
+        } catch (e: Exception) {
+          scope.launch { AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e)) }
+          false
+        }
+      },
+      onDismiss = { showVehicleSwitchSheet = false },
+    )
   }
 
   // Channel selection sheet (Dart CyberChannelStrip bottom sheet).

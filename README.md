@@ -34,5 +34,7 @@ app/src/main/java/com/tailg/plus/
 | 模型 / 平台层（BLE/MQTT/云） | ✅ |
 | 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
 | UI 30 页 + 导航图 | ✅ |
-| 测试移植 | ✅ (19 个测试文件，162 测试，139 通过) |
-| CI 编译通过 | ✅ compileDebugKotlin + compileDebugUnitTestKotlin |
+| 测试移植 | ✅ (19 个测试文件,162 测试,全部通过) |
+| CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
+| Hilt DI 图 | ✅ (8 个单例 provider;屏幕仍走 factory 回退) |
+| 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |

@@ -18,13 +18,14 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -60,6 +61,7 @@ import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.components.cyberButtonShape
 import com.tailg.plus.ui.components.cyberFilledButtonColors
 import com.tailg.plus.ui.components.cyberOutlinedButtonBorder
@@ -227,7 +229,7 @@ fun BatteryDetailsScreen(
               scope.launch { AppSnack.info(snackbarHostState, "请先选择车辆") }
               return@BatteryHeader
             }
-            onNavigate("replace_battery/current")
+            onNavigate(Routes.replaceBattery("current"))
           },
         )
       }
@@ -295,7 +297,7 @@ fun BatteryDetailsScreen(
               scope.launch { AppSnack.info(snackbarHostState, OfficialCloudMessages.SIGN_IN_REQUIRED) }
               return@BatteryActionsCard
             }
-            onNavigate("replace_battery/current")
+            onNavigate(Routes.replaceBattery("current"))
           },
         )
       }
@@ -540,7 +542,7 @@ private fun OfficialSummaryRow(snapshot: BatterySnapshot) {
   ) {
     items.forEachIndexed { index, metric ->
       if (index > 0) {
-        Divider(modifier = Modifier.width(1.dp).height(48.dp), color = CyberHomeColors.line)
+        VerticalDivider(modifier = Modifier.height(48.dp), color = CyberHomeColors.line)
       }
       CompactMetric(metric = metric, modifier = Modifier.weight(1f))
     }
@@ -728,7 +730,7 @@ private fun BmsDetailsCard(
     fields.forEachIndexed { index, field ->
       BmsFieldRow(field = field)
       if (index != fields.lastIndex) {
-        Divider(modifier = Modifier.padding(start = 16.dp), color = CyberHomeColors.line)
+        HorizontalDivider(modifier = Modifier.padding(start = 16.dp), color = CyberHomeColors.line)
       }
     }
   }

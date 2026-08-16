@@ -30,6 +30,8 @@
  */
 package com.tailg.plus.data.ble.platform
 
+import android.annotation.SuppressLint
+
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
@@ -199,6 +201,7 @@ private class GattException(val status: Int, message: String) : Exception(messag
  * [isProtocolLoggedIn] for the official-LOGIN latch, and the class KDoc for
  * threading / permission contracts.
  */
+@SuppressLint("MissingPermission")
 class ConnectionManager(
   private val context: Context,
   private val log: LogService = LogService(),
@@ -459,15 +462,26 @@ class ConnectionManager(
         close(IllegalStateException("BLE scan failed: $errorCode"))
       }
     }
-    scanner.startScan(filter?.let { listOf(it) }, settings, callback)
+    try {
+      scanner.startScan(filter?.let { listOf(it) }, settings, callback)
+    } catch (e: SecurityException) {
+      close(e)
+      return@callbackFlow
+    }
     val autoStop = scope.launch {
       delay(scanTimeout)
-      scanner.stopScan(callback)
+      try {
+        scanner.stopScan(callback)
+      } catch (_: SecurityException) {
+      }
       close()
     }
     awaitClose {
       autoStop.cancel()
-      scanner.stopScan(callback)
+      try {
+        scanner.stopScan(callback)
+      } catch (_: SecurityException) {
+      }
     }
   }
 

@@ -63,6 +63,7 @@ import com.tailg.plus.ui.components.cyberOutlinedButtonBorder
 import com.tailg.plus.ui.components.cyberOutlinedButtonColors
 import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.components.cyberTextFieldShape
+import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
@@ -399,7 +400,7 @@ private fun VehicleListCard(
         vehicle = vehicle,
         selected = selected,
         onSelect = { onSelectVehicle(vehicle) },
-        onDetail = { onNavigate("official_replica") },
+        onDetail = { onNavigate(Routes.OFFICIAL_REPLICA) },
       )
     }
   }

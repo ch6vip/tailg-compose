@@ -25,7 +25,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
@@ -340,7 +340,7 @@ private fun NfcKeyTab(
               },
             )
             if (i != records.lastIndex) {
-              Divider(modifier = Modifier.padding(start = 68.dp), color = CyberHomeColors.line)
+              HorizontalDivider(modifier = Modifier.padding(start = 68.dp), color = CyberHomeColors.line)
             }
           }
         }
@@ -797,7 +797,7 @@ private fun ShareBikeTab(
               },
             )
             if (i != members.lastIndex) {
-              Divider(modifier = Modifier.padding(start = 68.dp), color = CyberHomeColors.line)
+              HorizontalDivider(modifier = Modifier.padding(start = 68.dp), color = CyberHomeColors.line)
             }
           }
         }
@@ -1065,7 +1065,7 @@ private fun RideRecordTab(
               }
             }
             if (i != logs.lastIndex) {
-              Divider(modifier = Modifier.padding(start = 72.dp), color = CyberHomeColors.line)
+              HorizontalDivider(modifier = Modifier.padding(start = 72.dp), color = CyberHomeColors.line)
             }
           }
         }

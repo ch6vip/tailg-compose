@@ -28,6 +28,7 @@
  */
 package com.tailg.plus.service
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import androidx.activity.ComponentActivity
@@ -322,7 +323,7 @@ class AutoConnectService(
   ): VehicleProfile {
     val connectedAt = lastConnectedAt ?: clock()
     val deviceId = device.address
-    val deviceName = device.name ?: ""
+    val deviceName = device.safeName()
     _lastDeviceId = deviceId
     _lastDeviceName = deviceName
     val profile = vehicleStore.upsert(
@@ -414,7 +415,7 @@ class AutoConnectService(
             matchesSystemId = matchesSystemId,
             logSeen = loggedAddresses.add(foundId),
           )
-          if (targetContext?.stack == OfficialBleStack.QGJ && device.name == "Harmony") {
+          if (targetContext?.stack == OfficialBleStack.QGJ && device.safeName() == "Harmony") {
             // Dart derives harmony from service UUIDs in the advertisement;
             // the Kotlin scan seam has no advertisement data, so this stays a
             // best-effort name heuristic (deviation, see file header).
@@ -429,6 +430,8 @@ class AutoConnectService(
             log.operation("自动连接: 连接异常", detail = e.toString(), level = LogLevel.ERROR)
           }
         }
+    } catch (e: Exception) {
+      log.operation("自动连接: 扫描异常", detail = e.toString(), level = LogLevel.ERROR)
     } finally {
       _scanContext = null
     }
@@ -576,7 +579,7 @@ class AutoConnectService(
   private fun advertisedNameMatches(device: BluetoothDevice, expected: String): Boolean {
     val name = expected.trim()
     if (name.isEmpty()) return false
-    val adv = device.name?.trim() ?: ""
+    val adv = device.safeName().trim()
     return adv.isNotEmpty() && adv == name
   }
 
@@ -602,7 +605,7 @@ class AutoConnectService(
     if (!matched && logSeen) {
       log.operation(
         "自动连接: 扫描到设备",
-        detail = "addr=${device.address} name=${device.name ?: ""} " +
+        detail = "addr=${device.address} name=${device.safeName()} " +
           "identity=${identity.identityMac ?: "null"} " +
           "radioFallback=${identity.fromRadioAddress} target=$targetMac matched=$matched",
         level = LogLevel.DEBUG,
@@ -640,5 +643,12 @@ class AutoConnectService(
       currentManager = connectionManager,
       snapshotGuard = connectionSnapshotGuard,
     )
+  }
+
+  @SuppressLint("MissingPermission")
+  private fun BluetoothDevice.safeName(): String = try {
+    name ?: ""
+  } catch (_: SecurityException) {
+    ""
   }
 }

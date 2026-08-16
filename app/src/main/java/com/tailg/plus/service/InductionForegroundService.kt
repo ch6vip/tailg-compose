@@ -132,7 +132,8 @@ class InductionForegroundService : Service() {
 
     /** Dart `InductionForegroundService.stop` — stop the foreground service. */
     fun stop(context: Context) {
-      context.stopService(Intent(context, InductionForegroundService::class.java))
+      val intent = Intent(context, InductionForegroundService::class.java)
+      context.stopService(intent)
     }
   }
 }

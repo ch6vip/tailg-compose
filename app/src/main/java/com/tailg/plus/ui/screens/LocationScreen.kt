@@ -21,12 +21,13 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -839,9 +840,9 @@ private fun TravelDayCard(
         .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
     ) {
       SummaryValue(label = "总次数", value = "${records.size}", unit = "次", modifier = Modifier.weight(1f))
-      Divider(modifier = Modifier.width(1.dp).height(75.dp), color = CyberHomeColors.lineStrong)
+      VerticalDivider(modifier = Modifier.height(75.dp), color = CyberHomeColors.lineStrong)
       SummaryValue(label = "总里程", value = mileageParts.first, unit = mileageParts.second, modifier = Modifier.weight(1f))
-      Divider(modifier = Modifier.width(1.dp).height(75.dp), color = CyberHomeColors.lineStrong)
+      VerticalDivider(modifier = Modifier.height(75.dp), color = CyberHomeColors.lineStrong)
       SummaryValue(label = "总时长", value = if (duration.isEmpty()) "--" else duration, unit = "", modifier = Modifier.weight(1f))
     }
     if (records.isNotEmpty()) {
@@ -1121,7 +1122,7 @@ private fun FenceTab(
           Spacer(Modifier.weight(1f))
           Text(text = formatDistanceMeters(maxRadiusDisplay), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint))
         }
-        Divider(modifier = Modifier.padding(vertical = 12.dp), color = CyberHomeColors.line)
+        HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = CyberHomeColors.line)
         Row(verticalAlignment = Alignment.CenterVertically) {
           Column(modifier = Modifier.weight(1f)) {
             Text(

@@ -59,6 +59,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 fun SettingsScreen(
+  vehicleRouteId: String,
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
   preferencesService: AppPreferencesService? = null,
@@ -93,7 +94,7 @@ fun SettingsScreen(
           icon = Lucide.message,
           title = "消息中心",
           subtitle = "系统消息、设备消息和安全提醒",
-          onClick = { onNavigate(Routes.VEHICLE_MESSAGE) },
+          onClick = { onNavigate(Routes.vehicleMessage(vehicleRouteId)) },
         ),
       )
       CyberSectionLabel("用车设置")
@@ -102,13 +103,13 @@ fun SettingsScreen(
           icon = Lucide.tune,
           title = "车辆设置",
           subtitle = "声音、灵敏度、车辆功能、骑行设置",
-          onClick = { onNavigate(Routes.VEHICLE_SETTINGS) },
+          onClick = { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.battery,
           title = "电池/BMS",
           subtitle = "电量、电压、温度、故障和预留 BMS 数据",
-          onClick = { onNavigate(Routes.BATTERY_DETAILS) },
+          onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
         ),
       )
       CyberSectionLabel("通用")
@@ -117,13 +118,13 @@ fun SettingsScreen(
           icon = Lucide.languages,
           title = "语言设置",
           subtitle = language.label,
-          onClick = { onNavigate(Routes.APP_PREFERENCES) },
+          onClick = { onNavigate(Routes.LANGUAGE_SETTINGS) },
         ),
         settingItemModel(
           icon = Lucide.ruler,
           title = "单位设置",
           subtitle = "${distanceUnit.label} · ${distanceUnit.hint}",
-          onClick = { onNavigate(Routes.APP_PREFERENCES) },
+          onClick = { onNavigate(Routes.UNIT_SETTINGS) },
         ),
         settingItemModel(
           icon = Lucide.type,
@@ -154,7 +155,7 @@ fun SettingsScreen(
           icon = Lucide.shieldCheck,
           title = "高级诊断",
           subtitle = "设备信息、日志、协议和升级前检测",
-          onClick = { onNavigate(Routes.DIAGNOSTIC) },
+          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.key,
@@ -169,7 +170,7 @@ fun SettingsScreen(
           icon = Lucide.info,
           title = "关于台铃智能",
           subtitle = "版本信息、用户协议和隐私政策",
-          onClick = { onNavigate(Routes.APP_PREFERENCES) },
+          onClick = { onNavigate(Routes.ABOUT_APP) },
         ),
       )
     }
@@ -183,6 +184,7 @@ fun SettingsScreen(
  */
 @Composable
 fun AdvancedDiagnosticsScreen(
+  vehicleRouteId: String,
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
 ) {
@@ -203,7 +205,7 @@ fun AdvancedDiagnosticsScreen(
           icon = Lucide.stethoscope,
           title = "故障诊断",
           subtitle = "读取车辆错误码",
-          onClick = { onNavigate(Routes.DIAGNOSTIC) },
+          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.fileText,

@@ -197,9 +197,9 @@ fun ProfileMineScreen(
         onMessages = {
           val sel = cloudState.selectedVehicle
           if (!signedIn) onNavigate(Routes.LOGIN)
-          else onNavigate(Routes.VEHICLE_MESSAGE.replace("{${Routes.ARG_VEHICLE_ID}}", sel?.key ?: ""))
+          else onNavigate(Routes.vehicleMessage(sel?.key?.takeIf { it.isNotBlank() } ?: "current"))
         },
-        onAbout = { onNavigate(Routes.APP_PREFERENCES) },
+        onAbout = { onNavigate(Routes.ABOUT_APP) },
       )
       AccountCard(
         phoneValue = if (signedIn) maskedPhone else "未绑定",

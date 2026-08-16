@@ -68,6 +68,7 @@ import com.tailg.plus.ui.components.VehicleControlGateBanner
 import com.tailg.plus.ui.components.VehicleControlHomeGate
 import com.tailg.plus.ui.components.VehicleControlHomeGateKind
 import com.tailg.plus.ui.components.rememberCyberCollapseFraction
+import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.formatCompactDecimal
 import kotlinx.coroutines.delay
@@ -573,7 +574,7 @@ fun ControlScreen(
             VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
               title = "请先登录官方账号",
               actionLabel = "去登录",
-              onAction = { onNavigate("login") },
+              onAction = { onNavigate(Routes.LOGIN) },
             )
             VehicleControlHomeGateKind.Loading -> {
               VehicleControlGateBanner(
@@ -593,7 +594,7 @@ fun ControlScreen(
             VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
               title = "暂无车辆，请先同步官方车辆",
               actionLabel = "添加车辆",
-              onAction = { onNavigate("add_vehicle") },
+              onAction = { onNavigate(Routes.ADD_VEHICLE) },
             )
             VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
           }
@@ -614,8 +615,8 @@ fun ControlScreen(
           powered = isPowerOn,
           bleChip = bleChipState,
           channelStatus = controlChannelStatus,
-          onTitleTap = { onNavigate("official_cloud") },
-          onBatteryTap = { onNavigate("battery_details/current") },
+          onTitleTap = { onNavigate(Routes.OFFICIAL_CLOUD) },
+          onBatteryTap = { onNavigate(Routes.batteryDetails("current")) },
           onBleChipTap = {
             scope.launch {
               if (connectionManager.isProtocolLoggedIn) {
@@ -629,12 +630,12 @@ fun ControlScreen(
               val mac = vehicle?.normalizedDeviceMac
               if (vehicle == null || mac.isNullOrEmpty()) {
                 AppSnack.info(snackbarHostState, "未获取车辆蓝牙地址，请在扫码页手动连接")
-                onNavigate("scan")
+                onNavigate(Routes.SCAN)
                 return@launch
               }
               AppSnack.info(snackbarHostState, "正在连接车辆蓝牙…")
               try {
-                val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
                 val device = adapter?.getRemoteDevice(mac)
                 if (device == null) {
                   AppSnack.error(snackbarHostState, "蓝牙不可用，请检查蓝牙开关")
@@ -656,7 +657,7 @@ fun ControlScreen(
               }
             }
           },
-          onMessages = { onNavigate("vehicle_message/current") },
+          onMessages = { onNavigate(Routes.vehicleMessage("current")) },
           onChannelTap = { showChannelSheet = true },
         )
       }
@@ -676,9 +677,9 @@ fun ControlScreen(
             onFind = { sendCommand(CommandCode.FIND) },
             onPowerToggle = { sendPowerToggle() },
             onArmToggle = { sendArmToggle() },
-            onSettings = { onNavigate("vehicle_settings/current") },
+            onSettings = { onNavigate(Routes.vehicleSettings("current")) },
             onSeat = { sendCommand(CommandCode.OPEN_SEAT) },
-            onNfc = { onNavigate("official_replica") },
+            onNfc = { onNavigate(Routes.OFFICIAL_REPLICA) },
           )
           Spacer(Modifier.height(32.dp))
           CyberMapStatsRow(
@@ -688,8 +689,8 @@ fun ControlScreen(
             totalKm = totalMileageLabel(cloudVehicle),
             lastDistance = lastRideVisuals.first,
             lastDuration = lastRideVisuals.second,
-            onMapTap = { onNavigate("location/current") },
-            onRideStatsTap = { onNavigate("ride_stats/current") },
+            onMapTap = { onNavigate(Routes.location("current")) },
+            onRideStatsTap = { onNavigate(Routes.rideStats("current")) },
           )
           if (commandActivities.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))

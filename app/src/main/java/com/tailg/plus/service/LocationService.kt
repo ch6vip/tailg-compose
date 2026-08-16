@@ -1,5 +1,7 @@
 package com.tailg.plus.service
 
+import android.annotation.SuppressLint
+
 import android.content.Context
 import android.location.Location
 import androidx.activity.ComponentActivity
@@ -203,6 +205,7 @@ private class FusedLocationProvider(
     private val context: Context,
     private val timeout: kotlin.time.Duration = 8.seconds,
 ) : LocationProvider {
+    @SuppressLint("MissingPermission")
     override suspend fun getCurrentPosition(): GeoPosition {
         val client = LocationServices.getFusedLocationProviderClient(context)
         val location = withTimeoutOrNull(timeout) {

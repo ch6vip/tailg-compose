@@ -103,12 +103,13 @@ fun formatRelativeSyncText(
 ): String {
     if (time == null) return "尚未同步"
     val now = clock()
-    val seconds = Duration.between(time, now).toSeconds()
+    val elapsed = Duration.between(time, now)
+    val seconds = elapsed.seconds
     if (seconds < 15) return "刚刚同步"
     if (seconds < 60) return "${seconds}秒前同步"
-    val minutes = Duration.between(time, now).toMinutes()
+    val minutes = elapsed.toMinutes()
     if (minutes < 60) return "${minutes}分钟前同步"
-    val hours = Duration.between(time, now).toHours()
+    val hours = elapsed.toHours()
     if (hours < 24) return "${hours}小时前同步"
     return "${formatMonthDayMinuteText(time)} 同步"
 }

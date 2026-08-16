@@ -53,6 +53,7 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  */
 @Composable
 fun ServiceHubScreen(
+  vehicleRouteId: String,
   onNavigate: (String) -> Unit,
 ) {
   Scaffold(
@@ -83,18 +84,18 @@ fun ServiceHubScreen(
       ServiceSectionLabel("定位服务")
       GlyphSection(
         items = listOf(
-          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.location("current")) },
-          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.location("current", "travel")) },
-          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.location("current", "fence")) },
+          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.location(vehicleRouteId)) },
+          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.location(vehicleRouteId, "travel")) },
+          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.location(vehicleRouteId, "fence")) },
         ),
       )
 
       ServiceSectionLabel("车辆与能耗")
       GlyphSection(
         items = listOf(
-          GlyphItem(Lucide.tune, "车辆设置") { onNavigate(Routes.VEHICLE_SETTINGS) },
-          GlyphItem(Lucide.battery, "电池服务") { onNavigate(Routes.BATTERY_DETAILS) },
-          GlyphItem(Lucide.chart, "骑行统计") { onNavigate(Routes.RIDE_STATS) },
+          GlyphItem(Lucide.tune, "车辆设置") { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
+          GlyphItem(Lucide.battery, "电池服务") { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
+          GlyphItem(Lucide.chart, "骑行统计") { onNavigate(Routes.rideStats(vehicleRouteId)) },
         ),
       )
 
@@ -104,7 +105,7 @@ fun ServiceHubScreen(
           icon = Lucide.stethoscope,
           title = "故障诊断",
           subtitle = "车辆健康与异常排查",
-          onClick = { onNavigate(Routes.DIAGNOSTIC) },
+          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         )
         HorizontalDivider(
           thickness = 1.dp,

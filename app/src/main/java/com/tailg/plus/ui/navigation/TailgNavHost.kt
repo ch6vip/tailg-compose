@@ -3,6 +3,8 @@ package com.tailg.plus.ui.navigation
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
@@ -12,7 +14,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -64,6 +65,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun TailgNavHost() {
   val navController = rememberNavController()
+  val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val entryPoint = rememberTailgEntryPoint()
   val cloudService = entryPoint.cloudService()
@@ -106,6 +108,7 @@ fun TailgNavHost() {
     Routes.CONTROL,
     Routes.PROFILE_MINE,
   )
+  val vehicleRouteId = cloudService.currentState.selectedVehicle?.key?.takeIf { it.isNotBlank() } ?: "current"
 
   Scaffold(
     containerColor = AppColors.pageBg,
@@ -129,7 +132,7 @@ fun TailgNavHost() {
             }
           },
           onVehicle = {
-            navController.navigate(Routes.CONTROL) {
+            navController.navigate(Routes.control(vehicleRouteId)) {
               launchSingleTop = true
               popUpTo(Routes.SERVICE_HUB) { saveState = true }
               restoreState = true
@@ -149,7 +152,7 @@ fun TailgNavHost() {
     NavHost(
       navController = navController,
       startDestination = startDestination,
-      modifier = Modifier.fillMaxSize(),
+      modifier = Modifier.fillMaxSize().padding(innerPadding),
     ) {
       // ---- Auth ----
       composable(Routes.LOGIN) {
@@ -167,6 +170,7 @@ fun TailgNavHost() {
       // ---- Bottom-nav: 服务 ----
       composable(Routes.SERVICE_HUB) {
         ServiceHubScreen(
+          vehicleRouteId = vehicleRouteId,
           onNavigate = { route -> navController.navigate(route) },
         )
       }
@@ -233,7 +237,7 @@ fun TailgNavHost() {
           onConnectDevice = { deviceId, deviceName ->
             scanScope.launch {
               try {
-                val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                val adapter = context.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
                 val device = adapter?.getRemoteDevice(deviceId)
                 if (device != null) {
                   val state = cloudService.currentState
@@ -386,13 +390,25 @@ fun TailgNavHost() {
       // ---- Settings & profile ----
       composable(Routes.SETTINGS) {
         SettingsScreen(
+          vehicleRouteId = vehicleRouteId,
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
       }
-      composable(Routes.APP_PREFERENCES) {
+      composable(Routes.LANGUAGE_SETTINGS) {
         LanguageSettingsScreen(
           onBack = { navController.popBackStack() },
+        )
+      }
+      composable(Routes.UNIT_SETTINGS) {
+        UnitSettingsScreen(
+          onBack = { navController.popBackStack() },
+        )
+      }
+      composable(Routes.ABOUT_APP) {
+        AboutAppScreen(
+          onBack = { navController.popBackStack() },
+          cloudService = cloudService,
         )
       }
       composable(Routes.NOTIFICATION_PREFS) {

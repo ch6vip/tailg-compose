@@ -19,7 +19,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Divider
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -202,7 +202,7 @@ private fun VehicleSummary(vehicle: OfficialVehicle) {
       )
     }
     Spacer(Modifier.height(16.dp))
-    Divider(thickness = 1.dp, color = CyberHomeColors.line)
+    HorizontalDivider(thickness = 1.dp, color = CyberHomeColors.line)
     Spacer(Modifier.height(10.dp))
     VehicleInfoRow(label = "车架号", value = vehicle.frame.ifEmpty { "未知" })
     VehicleInfoRow(label = "IMEI", value = vehicle.imei.ifEmpty { "未知" })
@@ -336,7 +336,7 @@ private fun SettingsActionRow(
       LucideIcon(icon = Lucide.chevronRight, size = 18.dp, color = CyberHomeColors.inkFaint)
     }
     if (showDivider) {
-      Divider(
+      HorizontalDivider(
         thickness = 1.dp,
         color = CyberHomeColors.line,
         modifier = Modifier.padding(start = 66.dp),

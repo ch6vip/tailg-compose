@@ -11,6 +11,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
@@ -215,11 +216,17 @@ fun TailgNavHost() {
       }
 
       // ---- Vehicle management ----
-      composable(Routes.GARAGE) {
+      composable(Routes.GARAGE) { entry ->
+        // Dart `_scanVehicleCode`: observe the scanned code written by the
+        // code-scanner screen and auto-trigger a frame-number search.
+        val scannedCode by entry.savedStateHandle.getStateFlow<String?>("scanned_vehicle_code", null)
+          .collectAsState()
         GarageScreen(
           cloudService = cloudService,
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
+          scannedCode = scannedCode,
+          onConsumeScan = { entry.savedStateHandle.remove<String>("scanned_vehicle_code") },
           mqttService = entryPoint.mqttService(),
           connectionManager = entryPoint.connectionManager(),
         )
@@ -275,7 +282,12 @@ fun TailgNavHost() {
       composable(Routes.GARAGE_CODE_SCANNER) {
         GarageCodeScannerScreen(
           onBack = { navController.popBackStack() },
-          onScanned = { _ -> navController.popBackStack() },
+          onScanned = { value ->
+            // Dart `Navigator.pop(value)` — hand the scanned code back to
+            // the previous entry (garage) so it can prefill + search.
+            navController.previousBackStackEntry?.savedStateHandle?.set("scanned_vehicle_code", value)
+            navController.popBackStack()
+          },
         )
       }
 

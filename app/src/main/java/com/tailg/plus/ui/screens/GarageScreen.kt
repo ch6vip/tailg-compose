@@ -88,11 +88,14 @@ fun GarageScreen(
   modifier: Modifier = Modifier,
   mqttService: com.tailg.plus.data.mqtt.OfficialMqttService? = null,
   connectionManager: com.tailg.plus.data.ble.platform.ConnectionManager? = null,
+  scannedCode: String? = null,
+  onConsumeScan: () -> Unit = {},
 ) {
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudState by cloudService.stateFlow.collectAsState()
+
 
   var searchQuery by remember { mutableStateOf("") }
   var activeQuery by remember { mutableStateOf("") }
@@ -112,6 +115,28 @@ fun GarageScreen(
 
   val signedIn = cloudState.signedIn
   val listState = rememberLazyListState()
+
+  // Dart `_scanVehicleCode`: a scanned code auto-fills the frame search.
+  LaunchedEffect(scannedCode) {
+    val code = scannedCode?.trim()
+    if (code.isNullOrEmpty()) return@LaunchedEffect
+    searchQuery = code
+    searchType = GarageSearchType.FRAME
+    activeQuery = code
+    onConsumeScan()
+    loadGaragePage(
+      cloudService = cloudService,
+      refresh = true,
+      searchType = GarageSearchType.FRAME,
+      activeQuery = code,
+      onLoading = { loading = it },
+      onLoadingMore = { loadingMore = it },
+      onError = { error = it },
+      onVehicles = { vehicles = it },
+      onPageIndex = { pageIndex = it },
+      onHasNext = { hasNext = it },
+    )
+  }
 
   // Sync vehicles from cloud state when it first arrives.
   LaunchedEffect(cloudState.vehicles) {

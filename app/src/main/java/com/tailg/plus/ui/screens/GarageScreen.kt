@@ -54,6 +54,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialVehicle
@@ -440,7 +441,7 @@ fun GarageScreen(
   // Unbind verification dialog.
   showUnbindDialog?.let { vehicle ->
     val phone = cloudState.phone.trim()
-    if (!phone.matches(Regex("^\\d{11}$"))) {
+    if (!OfficialCloudLoginValidator.isValidPhone(phone)) {
       // Cannot unbind without a complete phone; dismiss with error.
       LaunchedEffect(vehicle) {
         AppSnack.error(snackbarHostState, "账号手机号不完整，请使用手机号重新登录后解绑")

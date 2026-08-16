@@ -21,6 +21,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -81,23 +82,28 @@ fun ServiceHubScreen(
         )
       }
 
-      ServiceSectionLabel("定位服务")
-      GlyphSection(
-        items = listOf(
+      // Hoisted so the tiles' lambdas stay identical across recompositions
+      // (fresh lists would defeat GlyphSection skipping).
+      val locationItems = remember(vehicleRouteId, onNavigate) {
+        listOf(
           GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.location(vehicleRouteId)) },
           GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.location(vehicleRouteId, "travel")) },
           GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.location(vehicleRouteId, "fence")) },
-        ),
-      )
-
-      ServiceSectionLabel("车辆与能耗")
-      GlyphSection(
-        items = listOf(
+        )
+      }
+      val vehicleItems = remember(vehicleRouteId, onNavigate) {
+        listOf(
           GlyphItem(Lucide.tune, "车辆设置") { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
           GlyphItem(Lucide.battery, "电池服务") { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
           GlyphItem(Lucide.chart, "骑行统计") { onNavigate(Routes.rideStats(vehicleRouteId)) },
-        ),
-      )
+        )
+      }
+
+      ServiceSectionLabel("定位服务")
+      GlyphSection(items = locationItems)
+
+      ServiceSectionLabel("车辆与能耗")
+      GlyphSection(items = vehicleItems)
 
       ServiceSectionLabel("更多")
       ServiceListCard {

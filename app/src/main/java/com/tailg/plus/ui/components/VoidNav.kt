@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -71,6 +72,19 @@ fun VoidOrbitalNav(
 ) {
   val reduceMotion = MotionPolicy.reduceMotion()
   val haptics = LocalHapticFeedback.current
+  // Dart BackdropFilter.blur(sigma 24): RenderEffect blurs the backdrop
+  // behind this layer; skipped on < API 31 and under reduce-motion. The blur
+  // parameters are constant, so build the effect once instead of on every
+  // layer update (this bar is hosted on every top-level screen).
+  val navBlur = remember {
+    if (android.os.Build.VERSION.SDK_INT >= 31) {
+      android.graphics.RenderEffect.createBlurEffect(
+        24f, 24f, android.graphics.Shader.TileMode.CLAMP,
+      ).asComposeRenderEffect()
+    } else {
+      null
+    }
+  }
 
   val surface = Row(
     modifier = Modifier
@@ -79,16 +93,8 @@ fun VoidOrbitalNav(
       .clip(RoundedCornerShape(AppRadii.pill))
       .background(CyberHomeColors.navSurface)
       .border(1.dp, CyberHomeColors.white, RoundedCornerShape(AppRadii.pill))
-      // Dart BackdropFilter.blur(sigma 24): RenderEffect blurs the backdrop
-      // behind this layer; skipped on < API 31 and under reduce-motion.
       .graphicsLayer {
-        if (!reduceMotion && android.os.Build.VERSION.SDK_INT >= 31) {
-          renderEffect = android.graphics.RenderEffect.createBlurEffect(
-            24f, 24f, android.graphics.Shader.TileMode.CLAMP,
-          ).asComposeRenderEffect()
-        } else {
-          renderEffect = null
-        }
+        renderEffect = if (!reduceMotion) navBlur else null
       },
   ) {
     NavItem(

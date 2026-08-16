@@ -146,6 +146,10 @@ import com.tailg.plus.ui.theme.AppIconSizes
  * Thin wrapper so every icon call site routes through [Lucide] (Material icons
  * interim). Dart default `size` was 22.0 — mapped to the [AppIconSizes.md]
  * token (20.dp) to stay on the token ladder.
+ *
+ * [contentDescription] defaults to null (decorative) — icons inside labeled
+ * `AppPressable`s are already covered by their semantics label. Pass a
+ * description for standalone, meaningful icons so TalkBack announces them.
  */
 @Composable
 fun LucideIcon(
@@ -154,10 +158,11 @@ fun LucideIcon(
   size: Dp = AppIconSizes.md,
   color: Color = AppColorsDark.textSecondary,
   strokeWidth: Float = 2f,
+  contentDescription: String? = null,
 ) {
   Icon(
     imageVector = icon,
-    contentDescription = null,
+    contentDescription = contentDescription,
     modifier = modifier.size(size),
     tint = color,
   )

@@ -718,11 +718,7 @@ fun ControlScreen(
           ),
         )
         Spacer(Modifier.height(12.dp))
-        listOf(
-          Triple(OfficialControlChannel.AUTOMATIC, "自动", "按官方车型与蓝牙状态自动分流"),
-          Triple(OfficialControlChannel.BLE, "近场蓝牙", "仅车辆蓝牙直连时可控"),
-          Triple(OfficialControlChannel.OFFICIAL_CLOUD, "云端", "仅 MQTT 远程通道"),
-        ).forEach { (channel, label, subtitle) ->
+        CHANNEL_SHEET_OPTIONS.forEach { (channel, label, subtitle) ->
           val active = controlChannel == channel
           com.tailg.plus.ui.components.AppPressable(
             onClick = {
@@ -791,10 +787,19 @@ private fun officialBleChipState(
   return OfficialBleChipState.ClickToConnect
 }
 
+private val NON_DIGIT_PATTERN = Regex("[^\\d.]")
+
+/** Channel bottom-sheet options (constant; avoids rebuilding per recomposition). */
+private val CHANNEL_SHEET_OPTIONS = listOf(
+  Triple(OfficialControlChannel.AUTOMATIC, "自动", "按官方车型与蓝牙状态自动分流"),
+  Triple(OfficialControlChannel.BLE, "近场蓝牙", "仅车辆蓝牙直连时可控"),
+  Triple(OfficialControlChannel.OFFICIAL_CLOUD, "云端", "仅 MQTT 远程通道"),
+)
+
 private fun rangeLabel(battery: BatterySnapshot): String {
   val remaining = battery.remainingMileage?.trim()
   if (!remaining.isNullOrEmpty()) {
-    val cleaned = remaining.replace(Regex("[^\\d.]"), "")
+    val cleaned = remaining.replace(NON_DIGIT_PATTERN, "")
     val parsed = cleaned.toDoubleOrNull()
     if (parsed != null) return "${formatCompactDecimal(parsed)} km"
     return if (remaining.contains("km")) remaining else "$remaining km"
@@ -815,7 +820,7 @@ private fun locationTitle(location: com.tailg.plus.data.cloud.ResolvedVehicleLoc
 private fun todayRideLabel(cloudState: OfficialCloudState): String {
   val direct = cloudState.todayRideMileage.trim()
   if (direct.isNotEmpty()) {
-    val cleaned = direct.replace(Regex("[^\\d.]"), "")
+    val cleaned = direct.replace(NON_DIGIT_PATTERN, "")
     val parsed = cleaned.toDoubleOrNull()
     if (parsed != null) return "${formatCompactDecimal(parsed)} km"
     return if (direct.lowercase().contains("km")) direct else "$direct km"

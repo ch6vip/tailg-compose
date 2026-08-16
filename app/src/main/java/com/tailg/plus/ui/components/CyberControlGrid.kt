@@ -151,17 +151,25 @@ private fun CircleKey(
 ) {
   Column(
     modifier = modifier
-      .alpha(if (subdued) 0.5f else 1f),
+      // Dart dims the whole key (not just the caption) when unavailable.
+      .alpha(if (subdued || !available) 0.5f else 1f),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     AppPressable(
+      // Stay tappable while dimmed so unavailable reason snacks can still fire.
       onClick = { if (!busy) onTap() },
       enabled = true,
       shape = CircleShape,
-      background = CyberHomeColors.card,
+      background = if (available) CyberHomeColors.card else CyberHomeColors.cardMuted,
       shadowElevation = 6.dp,
       shadowColor = CyberHomeColors.actionShadow,
-      semanticsLabel = label,
+      semanticsLabel = if (available) {
+        label
+      } else if (unavailableReason.isEmpty()) {
+        "$label,不可用"
+      } else {
+        "$label,不可用:$unavailableReason"
+      },
     ) {
       Box(
         modifier = Modifier.size(62.dp),

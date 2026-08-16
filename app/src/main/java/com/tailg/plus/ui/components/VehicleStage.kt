@@ -63,6 +63,88 @@ private val VehicleSpoke = Color(0xFFB6BEC9)
 private val VehicleHeadlight = Color(0xFFFCE7B8)
 private val VehicleBatteryBorder = Color(0xFF04231A).copy(alpha = 0.08f)
 
+// Static draw resources — geometry/brushes are fixed viewBox coordinates, so
+// they are built once and shared read-only by every draw pass (the garage
+// list renders this stage per vehicle card; per-frame allocation showed up
+// as churn during scroll).
+private val BrandMarkPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
+  color = VehicleBodyLight.toArgb()
+  textSize = 32f
+  letterSpacing = 8f / 32f // Dart letterSpacing 8 at fontSize 32
+  typeface = android.graphics.Typeface.create("Arial", android.graphics.Typeface.BOLD)
+}
+
+private val FloorBrush = Brush.radialGradient(
+  colors = listOf(Color(0x18BFCAD6), Color(0x00BFCAD6)),
+  center = Offset(170f, 145f),
+  radius = 110f,
+)
+
+private val BodyGradient = Brush.linearGradient(
+  colors = listOf(VehicleBodyTop, VehicleBodyLight),
+  start = Offset(193f, 50f), // topCenter of rect(46,50,340,130)
+  end = Offset(193f, 130f),
+)
+
+private val TireGradient = Brush.linearGradient(
+  colors = listOf(Color(0xFFE3E8EF), VehicleTireShadow),
+  start = Offset(170f, 100f), // topCenter of rect(0,100,340,172)
+  end = Offset(170f, 172f),
+)
+
+private val EnergyGradient = Brush.linearGradient(
+  colors = listOf(Color(0xFF00E0A6), Color(0xFF00A57C)),
+  start = Offset(108f, 98.5f), // centerLeft of battery bar
+  end = Offset(148f, 98.5f),
+)
+
+private val BodyStroke = Stroke(width = 4.5f, join = StrokeJoin.Round)
+
+private val RearMudguardPath = quadPath(46f, 116f, 80f, 80f, 118f, 104f)
+private val FrontMudguardPath = quadPath(232f, 112f, 266f, 80f, 304f, 110f)
+
+private val RearBodyPath = Path().apply {
+  moveTo(92f, 72f)
+  lineTo(150f, 68f)
+  quadraticBezierTo(160f, 70f, 162f, 82f)
+  lineTo(168f, 120f)
+  lineTo(104f, 124f)
+  quadraticBezierTo(90f, 104f, 88f, 84f)
+  quadraticBezierTo(88f, 75f, 92f, 72f)
+  close()
+}
+
+private val FrontShieldPath = Path().apply {
+  moveTo(214f, 124f)
+  quadraticBezierTo(214f, 104f, 224f, 90f)
+  quadraticBezierTo(236f, 70f, 250f, 60f)
+  lineTo(266f, 54f)
+  quadraticBezierTo(272f, 60f, 268f, 74f)
+  quadraticBezierTo(260f, 96f, 244f, 112f)
+  quadraticBezierTo(232f, 122f, 224f, 124f)
+  close()
+}
+
+private val SeatPath = Path().apply {
+  moveTo(60f, 70f)
+  quadraticBezierTo(54f, 58f, 72f, 55f)
+  lineTo(150f, 50f)
+  quadraticBezierTo(164f, 50f, 160f, 63f)
+  lineTo(154f, 70f)
+  quadraticBezierTo(150f, 73f, 142f, 72f)
+  lineTo(70f, 73f)
+  quadraticBezierTo(62f, 73f, 60f, 70f)
+  close()
+}
+
+private val HeadlightPath = Path().apply {
+  moveTo(244f, 96f)
+  lineTo(266f, 102f)
+  lineTo(263f, 116f)
+  lineTo(241f, 110f)
+  close()
+}
+
 /** Draws the 340×172 vehicle illustration, centered and aspect-scaled. */
 fun DrawScope.drawVehicleStage(batteryLevel: Float) {
   val s = min(size.width / 340f, size.height / 172f)
@@ -80,71 +162,33 @@ fun DrawScope.drawVehicleStage(batteryLevel: Float) {
 
 private fun DrawScope.drawFloor() {
   drawOval(
-    brush = Brush.radialGradient(
-      colors = listOf(Color(0x18BFCAD6), Color(0x00BFCAD6)),
-      center = Offset(170f, 145f),
-      radius = 110f,
-    ),
+    brush = FloorBrush,
     topLeft = Offset(80f, 135f),
     size = Size(180f, 20f),
   )
 }
 
 private fun DrawScope.drawBrandMark() {
-  val paint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-    color = VehicleBodyLight.toArgb()
-    textSize = 32f
-    letterSpacing = 8f / 32f // Dart letterSpacing 8 at fontSize 32
-    typeface = android.graphics.Typeface.create("Arial", android.graphics.Typeface.BOLD)
-  }
-  drawContext.canvas.nativeCanvas.drawText("TAILG", 110f, -18f + 32f, paint)
+  drawContext.canvas.nativeCanvas.drawText("TAILG", 110f, -18f + 32f, BrandMarkPaint)
 }
 
 private fun DrawScope.drawVehicle(batteryLevel: Float) {
-  val bodyGradient = Brush.linearGradient(
-    colors = listOf(VehicleBodyTop, VehicleBodyLight),
-    start = Offset(193f, 50f), // topCenter of rect(46,50,340,130)
-    end = Offset(193f, 130f),
-  )
-  val tireGradient = Brush.linearGradient(
-    colors = listOf(Color(0xFFE3E8EF), VehicleTireShadow),
-    start = Offset(170f, 100f), // topCenter of rect(0,100,340,172)
-    end = Offset(170f, 172f),
-  )
-  val enGradient = Brush.linearGradient(
-    colors = listOf(Color(0xFF00E0A6), Color(0xFF00A57C)),
-    start = Offset(108f, 98.5f), // centerLeft of battery bar
-    end = Offset(148f, 98.5f),
-  )
-
-  val bodyStroke = Stroke(width = 4.5f, join = StrokeJoin.Round)
-
   // --- Rear mudguard ---
   drawPath(
-    path = quadPath(46f, 116f, 80f, 80f, 118f, 104f),
+    path = RearMudguardPath,
     color = VehicleTireShadow,
     style = Stroke(width = 9f, cap = StrokeCap.Round),
   )
   // --- Front mudguard ---
   drawPath(
-    path = quadPath(232f, 112f, 266f, 80f, 304f, 110f),
+    path = FrontMudguardPath,
     color = VehicleTireShadow,
     style = Stroke(width = 9f, cap = StrokeCap.Round),
   )
 
   // --- Rear body (seat/battery compartment) ---
-  val rearBody = Path().apply {
-    moveTo(92f, 72f)
-    lineTo(150f, 68f)
-    quadraticBezierTo(160f, 70f, 162f, 82f)
-    lineTo(168f, 120f)
-    lineTo(104f, 124f)
-    quadraticBezierTo(90f, 104f, 88f, 84f)
-    quadraticBezierTo(88f, 75f, 92f, 72f)
-    close()
-  }
-  drawPath(rearBody, brush = bodyGradient)
-  drawPath(rearBody, color = VehicleFrameColor, style = bodyStroke)
+  drawPath(RearBodyPath, brush = BodyGradient)
+  drawPath(RearBodyPath, color = VehicleFrameColor, style = BodyStroke)
 
   // --- Battery energy bar (dynamic: scales with batteryLevel) ---
   val barX = 108f
@@ -160,7 +204,7 @@ private fun DrawScope.drawVehicle(batteryLevel: Float) {
   )
   if (fillW > 0f) {
     drawRoundRect(
-      brush = enGradient,
+      brush = EnergyGradient,
       topLeft = Offset(barX, barY),
       size = Size(fillW, barH),
       cornerRadius = CornerRadius(4f),
@@ -191,32 +235,11 @@ private fun DrawScope.drawVehicle(batteryLevel: Float) {
   )
 
   // --- Front leg shield + stem ---
-  val frontShield = Path().apply {
-    moveTo(214f, 124f)
-    quadraticBezierTo(214f, 104f, 224f, 90f)
-    quadraticBezierTo(236f, 70f, 250f, 60f)
-    lineTo(266f, 54f)
-    quadraticBezierTo(272f, 60f, 268f, 74f)
-    quadraticBezierTo(260f, 96f, 244f, 112f)
-    quadraticBezierTo(232f, 122f, 224f, 124f)
-    close()
-  }
-  drawPath(frontShield, brush = bodyGradient)
-  drawPath(frontShield, color = VehicleFrameColor, style = bodyStroke)
+  drawPath(FrontShieldPath, brush = BodyGradient)
+  drawPath(FrontShieldPath, color = VehicleFrameColor, style = BodyStroke)
 
   // --- Seat ---
-  val seat = Path().apply {
-    moveTo(60f, 70f)
-    quadraticBezierTo(54f, 58f, 72f, 55f)
-    lineTo(150f, 50f)
-    quadraticBezierTo(164f, 50f, 160f, 63f)
-    lineTo(154f, 70f)
-    quadraticBezierTo(150f, 73f, 142f, 72f)
-    lineTo(70f, 73f)
-    quadraticBezierTo(62f, 73f, 60f, 70f)
-    close()
-  }
-  drawPath(seat, color = VehicleFrameColor)
+  drawPath(SeatPath, color = VehicleFrameColor)
   drawLine(
     color = VehicleSeatStitch,
     start = Offset(74f, 58f),
@@ -256,14 +279,7 @@ private fun DrawScope.drawVehicle(batteryLevel: Float) {
   )
 
   // --- Headlight ---
-  val headlight = Path().apply {
-    moveTo(244f, 96f)
-    lineTo(266f, 102f)
-    lineTo(263f, 116f)
-    lineTo(241f, 110f)
-    close()
-  }
-  drawPath(headlight, color = VehicleAccentDark)
+  drawPath(HeadlightPath, color = VehicleAccentDark)
   drawOval(
     color = VehicleHeadlight,
     topLeft = Offset(249f, 100f),
@@ -271,8 +287,8 @@ private fun DrawScope.drawVehicle(batteryLevel: Float) {
   )
 
   // --- Wheels ---
-  drawWheel(82f, 130f, tireGradient)
-  drawWheel(268f, 130f, tireGradient)
+  drawWheel(82f, 130f, TireGradient)
+  drawWheel(268f, 130f, TireGradient)
 }
 
 private fun DrawScope.drawWheel(cx: Float, cy: Float, tireBrush: Brush) {

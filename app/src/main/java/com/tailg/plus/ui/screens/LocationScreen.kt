@@ -15,7 +15,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -708,8 +708,12 @@ private fun TravelTab(
   onChangeMonth: (Int) -> Unit,
   onRecordTap: (OfficialTravelRecord) -> Unit,
 ) {
-  val records = cloudState.travelDays.flatMap { it.records }
-  val dateGroups = cloudState.travelDays.filter { it.records.isNotEmpty() || it.hasData }
+  val records = remember(cloudState.travelDays) {
+    cloudState.travelDays.flatMap { it.records }
+  }
+  val dateGroups = remember(cloudState.travelDays) {
+    cloudState.travelDays.filter { it.records.isNotEmpty() || it.hasData }
+  }
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -725,10 +729,12 @@ private fun TravelTab(
     item { Spacer(Modifier.height(14.dp)) }
     // Track map (Dart _MapPanel in location_travel_tab.dart).
     item {
-      val trackPoints = cloudState.travelDetails.values.flatten().mapNotNull { p ->
-        val lat = p.latitude ?: return@mapNotNull null
-        val lng = p.longitude ?: return@mapNotNull null
-        org.osmdroid.util.GeoPoint(lat, lng)
+      val trackPoints = remember(cloudState.travelDetails) {
+        cloudState.travelDetails.values.flatten().mapNotNull { p ->
+          val lat = p.latitude ?: return@mapNotNull null
+          val lng = p.longitude ?: return@mapNotNull null
+          org.osmdroid.util.GeoPoint(lat, lng)
+        }
       }
       Box(
         modifier = Modifier
@@ -758,7 +764,7 @@ private fun TravelTab(
       records.isEmpty() -> item {
         EmptyCard(icon = Lucide.route, title = "暂无轨迹记录", subtitle = "本月还没有可显示的骑行轨迹，可点右上角刷新或切换月份。")
       }
-      else -> items(dateGroups) { day ->
+      else -> itemsIndexed(dateGroups, key = { index, day -> day.travelDate.ifEmpty { "day-$index" } }) { _, day ->
         Spacer(Modifier.height(10.dp))
         TravelDayCard(
           day = day,
@@ -787,7 +793,7 @@ private fun TravelMonthSelector(month: String, onPreviousMonth: (() -> Unit)?, o
     verticalAlignment = Alignment.CenterVertically,
   ) {
     IconButton(onClick = { onPreviousMonth?.invoke() }, enabled = onPreviousMonth != null) {
-      LucideIcon(icon = Lucide.chevronLeft, size = AppIconSizes.md)
+      LucideIcon(icon = Lucide.chevronLeft, size = AppIconSizes.md, contentDescription = "上个月")
     }
     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -802,7 +808,7 @@ private fun TravelMonthSelector(month: String, onPreviousMonth: (() -> Unit)?, o
       }
     }
     IconButton(onClick = { onNextMonth?.invoke() }, enabled = onNextMonth != null) {
-      LucideIcon(icon = Lucide.chevronRight, size = AppIconSizes.md)
+      LucideIcon(icon = Lucide.chevronRight, size = AppIconSizes.md, contentDescription = "下个月")
     }
   }
 }

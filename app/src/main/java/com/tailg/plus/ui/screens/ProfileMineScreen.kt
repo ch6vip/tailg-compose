@@ -129,10 +129,12 @@ fun ProfileMineScreen(
     SensitiveValueMasker.phone(rawPhone, minMaskLength = 11)
   }
   val vehicle = if (signedIn) cloudState.selectedVehicle else null
-  val battery = BatterySnapshot.fromSources(
-    officialVehicle = vehicle,
-    officialBatteryInfo = cloudState.batteryInfo,
-  )
+  val battery = remember(vehicle, cloudState.batteryInfo) {
+    BatterySnapshot.fromSources(
+      officialVehicle = vehicle,
+      officialBatteryInfo = cloudState.batteryInfo,
+    )
+  }
   val vehicleName = vehicle?.displayName ?: "暂无车辆"
   val vehicleOnlineLabel = if (vehicle == null) {
     if (signedIn) "未绑定" else "未登录"

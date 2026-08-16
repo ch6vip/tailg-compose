@@ -52,7 +52,11 @@ object OfficialCloudAuthParser {
      * The official server expects `Bearer <token>` (see decompiled
      * `PlatfromTailgRetrofit.java`). Tokens copied from URLs / cookies are
      * often percent-encoded (`%2F`, `%2B`, `%3D`); decode them so the server
-     * receives the raw base64 value.
+     * receives the raw base64 value. Decoding matches Dart
+     * `Uri.decodeComponent`: only `%XX` sequences are decoded — a literal `+`
+     * is a real base64 character and must survive (`URLDecoder.decode` would
+     * turn it into a space and corrupt mixed-encoded pastes like
+     * `a+b%2Fc%3D`, which then fail with a silent 401).
      */
     fun normalizeAuthorizationToken(raw: String): String {
         var token = raw.trim()
@@ -65,26 +69,28 @@ object OfficialCloudAuthParser {
         if (token.lowercase().startsWith("bearer ")) {
             var value = token.substring(7).trim()
             if (value.contains("%")) {
-                value = try {
-                    java.net.URLDecoder.decode(value, "UTF-8")
-                } catch (_: Exception) {
-                    value
-                }
+                value = decodePercentEncoded(value)
             }
             return if (value.isEmpty()) "" else "Bearer $value"
         }
         // Bare token: URL-decode if percent-encoded, then prepend Bearer.
-        val decoded = if (token.contains("%")) {
-            try {
-                java.net.URLDecoder.decode(token, "UTF-8")
-            } catch (_: Exception) {
-                token
-            }
-        } else {
-            token
-        }
+        val decoded = if (token.contains("%")) decodePercentEncoded(token) else token
         return if (decoded.isEmpty()) "" else "Bearer $decoded"
     }
+
+    /**
+     * Percent-decode with Dart `Uri.decodeComponent` semantics: decode `%XX`
+     * sequences only and keep literal `+` intact. Malformed sequences (e.g. a
+     * trailing lone `%`) fall back to the input unchanged — more forgiving
+     * than Dart, which throws and surfaces a login error.
+     */
+    private fun decodePercentEncoded(input: String): String =
+        try {
+            // Shield literal '+' from URLDecoder's form-decoding (+ → space).
+            java.net.URLDecoder.decode(input.replace("+", "%2B"), "UTF-8")
+        } catch (_: Exception) {
+            input
+        }
 
     private fun findUserId(value: Any?): String? {
         if (value is Map<*, *>) {

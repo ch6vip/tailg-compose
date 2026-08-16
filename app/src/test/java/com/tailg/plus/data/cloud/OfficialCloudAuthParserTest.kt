@@ -110,4 +110,29 @@ class OfficialCloudAuthParserTest {
     val expected = "Bearer c3fwod5KRO6B/PX7o6YOu81xVzPu24uGlaH5jEOudIG2d/KZ6i51depGp9NkWDN"
     assertEquals(expected, OfficialCloudAuthParser.normalizeAuthorizationToken(encoded))
   }
+
+  @Test
+  fun `literal plus survives mixed URL-encoded bare token`() {
+    // Copied from a URL query string: '+' kept literal, '/'/'=' percent-encoded.
+    // URLDecoder would turn '+' into a space and silently corrupt the token.
+    assertEquals(
+      "Bearer a+b/c=",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("a+b%2Fc%3D"),
+    )
+  }
+
+  @Test
+  fun `literal plus survives mixed URL-encoded Bearer token`() {
+    assertEquals(
+      "Bearer a+b/c=",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("Bearer a+b%2Fc%3D"),
+    )
+  }
+
+  @Test
+  fun `malformed percent sequence falls back to raw token`() {
+    // Trailing lone '%' cannot be decoded; keep the paste as-is instead of
+    // failing the login outright (Dart throws here — we degrade gracefully).
+    assertEquals("Bearer abc%", OfficialCloudAuthParser.normalizeAuthorizationToken("abc%"))
+  }
 }

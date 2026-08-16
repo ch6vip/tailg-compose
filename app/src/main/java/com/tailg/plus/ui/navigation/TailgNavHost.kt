@@ -317,11 +317,16 @@ fun TailgNavHost() {
         Routes.BATTERY_DETAILS,
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
       ) { entry ->
+        // Dart `.then((changed) { if (changed) refreshAllBatteryData() })`.
+        val batteryChanged by entry.savedStateHandle.getStateFlow<Boolean?>("battery_changed", null)
+          .collectAsState()
         BatteryDetailsScreen(
           cloudService = cloudService,
           connectionManager = entryPoint.connectionManager(),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
+          batteryChanged = batteryChanged,
+          onConsumeBatteryChanged = { entry.savedStateHandle.remove<Boolean>("battery_changed") },
         )
       }
       composable(
@@ -330,7 +335,13 @@ fun TailgNavHost() {
       ) { entry ->
         ReplaceBatteryScreen(
           cloudService = cloudService,
-          onBack = { _ -> navController.popBackStack() },
+          onBack = { changed ->
+            // Dart `Navigator.pop(true)` — battery details refreshes on return.
+            if (changed) {
+              navController.previousBackStackEntry?.savedStateHandle?.set("battery_changed", true)
+            }
+            navController.popBackStack()
+          },
         )
       }
       composable(

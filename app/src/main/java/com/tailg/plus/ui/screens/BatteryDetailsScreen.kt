@@ -94,6 +94,8 @@ fun BatteryDetailsScreen(
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
   modifier: Modifier = Modifier,
+  batteryChanged: Boolean? = null,
+  onConsumeBatteryChanged: () -> Unit = {},
 ) {
   val scope = rememberCoroutineScope()
   val log = remember { LogService() }
@@ -199,6 +201,14 @@ fun BatteryDetailsScreen(
   LaunchedEffect(bleReady) {
     if (bleReady && coulombSupported && coulombEnabled == null && !coulombBusy) {
       queryCoulombMeter(silent = true)
+    }
+  }
+
+  // Dart `.then((changed) { if (changed) refreshAllBatteryData() })`.
+  LaunchedEffect(batteryChanged) {
+    if (batteryChanged == true) {
+      onConsumeBatteryChanged()
+      refreshAllBatteryData()
     }
   }
 

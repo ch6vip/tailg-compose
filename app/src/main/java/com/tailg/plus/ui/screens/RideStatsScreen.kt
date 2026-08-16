@@ -98,6 +98,7 @@ fun RideStatsScreen(
       statistics = cloud.rideStatistics
     }
     loadStatistics(
+      scope = scope,
       cloudService = cloudService,
       period = period,
       onGate = { gate = it },
@@ -136,6 +137,7 @@ fun RideStatsScreen(
             message = error!!,
             onRetry = {
               loadStatistics(
+                scope = scope,
                 cloudService = cloudService,
                 period = period,
                 onGate = { gate = it },
@@ -173,6 +175,7 @@ fun RideStatsScreen(
                     statistics = null
                     error = null
                     loadStatistics(
+                      scope = scope,
                       cloudService = cloudService,
                       period = next,
                       onGate = { gate = it },
@@ -222,6 +225,7 @@ private data class InfoSheetContent(val title: String, val text: String)
 // ── Load helper ───────────────────────────────────────────────────────────
 
 private fun loadStatistics(
+  scope: kotlinx.coroutines.CoroutineScope,
   cloudService: com.tailg.plus.data.cloud.OfficialCloudService,
   period: OfficialRidePeriod,
   onGate: (RideStatsGate) -> Unit,
@@ -247,7 +251,7 @@ private fun loadStatistics(
   onGate(RideStatsGate.READY)
   onLoading(true)
   onError(null)
-  kotlinx.coroutines.GlobalScope.launch {
+  scope.launch {
     try {
       cloudService.refreshRideStatistics(period = period, force = true)
       val state = cloudService.currentState

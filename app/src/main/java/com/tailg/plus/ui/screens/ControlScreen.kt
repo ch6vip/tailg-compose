@@ -3,7 +3,9 @@ package com.tailg.plus.ui.screens
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,6 +16,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -24,6 +27,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.BikeState
@@ -712,14 +716,45 @@ fun ControlScreen(
       containerColor = CyberHomeColors.card,
     ) {
       Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        androidx.compose.material3.Text(
-          text = "控车渠道",
-          style = androidx.compose.ui.text.TextStyle(
-            fontSize = 16.sp,
-            fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
-            color = CyberHomeColors.ink,
-          ),
-        )
+        // Dart CyberChannelStrip header: title + status + "感应" link.
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          androidx.compose.material3.Text(
+            text = "控车渠道",
+            style = androidx.compose.ui.text.TextStyle(
+              fontSize = 16.sp,
+              fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
+              color = CyberHomeColors.ink,
+            ),
+          )
+          Spacer(Modifier.weight(1f))
+          androidx.compose.material3.Text(
+            text = controlChannelStatus.label,
+            style = androidx.compose.ui.text.TextStyle(
+              fontSize = 12.sp,
+              color = CyberHomeColors.inkMuted,
+            ),
+          )
+          Spacer(Modifier.width(10.dp))
+          androidx.compose.material3.TextButton(
+            onClick = {
+              showChannelSheet = false
+              onNavigate(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current"))
+            },
+            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
+          ) {
+            androidx.compose.material3.Text(
+              text = "感应",
+              style = androidx.compose.ui.text.TextStyle(
+                fontSize = 12.sp,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.W600,
+                color = CyberHomeColors.primary,
+              ),
+            )
+          }
+        }
         Spacer(Modifier.height(12.dp))
         CHANNEL_SHEET_OPTIONS.forEach { (channel, label, subtitle) ->
           val active = controlChannel == channel

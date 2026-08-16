@@ -85,6 +85,7 @@ fun ProfileMineScreen(
   onBack: () -> Unit,
   cloudService: OfficialCloudService? = null,
   modifier: Modifier = Modifier,
+  onSignedOut: () -> Unit = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
 ) {
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val context = androidx.compose.ui.platform.LocalContext.current
@@ -224,7 +225,7 @@ fun ProfileMineScreen(
         scope.launch {
           try {
             cloudService.logout()
-            AppSnack.success(snackbarHostState, "已退出")
+            onSignedOut()
           } catch (e: Exception) {
             AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
           }

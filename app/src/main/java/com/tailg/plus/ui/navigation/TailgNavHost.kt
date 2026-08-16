@@ -1,10 +1,16 @@
 package com.tailg.plus.ui.navigation
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.systemBars
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.navigation.NavType
@@ -61,6 +67,30 @@ fun TailgNavHost() {
   val entryPoint = rememberTailgEntryPoint()
   val cloudService = entryPoint.cloudService()
 
+  // Bootstrap once (Dart `main()`): restore the persisted session, bind MQTT
+  // to the cloud state and register the logout channel teardown. The first
+  // frame stays a blank page until the session settles so the start
+  // destination is chosen with the restored sign-in state.
+  var bootstrapped by remember { mutableStateOf(false) }
+  LaunchedEffect(Unit) {
+    val mqttService = entryPoint.mqttService()
+    val connectionManager = entryPoint.connectionManager()
+    mqttService.attachToCloud(cloudService)
+    if (cloudService.afterLogoutSideEffects.isEmpty()) {
+      cloudService.afterLogoutSideEffects += {
+        mqttService.disconnect()
+        connectionManager.disconnect()
+      }
+    }
+    cloudService.init()
+    bootstrapped = true
+  }
+  if (!bootstrapped) {
+    Box(modifier = Modifier.fillMaxSize().background(AppColors.pageBg))
+    return
+  }
+  val startDestination = if (cloudService.currentState.signedIn) Routes.SERVICE_HUB else Routes.LOGIN
+
   val backStackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = backStackEntry?.destination?.route
 
@@ -93,7 +123,7 @@ fun TailgNavHost() {
   ) { innerPadding ->
     NavHost(
       navController = navController,
-      startDestination = Routes.LOGIN,
+      startDestination = startDestination,
       modifier = Modifier.fillMaxSize(),
     ) {
       // ---- Auth ----
@@ -102,6 +132,7 @@ fun TailgNavHost() {
           cloudService = cloudService,
           onSignedIn = {
             navController.navigate(Routes.SERVICE_HUB) {
+              launchSingleTop = true
               popUpTo(Routes.LOGIN) { inclusive = true }
             }
           },
@@ -136,6 +167,12 @@ fun TailgNavHost() {
           cloudService = cloudService,
           onNavigate = { route -> navController.navigate(route) },
           onBack = { navController.popBackStack() },
+          onSignedOut = {
+            navController.navigate(Routes.LOGIN) {
+              launchSingleTop = true
+              popUpTo(Routes.SERVICE_HUB) { inclusive = true }
+            }
+          },
         )
       }
 

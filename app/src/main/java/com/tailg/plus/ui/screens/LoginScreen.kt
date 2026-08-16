@@ -111,8 +111,11 @@ fun LoginScreen(
   var busy by remember { mutableStateOf(false) }
   var mode by remember { mutableStateOf(LoginMode.SMS) }
 
-  // React to signed-in state changes (Dart `_onStateChanged`).
-  LaunchedEffect(cloudState.signedIn) {
+  // React to signed-in state changes (Dart `_onStateChanged`). Keyed on both
+  // signedIn and busy: re-runs when busy resets, so a sign-in that lands while
+  // busy still navigates — and it is the SINGLE navigation source (the submit
+  // handlers no longer call onSignedIn themselves).
+  LaunchedEffect(cloudState.signedIn, busy) {
     if (cloudState.signedIn && !busy) {
       onSignedIn()
     }
@@ -188,7 +191,6 @@ fun LoginScreen(
               try {
                 cloudService.login(normalizedPhone, smsCode.trim())
                 AppSnack.success(snackbarHostState, "登录成功")
-                onSignedIn()
               } catch (e: Exception) {
                 log.operation(
                   "官云登录失败",
@@ -236,7 +238,6 @@ fun LoginScreen(
                   userId = cloudService.currentState.userId,
                 )
                 AppSnack.success(snackbarHostState, "Token 登录成功")
-                onSignedIn()
               } catch (e: Exception) {
                 log.operation(
                   "Token 登录失败",

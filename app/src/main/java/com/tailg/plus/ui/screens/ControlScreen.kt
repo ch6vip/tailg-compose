@@ -502,6 +502,42 @@ fun ControlScreen(
     scope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)
+        // Dart 749-777: 云服务决策门控 (非 BLE 路径检查 SIM 状态/服务到期)
+        if (!availability.willUseBle) {
+          val vehicleKeyBeforeGate = cloudService.currentState.selectedVehicle?.key
+          val serviceDecision = cloudService.resolveSelectedRemoteControlServiceDecision()
+          if (cloudService.currentState.selectedVehicle?.key != vehicleKeyBeforeGate) {
+            AppSnack.error(snackbarHostState, "车辆已变化,请重新操作")
+            commandLog.finish(activityId, "${cmd.label}已取消", "目标车辆已变化", ControlCommandActivityStatus.CANCELLED)
+            return@launch
+          }
+          val serviceMessage = serviceDecision.message
+          if (serviceMessage != null) {
+            if (serviceDecision.blocksControl) {
+              AppSnack.error(snackbarHostState, serviceMessage)
+              commandLog.finish(activityId, "${cmd.label}失败", serviceMessage, ControlCommandActivityStatus.FAILED)
+              return@launch
+            }
+            AppSnack.info(snackbarHostState, serviceMessage)
+          }
+          // 重新计算 availability,渠道可能因 SIM 状态变化而切换
+          val availabilityAfterGate = ControlCommandRoute.resolve(
+            base = controlAvailability,
+            command = cmd,
+            vehicle = cloudVehicle,
+          )
+          if (availabilityAfterGate.willUseBle) {
+            AppSnack.info(snackbarHostState, "控车渠道已切换,请重新操作")
+            commandLog.finish(activityId, "${cmd.label}已取消", "控车渠道已切换,请重新操作", ControlCommandActivityStatus.CANCELLED)
+            return@launch
+          }
+          if (!availabilityAfterGate.enabled) {
+            val reason = availabilityAfterGate.disabledReason.ifEmpty { "当前不可控车,请检查蓝牙或网络" }
+            AppSnack.error(snackbarHostState, reason)
+            commandLog.finish(activityId, "${cmd.label}失败", reason, ControlCommandActivityStatus.FAILED)
+            return@launch
+          }
+        }
         // Abort if the selected vehicle changed mid-send (Dart 798-811).
         if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend) {
           AppSnack.error(snackbarHostState, "车辆或控车渠道已变化，本次指令已取消")

@@ -24,6 +24,7 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -88,14 +89,16 @@ fun InductionSettingsScreen(
   vehicleId: String,
   onBack: () -> Unit,
   cloudService: OfficialCloudService? = null,
+  connectionManager: ConnectionManager? = null,
 ) {
   val context = LocalContext.current
   val cloudService = cloudService ?: rememberOfficialCloudService()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  // Construct collaborators once per composition (rule #12: remember { ... }).
-  val connectionManager = remember { ConnectionManager(context) }
+  // Shared Hilt singleton when injected; a private instance would always be
+  // DISCONNECTED and permanently report "请先连接车辆蓝牙".
+  val connectionManager = connectionManager ?: remember { ConnectionManager(context) }
   val prefs = remember { DataStoreInductionPrefs(context) }
   val manualModeService = remember { ManualModeService(prefs) }
   val inductionService = remember {
@@ -108,6 +111,11 @@ fun InductionSettingsScreen(
     )
   }
   val permissionService = remember { AppPermissionService(context) }
+
+  // The mode service owns a coroutine scope + connection collector.
+  DisposableEffect(inductionService) {
+    onDispose { inductionService.dispose() }
+  }
 
   val snapshot by inductionService.snapshotFlow.collectAsState()
   val manualEnabled by manualModeService.enabledFlow.collectAsState()
@@ -239,6 +247,7 @@ fun InductionSettingsScreen(
                   inductionService = inductionService,
                   manualModeService = manualModeService,
                   permissionService = permissionService,
+                  hostActivity = context as? androidx.activity.ComponentActivity,
                   snackbarHostState = snackbarHostState,
                   setBusy = { busy = it },
                 )
@@ -645,6 +654,7 @@ private suspend fun selectUnlockMode(
   inductionService: InductionModeService,
   manualModeService: ManualModeService,
   permissionService: AppPermissionService,
+  hostActivity: androidx.activity.ComponentActivity?,
   snackbarHostState: SnackbarHostState,
   setBusy: (Boolean) -> Unit,
 ) {
@@ -703,14 +713,18 @@ private suspend fun selectUnlockMode(
   }
 
   if (snapshot.stack == InductionStack.RSSI) {
-    // TODO: request notification permission via the host ComponentActivity.
-    // The Dart path calls permissionService.requestNotificationPermission();
-    // AppPermissionService.requestNotificationPermission needs a ComponentActivity
-    // which is not available inside this suspend helper. Wire it from the
-    // composable scope once the activity is injected (LocalContext as
-    // ComponentActivity). For now, proceed without the gate; the foreground
-    // service will still start and the system will prompt for POST_NOTIFICATIONS
-    // when the service posts its notification.
+    // Dart gates the RSSI stack on POST_NOTIFICATIONS (Android 13+): the
+    // foreground-service notification is how the user sees/kills induction.
+    // Soft gate — a denial warns but still allows the (silent) FGS to run.
+    if (hostActivity != null) {
+      val notif = permissionService.requestNotificationPermission(hostActivity, request = true)
+      if (!notif.granted) {
+        AppSnack.info(
+          snackbarHostState,
+          notif.message ?: "未授予通知权限，后台感应状态将不可见",
+        )
+      }
+    }
   }
 
   setBusy(true)

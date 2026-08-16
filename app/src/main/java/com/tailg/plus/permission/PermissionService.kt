@@ -179,24 +179,32 @@ class AppPermissionService(private val context: Context) {
         activity: ComponentActivity,
         permissions: Array<String>,
     ): Map<String, Boolean> {
-        val launcher = launchers.getOrPut(activity) {
-            activity.registerForActivityResult(
-                ActivityResultContracts.RequestMultiplePermissions(),
-            ) { result ->
-                pendingResults[activity]?.invoke(result)
-                pendingResults.remove(activity)
-            }
-        }
+        // Register through the registry (not ComponentActivity.registerFor-
+        // ActivityResult, which throws when the lifecycle is already STARTED).
+        // Per-request keys allow concurrent prompts and get unregistered on
+        // completion or cancellation, so nothing leaks the activity.
         return suspendCancellableCoroutine { cont ->
-            pendingResults[activity] = { result -> cont.resume(result) }
+            val key = "tailg_permission_${requestCounter.incrementAndGet()}"
+            val registry = activity.activityResultRegistry
+            val launcher = registry.register(key, ActivityResultContracts.RequestMultiplePermissions()) { result ->
+                if (cont.isActive) cont.resume(result)
+            }
+            val unregister: () -> Unit = { launcher.unregister() }
+            cont.invokeOnCancellation {
+                try {
+                    unregister()
+                } catch (e: Exception) {
+                    Timber.w(e, "permission launcher unregister failed")
+                }
+            }
             try {
                 launcher.launch(permissions)
             } catch (e: Exception) {
                 Timber.w(e, "permission launcher launch failed")
-                pendingResults.remove(activity)
-                cont.resume(
-                    permissions.associateWith { isGranted(it) },
-                )
+                unregister()
+                if (cont.isActive) {
+                    cont.resume(permissions.associateWith { isGranted(it) })
+                }
             }
         }
     }
@@ -206,9 +214,6 @@ class AppPermissionService(private val context: Context) {
             Manifest.permission.ACCESS_FINE_LOCATION,
             Manifest.permission.ACCESS_COARSE_LOCATION,
         )
-        private val launchers =
-            HashMap<ComponentActivity, ActivityResultLauncher<Array<String>>>()
-        private val pendingResults =
-            HashMap<ComponentActivity, (Map<String, Boolean>) -> Unit>()
+        private val requestCounter = java.util.concurrent.atomic.AtomicInteger()
     }
 }

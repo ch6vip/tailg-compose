@@ -53,6 +53,7 @@ import com.tailg.plus.ui.theme.AppColors
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import com.tailg.plus.di.rememberTailgEntryPoint
+import kotlinx.coroutines.launch
 
 /**
  * Root navigation host — wires all 30 screens into a single NavHost.
@@ -82,7 +83,13 @@ fun TailgNavHost() {
         connectionManager.disconnect()
       }
     }
-    cloudService.init()
+    try {
+      cloudService.init()
+    } catch (e: Exception) {
+      // A corrupted store / keystore must degrade to signed-out, never a
+      // startup crash loop.
+      android.util.Log.w("TailgNavHost", "cloud session restore failed", e)
+    }
     bootstrapped = true
   }
   if (!bootstrapped) {
@@ -114,9 +121,27 @@ fun TailgNavHost() {
         }
         VoidOrbitalNav(
           currentIndex = index,
-          onService = { navController.navigate(Routes.SERVICE_HUB) { launchSingleTop = true } },
-          onVehicle = { navController.navigate(Routes.CONTROL) { launchSingleTop = true } },
-          onMine = { navController.navigate(Routes.PROFILE_MINE) { launchSingleTop = true } },
+          onService = {
+            navController.navigate(Routes.SERVICE_HUB) {
+              launchSingleTop = true
+              popUpTo(Routes.SERVICE_HUB) { saveState = true }
+              restoreState = true
+            }
+          },
+          onVehicle = {
+            navController.navigate(Routes.CONTROL) {
+              launchSingleTop = true
+              popUpTo(Routes.SERVICE_HUB) { saveState = true }
+              restoreState = true
+            }
+          },
+          onMine = {
+            navController.navigate(Routes.PROFILE_MINE) {
+              launchSingleTop = true
+              popUpTo(Routes.SERVICE_HUB) { saveState = true }
+              restoreState = true
+            }
+          },
         )
       }
     },
@@ -182,6 +207,8 @@ fun TailgNavHost() {
           cloudService = cloudService,
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
+          mqttService = entryPoint.mqttService(),
+          connectionManager = entryPoint.connectionManager(),
         )
       }
       composable(Routes.ADD_VEHICLE) {
@@ -199,9 +226,37 @@ fun TailgNavHost() {
         )
       }
       composable(Routes.SCAN) {
+        val scanScope = androidx.compose.runtime.rememberCoroutineScope()
+        val connectionManager = entryPoint.connectionManager()
         ScanScreen(
           onBack = { navController.popBackStack() },
-          onConnectDevice = { _, _ -> navController.popBackStack() },
+          onConnectDevice = { deviceId, deviceName ->
+            scanScope.launch {
+              try {
+                val adapter = android.bluetooth.BluetoothAdapter.getDefaultAdapter()
+                val device = adapter?.getRemoteDevice(deviceId)
+                if (device != null) {
+                  val state = cloudService.currentState
+                  val context = state.selectedVehicle?.let {
+                    com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
+                      it,
+                      state.userId,
+                    )
+                  }
+                  connectionManager.connect(device, context)
+                  if (deviceName.isNotEmpty()) {
+                    android.util.Log.i("TailgNavHost", "BLE connected: $deviceName")
+                  }
+                }
+              } catch (e: SecurityException) {
+                android.util.Log.w("TailgNavHost", "BLE connect missing permission", e)
+              } catch (e: Exception) {
+                android.util.Log.w("TailgNavHost", "BLE connect failed", e)
+              } finally {
+                navController.popBackStack()
+              }
+            }
+          },
         )
       }
       composable(Routes.GARAGE_CODE_SCANNER) {
@@ -214,11 +269,22 @@ fun TailgNavHost() {
       // ---- Vehicle detail screens ----
       composable(
         Routes.LOCATION,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
+        arguments = listOf(
+          navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType },
+          navArgument("tab") {
+            type = NavType.StringType
+            defaultValue = "map"
+          },
+        ),
       ) { entry ->
         LocationScreen(
           cloudService = cloudService,
           vehicleStore = entryPoint.vehicleStore(),
+          initialTab = when (entry.arguments?.getString("tab")) {
+            "travel" -> com.tailg.plus.ui.screens.LocationInitialTab.TRAVEL
+            "fence" -> com.tailg.plus.ui.screens.LocationInitialTab.FENCE
+            else -> com.tailg.plus.ui.screens.LocationInitialTab.MAP
+          },
           onBack = { navController.popBackStack() },
         )
       }
@@ -250,6 +316,7 @@ fun TailgNavHost() {
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           cloudService = cloudService,
           onBack = { navController.popBackStack() },
+          onNavigate = { route -> navController.navigate(route) },
         )
       }
       composable(
@@ -260,6 +327,7 @@ fun TailgNavHost() {
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           cloudService = cloudService,
           onBack = { navController.popBackStack() },
+          onNavigate = { route -> navController.navigate(route) },
         )
       }
       composable(
@@ -310,6 +378,7 @@ fun TailgNavHost() {
         InductionSettingsScreen(
           vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
           cloudService = cloudService,
+          connectionManager = entryPoint.connectionManager(),
           onBack = { navController.popBackStack() },
         )
       }

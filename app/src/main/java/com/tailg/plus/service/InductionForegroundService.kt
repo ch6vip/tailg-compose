@@ -76,10 +76,18 @@ class InductionForegroundService : Service() {
       .setOnlyAlertOnce(true)
       .setOngoing(true)
       .build()
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-      startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
-    } else {
-      startForeground(NOTIFICATION_ID, notification)
+    // Android 14+ throws SecurityException when a location-type FGS starts
+    // while ACCESS_FINE_LOCATION has been revoked; degrade to stopping the
+    // service instead of crashing the app (induction cannot run without it).
+    try {
+      if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+        startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_LOCATION)
+      } else {
+        startForeground(NOTIFICATION_ID, notification)
+      }
+    } catch (e: Exception) {
+      android.util.Log.w("InductionFgs", "startForeground failed; stopping", e)
+      stopSelf()
     }
     return START_NOT_STICKY
   }

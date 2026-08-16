@@ -50,17 +50,31 @@ class OfficialCloudStorage(
     private val log: LogService = LogService(),
 ) {
 
-    private val securePrefs: SharedPreferences by lazy {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "official_cloud_secure",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
+    /**
+     * Encrypted credential store. Keystore corruption (a known Android failure
+     * class) must degrade to "no persisted session" instead of crashing the
+     * app at startup, hence the nullable lazy + logged fallback.
+     */
+    private val securePrefs: SharedPreferences? by lazy {
+        try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                "official_cloud_secure",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        } catch (e: Exception) {
+            log.operation(
+                "安全存储初始化失败，本次运行不持久化登录凭据",
+                detail = e.toString(),
+                level = LogLevel.WARNING,
+            )
+            null
+        }
     }
 
     suspend fun loadSession(): OfficialCloudStoredSession {
@@ -88,12 +102,13 @@ class OfficialCloudStorage(
 
     suspend fun saveCredentials(token: String, phone: String, userId: String) {
         withContext(Dispatchers.IO) {
-            securePrefs.edit().putString(KEY_SECURE_TOKEN, token).apply()
-            securePrefs.edit().putString(KEY_SECURE_PHONE, phone).apply()
+            val secure = securePrefs ?: return@withContext
+            secure.edit().putString(KEY_SECURE_TOKEN, token).apply()
+            secure.edit().putString(KEY_SECURE_PHONE, phone).apply()
             if (userId.isEmpty()) {
-                securePrefs.edit().remove(KEY_SECURE_USER_ID).apply()
+                secure.edit().remove(KEY_SECURE_USER_ID).apply()
             } else {
-                securePrefs.edit().putString(KEY_SECURE_USER_ID, userId).apply()
+                secure.edit().putString(KEY_SECURE_USER_ID, userId).apply()
             }
         }
         context.cloudDataStore.edit { prefs ->
@@ -108,9 +123,9 @@ class OfficialCloudStorage(
 
     suspend fun clearCredentialsAndSelection() {
         withContext(Dispatchers.IO) {
-            securePrefs.edit().remove(KEY_SECURE_TOKEN).apply()
-            securePrefs.edit().remove(KEY_SECURE_PHONE).apply()
-            securePrefs.edit().remove(KEY_SECURE_USER_ID).apply()
+            securePrefs?.edit()?.remove(KEY_SECURE_TOKEN)?.apply()
+            securePrefs?.edit()?.remove(KEY_SECURE_PHONE)?.apply()
+            securePrefs?.edit()?.remove(KEY_SECURE_USER_ID)?.apply()
         }
         context.cloudDataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
@@ -188,9 +203,14 @@ class OfficialCloudStorage(
     private suspend fun loadSecureCredentials(
         prefs: androidx.datastore.preferences.core.Preferences,
     ): Triple<String, String, String> {
-        val secureToken = securePrefs.getString(KEY_SECURE_TOKEN, null)
-        val securePhone = securePrefs.getString(KEY_SECURE_PHONE, null)
-        val secureUserId = securePrefs.getString(KEY_SECURE_USER_ID, null)
+        val secure = securePrefs ?: return Triple(
+            prefs[KEY_TOKEN] ?: "",
+            prefs[KEY_PHONE] ?: "",
+            prefs[KEY_USER_ID] ?: "",
+        )
+        val secureToken = secure.getString(KEY_SECURE_TOKEN, null)
+        val securePhone = secure.getString(KEY_SECURE_PHONE, null)
+        val secureUserId = secure.getString(KEY_SECURE_USER_ID, null)
         val legacyToken = prefs[KEY_TOKEN] ?: ""
         val legacyPhone = prefs[KEY_PHONE] ?: ""
         val legacyUserId = prefs[KEY_USER_ID] ?: ""
@@ -199,13 +219,13 @@ class OfficialCloudStorage(
         val userId = secureUserId ?: legacyUserId
         if (legacyToken.isNotEmpty() || legacyPhone.isNotEmpty() || legacyUserId.isNotEmpty()) {
             if (token.isNotEmpty()) {
-                securePrefs.edit().putString(KEY_SECURE_TOKEN, token).apply()
+                secure.edit().putString(KEY_SECURE_TOKEN, token).apply()
             }
             if (phone.isNotEmpty()) {
-                securePrefs.edit().putString(KEY_SECURE_PHONE, phone).apply()
+                secure.edit().putString(KEY_SECURE_PHONE, phone).apply()
             }
             if (userId.isNotEmpty()) {
-                securePrefs.edit().putString(KEY_SECURE_USER_ID, userId).apply()
+                secure.edit().putString(KEY_SECURE_USER_ID, userId).apply()
             }
             context.cloudDataStore.edit { prefsEdit ->
                 prefsEdit.remove(KEY_TOKEN)

@@ -314,16 +314,9 @@ fun LocationScreen(
           location = location,
           onRefresh = { refreshFenceData() },
           onTabChanged = { tabIndex = LocationTab.entries[it] },
-          onSaveFence = { enabled, radius, timeFrom, timeTo ->
-            scope.launch {
-              try {
-                cloudService.updateFenceData(enabled = enabled, radiusValue = radius, timeFrom = timeFrom, timeTo = timeTo)
-                AppSnack.success(snackbarHostState, "围栏设置已保存")
-              } catch (e: Exception) {
-                AppSnack.error(snackbarHostState, "保存失败，请重试")
-              }
-            }
-          },
+          scope = scope,
+          cloudService = cloudService,
+          snackbarHostState = snackbarHostState,
         )
       }
     }
@@ -960,7 +953,9 @@ private fun FenceTab(
   location: ResolvedVehicleLocation?,
   onRefresh: () -> Unit,
   onTabChanged: (Int) -> Unit,
-  onSaveFence: (Boolean, Int, String, String) -> Unit,
+  scope: kotlinx.coroutines.CoroutineScope,
+  cloudService: OfficialCloudService,
+  snackbarHostState: androidx.compose.material3.SnackbarHostState,
 ) {
   val fence = cloudState.fenceData
   var enabled by remember(fence) { mutableStateOf(fence?.enabled ?: false) }
@@ -1155,10 +1150,25 @@ private fun FenceTab(
       val canSave = dirty && !saving && !cloudState.fenceLoading
       androidx.compose.material3.Button(
         onClick = {
+          // Dart fence tab: await save, then update dirty AFTER completion.
           saving = true
-          onSaveFence(enabled, radiusValue.toInt(), timeFrom, timeTo)
-          dirty = false
-          saving = false
+          scope.launch {
+            try {
+              cloudService.updateFenceData(
+                enabled = enabled,
+                radiusValue = radiusValue.toInt(),
+                timeFrom = timeFrom,
+                timeTo = timeTo,
+              )
+              dirty = false
+              AppSnack.success(snackbarHostState, "围栏设置已保存")
+            } catch (e: Exception) {
+              // dirty stays true so user can retry.
+              AppSnack.error(snackbarHostState, "保存失败,请重试")
+            } finally {
+              saving = false
+            }
+          }
         },
         enabled = canSave,
         shape = RoundedCornerShape(AppRadii.tile),

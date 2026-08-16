@@ -414,6 +414,50 @@ fun ControlScreen(
     }
   }
 
+  /** Dart `_ensureNearFieldLink`: link the official vehicle's BLE
+   *  target when its MAC is known, else fall back to the scan page.
+   *  [auto] suppresses the snack when the vehicle has no MAC (silent
+   *  path for channel-switch auto-link).
+   */
+  suspend fun ensureNearFieldLink(auto: Boolean = false) {
+    if (connectionManager.isProtocolLoggedIn) {
+      AppSnack.info(snackbarHostState, "蓝牙已连接")
+      return
+    }
+    val state = cloudService.currentState
+    val vehicle = state.selectedVehicle
+    val mac = vehicle?.normalizedDeviceMac
+    if (vehicle == null || mac.isNullOrEmpty()) {
+      if (!auto) {
+        AppSnack.info(snackbarHostState, "未获取车辆蓝牙地址,请在扫码页手动连接")
+        onNavigate(Routes.SCAN)
+      }
+      return
+    }
+    AppSnack.info(snackbarHostState, "正在连接车辆蓝牙...")
+    try {
+      val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
+      val device = adapter?.getRemoteDevice(mac)
+      if (device == null) {
+        AppSnack.error(snackbarHostState, "蓝牙不可用,请检查蓝牙开关")
+        return
+      }
+      connectionManager.connect(
+        device,
+        com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
+          vehicle,
+          state.userId,
+        ),
+      )
+      AppSnack.success(snackbarHostState, "蓝牙已连接")
+    } catch (e: SecurityException) {
+      AppSnack.error(snackbarHostState, "缺少蓝牙权限,请到系统设置开启")
+    } catch (e: Exception) {
+      log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
+      AppSnack.error(snackbarHostState, "蓝牙连接失败,请靠近车辆重试")
+    }
+  }
+
   fun sendCommand(cmd: CommandCode) {
     if (busy) {
       scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令，请稍候") }
@@ -637,44 +681,7 @@ fun ControlScreen(
           },
           onBatteryTap = { onNavigate(Routes.batteryDetails("current")) },
           onBleChipTap = {
-            scope.launch {
-              if (connectionManager.isProtocolLoggedIn) {
-                AppSnack.info(snackbarHostState, "蓝牙已连接")
-                return@launch
-              }
-              // Dart `_ensureNearFieldLink`: link the official vehicle's BLE
-              // target when its MAC is known, else fall back to the scan page.
-              val state = cloudService.currentState
-              val vehicle = state.selectedVehicle
-              val mac = vehicle?.normalizedDeviceMac
-              if (vehicle == null || mac.isNullOrEmpty()) {
-                AppSnack.info(snackbarHostState, "未获取车辆蓝牙地址，请在扫码页手动连接")
-                onNavigate(Routes.SCAN)
-                return@launch
-              }
-              AppSnack.info(snackbarHostState, "正在连接车辆蓝牙…")
-              try {
-                val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
-                val device = adapter?.getRemoteDevice(mac)
-                if (device == null) {
-                  AppSnack.error(snackbarHostState, "蓝牙不可用，请检查蓝牙开关")
-                  return@launch
-                }
-                connectionManager.connect(
-                  device,
-                  com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
-                    vehicle,
-                    state.userId,
-                  ),
-                )
-                AppSnack.success(snackbarHostState, "蓝牙已连接")
-              } catch (e: SecurityException) {
-                AppSnack.error(snackbarHostState, "缺少蓝牙权限，请到系统设置开启")
-              } catch (e: Exception) {
-                log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
-                AppSnack.error(snackbarHostState, "蓝牙连接失败，请靠近车辆重试")
-              }
-            }
+            scope.launch { ensureNearFieldLink() }
           },
           onMessages = { onNavigate(Routes.vehicleMessage("current")) },
           onChannelTap = { showChannelSheet = true },
@@ -791,8 +798,25 @@ fun ControlScreen(
           val active = controlChannel == channel
           com.tailg.plus.ui.components.AppPressable(
             onClick = {
+              // Dart `_selectControlChannel`: keep busy guard, then
+              // trigger channel-specific side effects (BLE auto-link,
+              // official-cloud MQTT preconnect).
+              if (busy) {
+                scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令,请稍候") }
+                return@AppPressable
+              }
+              if (controlChannel == channel) {
+                showChannelSheet = false
+                return@AppPressable
+              }
               controlChannel = channel
               showChannelSheet = false
+              if (channel == OfficialControlChannel.BLE) {
+                // Silent BLE path: try linking the official vehicle now.
+                scope.launch { ensureNearFieldLink(auto = true) }
+              } else if (channel == OfficialControlChannel.OFFICIAL_CLOUD && cloudState.signedIn) {
+                scope.launch { mqttService.preconnectForCloud(cloudService) }
+              }
             },
             shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
             background = if (active) CyberHomeColors.primarySoft else CyberHomeColors.cardMuted,

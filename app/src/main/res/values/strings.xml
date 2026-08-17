@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<resources>
+<!-- Progressive i18n: values-en/ provides a partial English translation;
+     untranslated keys intentionally fall back to this default (Chinese) file.
+     MissingTranslation is suppressed here for that reason. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:ignore="MissingTranslation">
     <string name="app_name">台铃智能 Plus</string>
 
     <!-- Bottom navigation (VoidNav) -->

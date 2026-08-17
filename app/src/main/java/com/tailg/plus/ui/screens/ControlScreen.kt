@@ -1,11 +1,7 @@
 package com.tailg.plus.ui.screens
 
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,13 +9,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -30,16 +23,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
-import com.tailg.plus.data.cloud.ResolvedVehicleLocation
-import com.tailg.plus.data.ble.BikeState
 import com.tailg.plus.data.ble.platform.ConnectionManager
-import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
@@ -57,7 +44,6 @@ import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
-import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.domain.control.ControlCommandConfirmation
 import com.tailg.plus.domain.control.ControlCommandExecutor
 import com.tailg.plus.domain.control.ControlCommandPolicy
@@ -69,10 +55,6 @@ import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
-import com.tailg.plus.ui.components.AppPressable
-import com.tailg.plus.ui.components.AppSkeleton
-import com.tailg.plus.ui.components.CyberCard
-import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberControlGrid
@@ -87,7 +69,6 @@ import com.tailg.plus.ui.components.VehicleSwitchSheet
 import com.tailg.plus.ui.components.rememberCyberCollapseFraction
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
-import com.tailg.plus.util.formatCompactDecimal
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -839,339 +820,30 @@ fun ControlScreen(
     )
   }
 
+
   // Channel selection sheet (Dart CyberChannelStrip bottom sheet).
   if (showChannelSheet) {
-    androidx.compose.material3.ModalBottomSheet(
-      onDismissRequest = { showChannelSheet = false },
-      containerColor = CyberHomeColors.card,
-    ) {
-      Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        // Dart CyberChannelStrip header: title + status + stringResource(R.string.control_induction) link.
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          androidx.compose.material3.Text(
-            text = stringResource(R.string.control_channel),
-            style = androidx.compose.ui.text.TextStyle(
-              fontSize = 16.sp,
-              fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
-              color = CyberHomeColors.ink,
-            ),
-          )
-          Spacer(Modifier.weight(1f))
-          androidx.compose.material3.Text(
-            text = controlChannelStatus.label,
-            style = androidx.compose.ui.text.TextStyle(
-              fontSize = 12.sp,
-              color = CyberHomeColors.inkMuted,
-            ),
-          )
-          Spacer(Modifier.width(10.dp))
-          androidx.compose.material3.TextButton(
-            onClick = {
-              showChannelSheet = false
-              onNavigate(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current"))
-            },
-            contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
-          ) {
-            androidx.compose.material3.Text(
-              text = stringResource(R.string.control_induction),
-              style = androidx.compose.ui.text.TextStyle(
-                fontSize = 12.sp,
-                fontWeight = androidx.compose.ui.text.font.FontWeight.W600,
-                color = CyberHomeColors.primary,
-              ),
-            )
-          }
+    ControlChannelSheet(
+      currentChannel = controlChannel,
+      channelStatus = controlChannelStatus,
+      busy = busy,
+      onSelect = { channel ->
+        controlChannel = channel
+        showChannelSheet = false
+        if (channel == OfficialControlChannel.BLE) {
+          // Silent BLE path: try linking the official vehicle now.
+          scope.launch { ensureNearFieldLink(auto = true) }
+        } else if (channel == OfficialControlChannel.OFFICIAL_CLOUD && cloudState.signedIn) {
+          scope.launch { mqttService.preconnectForCloud(cloudService) }
         }
-        Spacer(Modifier.height(12.dp))
-        channelSheetOptions().forEach { (channel, label, subtitle) ->
-          val active = controlChannel == channel
-          com.tailg.plus.ui.components.AppPressable(
-            onClick = {
-              // Dart `_selectControlChannel`: keep busy guard, then
-              // trigger channel-specific side effects (BLE auto-link,
-              // official-cloud MQTT preconnect).
-              if (busy) {
-                scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
-                return@AppPressable
-              }
-              if (controlChannel == channel) {
-                showChannelSheet = false
-                return@AppPressable
-              }
-              controlChannel = channel
-              showChannelSheet = false
-              if (channel == OfficialControlChannel.BLE) {
-                // Silent BLE path: try linking the official vehicle now.
-                scope.launch { ensureNearFieldLink(auto = true) }
-              } else if (channel == OfficialControlChannel.OFFICIAL_CLOUD && cloudState.signedIn) {
-                scope.launch { mqttService.preconnectForCloud(cloudService) }
-              }
-            },
-            shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-            background = if (active) CyberHomeColors.primarySoft else CyberHomeColors.cardMuted,
-            semanticsLabel = label,
-          ) {
-            Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp)) {
-              androidx.compose.material3.Text(
-                text = label,
-                style = androidx.compose.ui.text.TextStyle(
-                  fontSize = 14.sp,
-                  fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
-                  color = if (active) CyberHomeColors.primary else CyberHomeColors.ink,
-                ),
-              )
-              Spacer(Modifier.height(2.dp))
-              androidx.compose.material3.Text(
-                text = subtitle,
-                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
-              )
-            }
-          }
-          Spacer(Modifier.height(8.dp))
-        }
-      }
-    }
-  }
-}
-
-private fun currentPowerState(
-  bleBikeState: BikeState?,
-  cloudVehicle: OfficialVehicle?,
-): Boolean? {
-  if (bleBikeState != null) return bleBikeState.isPowerOn
-  val acc = cloudVehicle?.acc
-  return acc?.let { it == 1 }
-}
-
-private fun currentLockState(
-  bleBikeState: BikeState?,
-  cloudVehicle: OfficialVehicle?,
-): Boolean? {
-  if (bleBikeState != null) return bleBikeState.isLocked
-  val defence = cloudVehicle?.defenceStatus
-  return defence?.let { it == 1 }
-}
-
-private fun officialBleChipState(
-  vehicle: OfficialVehicle?,
-  connectionManager: ConnectionManager,
-  bleState: ConnectionState,
-  busy: Boolean,
-): OfficialBleChipState {
-  if (vehicle == null) return OfficialBleChipState.Hidden
-  if (connectionManager.isProtocolLoggedIn) return OfficialBleChipState.Connected
-  if (bleState == ConnectionState.CONNECTING ||
-    bleState == ConnectionState.CONNECTED ||
-    bleState == ConnectionState.RECONNECTING
-  ) {
-    return OfficialBleChipState.Connecting
-  }
-  return OfficialBleChipState.ClickToConnect
-}
-
-private val NON_DIGIT_PATTERN = Regex("[^\\d.]")
-
-/** Channel bottom-sheet options (constant; avoids rebuilding per recomposition). */
-@Composable
-private fun channelSheetOptions() = listOf(
-  Triple(OfficialControlChannel.AUTOMATIC, stringResource(R.string.control_channel_auto), stringResource(R.string.control_channel_auto_desc)),
-  Triple(OfficialControlChannel.BLE, stringResource(R.string.control_channel_ble), stringResource(R.string.control_channel_ble_desc)),
-  Triple(OfficialControlChannel.OFFICIAL_CLOUD, stringResource(R.string.control_channel_cloud), stringResource(R.string.control_channel_cloud_desc)),
-)
-
-private fun rangeLabel(battery: BatterySnapshot): String {
-  val remaining = battery.remainingMileage?.trim()
-  if (!remaining.isNullOrEmpty()) {
-    val cleaned = remaining.replace(NON_DIGIT_PATTERN, "")
-    val parsed = cleaned.toDoubleOrNull()
-    if (parsed != null) return "${formatCompactDecimal(parsed)} km"
-    return if (remaining.contains("km")) remaining else "$remaining km"
-  }
-  val estimated = battery.estimatedRangeKm
-  if (estimated != null) return "${formatCompactDecimal(estimated)} km"
-  return "--"
-}
-
-@Composable
-private fun locationTitle(location: ResolvedVehicleLocation?): String {
-  val address = location?.address?.trim() ?: ""
-  if (address.isNotEmpty()) return address
-  val coords = location?.coordinateText ?: ""
-  if (coords.isNotEmpty()) return coords
-  return stringResource(R.string.control_no_location)
-}
-
-private fun todayRideLabel(cloudState: OfficialCloudState): String {
-  val direct = cloudState.todayRideMileage.trim()
-  if (direct.isNotEmpty()) {
-    val cleaned = direct.replace(NON_DIGIT_PATTERN, "")
-    val parsed = cleaned.toDoubleOrNull()
-    if (parsed != null) return "${formatCompactDecimal(parsed)} km"
-    return if (direct.lowercase().contains("km")) direct else "$direct km"
-  }
-  return "--"
-}
-
-private fun totalMileageLabel(vehicle: OfficialVehicle?): String {
-  val m = vehicle?.mileage
-  if (m != null && m > 0) return "${formatCompactDecimal(m)} km"
-  return "--"
-}
-
-private fun lastRideVisuals(cloudState: OfficialCloudState): Pair<String, String> {
-  var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
-  for (day in cloudState.travelDays) {
-    for (record in day.records) {
-      if (latest == null || record.startTime.compareTo(latest.startTime) > 0) {
-        latest = record
-      }
-    }
-  }
-  if (latest == null) return "--" to "--"
-  val distKm = latest.mileageKm
-  val mins = (latest.durationSeconds / 60.0).toInt()
-  val dist = "${com.tailg.plus.util.formatDecimalDown(distKm, fractionDigits = 1)} km"
-  val dur = if (mins > 0) "$mins min" else latest.durationLabel
-  return dist to dur
-}
-
-
-private fun successTitle(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =
-  titles[command] ?: format.format(command.label)
-
-
-
-
-
-
-
-
-
-private fun successSubtitle(command: CommandCode, subtitles: Map<CommandCode, String>): String =
-  subtitles[command] ?: command.label
-
-
-
-
-
-
-
-
-
-private fun failureMessage(command: CommandCode, detail: String?, format: String, detailFormat: String): String {
-  val text = detail?.trim() ?: ""
-  if (text.isEmpty()) return format.format(command.label)
-  if (text.contains(command.label)) return text
-  return detailFormat.format(command.label, text)
-}
-
-
-/** Dart `_unconfirmedMessage` — cloud publish landed but the vehicle never confirmed. */
-private fun unconfirmedMessage(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =
-  titles[command] ?: format.format(command.label)
-
-
-
-
-
-
-@Composable
-private fun CyberHomeSkeleton() {
-  // Dart `_CyberHomeSkeleton`: hero card + control grid (3 circles) + map placeholder.
-  val base = CyberHomeColors.control
-  val highlight = CyberHomeColors.cardMuted
-  Column(modifier = Modifier.padding(horizontal = 20.dp)) {
-    // Hero skeleton.
-    CyberCard(modifier = Modifier.height(300.dp)) {
-      Column(horizontalAlignment = Alignment.Start) {
-        AppSkeleton(
-          width = 160.dp,
-          height = 22.dp,
-          baseColor = base,
-          highlightColor = highlight,
-        )
-        Spacer(Modifier.height(22.dp))
-        AppSkeleton(
-          width = 110.dp,
-          height = 44.dp,
-          baseColor = base,
-          highlightColor = highlight,
-        )
-        Spacer(Modifier.weight(1f))
-        Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
-          AppSkeleton(
-            width = 200.dp,
-            height = 90.dp,
-            borderRadius = RoundedCornerShape(AppRadii.tile),
-            baseColor = base,
-            highlightColor = highlight,
-          )
-        }
-        Spacer(Modifier.height(16.dp))
-        AppSkeleton(
-          width = 240.dp,
-          height = 12.dp,
-          baseColor = base,
-          highlightColor = highlight,
-        )
-      }
-    }
-    Spacer(Modifier.height(18.dp))
-    // Control grid skeleton.
-    CyberCard(modifier = Modifier.height(168.dp)) {
-      Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceEvenly,
-      ) {
-        repeat(3) {
-          Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            AppSkeleton(
-              width = 56.dp,
-              height = 56.dp,
-              borderRadius = CircleShape,
-              baseColor = base,
-              highlightColor = highlight,
-            )
-            Spacer(Modifier.height(12.dp))
-            AppSkeleton(
-              width = 56.dp,
-              height = 12.dp,
-              baseColor = base,
-              highlightColor = highlight,
-            )
-          }
-        }
-      }
-    }
-    Spacer(Modifier.height(18.dp))
-    // Map skeleton.
-    Box(
-      modifier = Modifier
-        .height(180.dp)
-        .clip(RoundedCornerShape(AppRadii.sheet))
-        .background(CyberHomeColors.mapPlaceholder),
+      },
+      onDismiss = { showChannelSheet = false },
+      onOpenInduction = {
+        onNavigate(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current"))
+      },
+      onBusyError = {
+        scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
+      },
     )
   }
 }
-
-private fun OfficialCloudState.asControlCloudState(): ControlCloudState = object : ControlCloudState {
-  override val signedIn: Boolean get() = this@asControlCloudState.signedIn
-  override val selectedVehicle: OfficialVehicle? get() = this@asControlCloudState.selectedVehicle
-  override fun linkedLocalVehicleId(officialVehicleKey: String): String? =
-    this@asControlCloudState.linkedLocalVehicleId(officialVehicleKey)
-}
-
-private fun CommandCode.toBleCommandCode(): com.tailg.plus.data.ble.CommandCode =
-  when (this) {
-    CommandCode.LOCK -> com.tailg.plus.data.ble.CommandCode.lock
-    CommandCode.UNLOCK -> com.tailg.plus.data.ble.CommandCode.unlock
-    CommandCode.OPEN_SEAT -> com.tailg.plus.data.ble.CommandCode.openSeat
-    CommandCode.POWER_ON -> com.tailg.plus.data.ble.CommandCode.powerOn
-    CommandCode.POWER_OFF -> com.tailg.plus.data.ble.CommandCode.powerOff
-    CommandCode.FIND -> com.tailg.plus.data.ble.CommandCode.find
-    CommandCode.READ_STATE -> com.tailg.plus.data.ble.CommandCode.readState
-    CommandCode.READ_ANTI_THEFT -> com.tailg.plus.data.ble.CommandCode.readAntiTheft
-  }

@@ -116,16 +116,18 @@ fun GarageCodeScannerScreen(
 
   // Dart: AnnotatedRegion<SystemUiOverlayStyle> — dark scanner page needs
   // LIGHT status/nav bar icons; restore the app's dark-icon default on exit.
-  val scannerWindow = androidx.compose.ui.platform.LocalContext.current as android.app.Activity
-  DisposableEffect(scannerWindow) {
-    val controller = WindowCompat.getInsetsController(scannerWindow.window, scannerWindow.window.decorView)
-    val prevLightStatus = controller.isAppearanceLightStatusBars
-    val prevLightNav = controller.isAppearanceLightNavigationBars
-    controller.isAppearanceLightStatusBars = false
-    controller.isAppearanceLightNavigationBars = false
-    onDispose {
-      controller.isAppearanceLightStatusBars = prevLightStatus
-      controller.isAppearanceLightNavigationBars = prevLightNav
+  val activity = androidx.activity.compose.LocalActivity.current
+  if (activity != null) {
+    DisposableEffect(activity) {
+      val controller = WindowCompat.getInsetsController(activity.window, activity.window.decorView)
+      val prevLightStatus = controller.isAppearanceLightStatusBars
+      val prevLightNav = controller.isAppearanceLightNavigationBars
+      controller.isAppearanceLightStatusBars = false
+      controller.isAppearanceLightNavigationBars = false
+      onDispose {
+        controller.isAppearanceLightStatusBars = prevLightStatus
+        controller.isAppearanceLightNavigationBars = prevLightNav
+      }
     }
   }
 

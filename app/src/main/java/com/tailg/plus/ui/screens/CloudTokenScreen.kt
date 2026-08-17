@@ -66,14 +66,28 @@ fun CloudTokenScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val messages by viewModel.messages.collectAsStateWithLifecycle()
+  val context = androidx.compose.ui.platform.LocalContext.current
 
   // One-shot snackbars: show the newest pending message, then consume it.
   LaunchedEffect(messages) {
     messages.lastOrNull()?.let { msg ->
-      if (msg.isError) {
-        AppSnack.error(snackbarHostState, msg.text)
-      } else {
-        AppSnack.info(snackbarHostState, msg.text)
+      // stringResource() is @Composable-only; resolve via context here.
+      val resolved = msg.text
+        ?: if (msg.textRes != 0) {
+          if (msg.formatArgs.isEmpty()) {
+            context.getString(msg.textRes)
+          } else {
+            context.getString(msg.textRes, *msg.formatArgs.toTypedArray())
+          }
+        } else {
+          ""
+        }
+      if (resolved.isNotEmpty()) {
+        if (msg.isError) {
+          AppSnack.error(snackbarHostState, resolved)
+        } else {
+          AppSnack.info(snackbarHostState, resolved)
+        }
       }
       viewModel.consumeMessage()
     }

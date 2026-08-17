@@ -5,6 +5,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -13,6 +14,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -394,7 +396,7 @@ private fun SmsLoginForm(
     Spacer(Modifier.height(16.dp))
     FieldLabel(stringResource(R.string.login_sms_label))
     Spacer(Modifier.height(8.dp))
-    Row(verticalAlignment = Alignment.Top) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
       OutlinedTextField(
         value = smsCode,
         onValueChange = onSmsCodeChange,
@@ -416,9 +418,20 @@ private fun SmsLoginForm(
         shape = cyberButtonShape,
         colors = cyberOutlinedButtonColors(),
         border = cyberOutlinedButtonBorder,
-        modifier = Modifier.height(48.dp),
+        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+        modifier = Modifier
+          .height(56.dp)
+          .widthIn(min = 96.dp),
       ) {
-        Text(text = if (countdown > 0) "${countdown}s" else stringResource(R.string.login_get_code))
+        Text(
+          text = if (countdown > 0) "${countdown}s" else stringResource(R.string.login_get_code),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = TextStyle(
+            fontSize = 14.sp,
+            fontWeight = FontWeight.W600,
+          ),
+        )
       }
     }
     Spacer(Modifier.height(24.dp))

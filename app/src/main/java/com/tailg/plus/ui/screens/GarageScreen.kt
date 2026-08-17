@@ -682,7 +682,7 @@ private fun GarageSearchHeader(
         placeholder = {
           Text(
             text = stringResource(type.hintRes),
-            style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
+            style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
           )
         },
         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),

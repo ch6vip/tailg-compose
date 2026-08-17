@@ -74,7 +74,7 @@ fun BindImeiScreen(
 ) {
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
 
   var imei by remember { mutableStateOf("") }
   var busy by remember { mutableStateOf(false) }

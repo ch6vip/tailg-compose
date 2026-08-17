@@ -79,11 +79,11 @@ private fun rideNotice(): String =
 fun RideStatsScreen(
   vehicleId: String,
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   modifier: Modifier = Modifier,
   onNavigate: (String) -> Unit = {},
 ) {
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val scope = rememberCoroutineScope()
   val cloudState by cloudService.stateFlow.collectAsState()
 

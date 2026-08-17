@@ -62,7 +62,10 @@ android {
         }
     }
     lint {
-        abortOnError = false
+        // Fail the build on lint errors. Current report is warnings-only;
+        // keep abort on Error/Fatal so regressions fail CI.
+        abortOnError = true
+        checkReleaseBuilds = true
     }
 }
 

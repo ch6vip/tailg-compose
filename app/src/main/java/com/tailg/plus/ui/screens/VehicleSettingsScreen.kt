@@ -78,7 +78,7 @@ fun VehicleSettingsScreen(
   val state by cloudService.stateFlow.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
   var showUnbindDialog by remember { mutableStateOf(false) }
   val strUnboundRefreshed = stringResource(R.string.vehicle_settings_unbound_refreshed)
   val strUnbindFailed = stringResource(R.string.vehicle_settings_unbind_failed)

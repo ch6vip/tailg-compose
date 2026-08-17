@@ -60,9 +60,8 @@ import com.tailg.plus.R
  * per entry, and persists changes via `setMessagePushConfig()`. Here the same
  * flow is reproduced with a `remember`-held mutable map and a coroutine scope.
  *
- * Service access: [OfficialCloudService] is obtained via
- * [rememberOfficialCloudService] (constructs storage / api client / vehicle
- * store from the current context until Hilt is wired).
+ * Service access: [OfficialCloudService] is injected from the navigation host
+ * (Hilt singleton graph via TailgEntryPoint).
  *
  * Token mapping (Dart → Compose): `CyberHomeColors.card/line/primary/...` are
  * used 1:1; `AppRadii.tile` for card radius; `Lucide.*` for row icons.
@@ -70,9 +69,9 @@ import com.tailg.plus.R
 @Composable
 fun NotificationPrefsScreen(
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
 ) {
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 

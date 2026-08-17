@@ -187,6 +187,7 @@ class OfficialCloudService(
         fetchGaragePageOverride = null
         changeUsingVehicleOverride = null
         afterLogoutSideEffects.clear()
+        afterLogoutKeys.clear()
     }
 
     @VisibleForTesting
@@ -557,10 +558,22 @@ class OfficialCloudService(
         log.operation("官方车辆已同步到本地车库", detail = "${vehicle.displayName} ${profile.id}")
     }
 
-    // -- test hooks (Dart `@visibleForTesting` fields) -----------------------
+    // -- test hooks (Dart @visibleForTesting fields) -----------------------
 
-    /** Invoked after credentials/selection are cleared (P1-4). */
+    /**
+     * Side effects run after a successful logout (MQTT teardown, BLE disconnect).
+     * Prefer [registerAfterLogout] so registration is idempotent and test-friendly.
+     */
     val afterLogoutSideEffects: MutableList<suspend () -> Unit> = mutableListOf()
+
+    /** Registers a logout hook once (no-op if [key] was already registered). */
+    fun registerAfterLogout(key: String, effect: suspend () -> Unit) {
+        if (afterLogoutKeys.add(key)) {
+            afterLogoutSideEffects += effect
+        }
+    }
+
+    private val afterLogoutKeys: MutableSet<String> = mutableSetOf()
 
     /** Test-only override for [sendCommand] (records into [sentCommands]). */
     @VisibleForTesting

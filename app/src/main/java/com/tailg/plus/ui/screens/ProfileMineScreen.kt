@@ -87,11 +87,11 @@ import kotlinx.coroutines.launch
 fun ProfileMineScreen(
   onNavigate: (String) -> Unit,
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   modifier: Modifier = Modifier,
   onSignedOut: () -> Unit = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
 ) {
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val context = androidx.compose.ui.platform.LocalContext.current
   val messageReadStore = remember { MessageReadStore(context) }
   val scope = rememberCoroutineScope()

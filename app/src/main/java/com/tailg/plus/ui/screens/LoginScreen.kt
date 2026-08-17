@@ -101,8 +101,9 @@ fun LoginScreen(
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val log = remember { LogService() }
-  val clipboard = remember { ClipboardText(context) }
+  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
+  val log = entryPoint.logService()
+  val clipboard = entryPoint.clipboardText()
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsState()
   val cloudState by cloudService.stateFlow.collectAsState()

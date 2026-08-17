@@ -18,13 +18,12 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
+import androidx.hilt.navigation.compose.hiltViewModel
 import com.tailg.plus.R
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
@@ -34,18 +33,15 @@ import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.cloud.resolveVehicleLocation
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
-import com.tailg.plus.data.model.ControlCommandActivityLog
 import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.data.model.OfficialCloudCommand
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.mqtt.OfficialRemoteSendPath
-import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
 import com.tailg.plus.domain.control.ControlCommandConfirmation
-import com.tailg.plus.domain.control.ControlCommandExecutor
 import com.tailg.plus.domain.control.ControlCommandPolicy
 import com.tailg.plus.domain.control.ControlCommandResult
 import com.tailg.plus.domain.control.ControlCommandRoute
@@ -54,7 +50,6 @@ import com.tailg.plus.domain.control.ControlCommandVehicleStateSnapshot
 import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
-import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberControlGrid
@@ -96,24 +91,26 @@ fun ControlScreen(
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
   modifier: Modifier = Modifier,
+  viewModel: ControlViewModel = hiltViewModel(),
 ) {
   val scope = rememberCoroutineScope()
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
-  val log = remember { LogService() }
+  val log = viewModel.log
   val cloudState by cloudService.stateFlow.collectAsState()
   val bleState by connectionManager.stateFlow.collectAsState()
   val bleBikeState by connectionManager.bikeStateFlow.collectAsState()
   val mqttLinkState by mqttService.linkState.collectAsState()
-
-  var busy by remember { mutableStateOf(false) }
-  var activeCommand by remember { mutableStateOf<CommandCode?>(null) }
-  var controlChannel by remember { mutableStateOf(OfficialControlChannel.AUTOMATIC) }
-  var showChannelSheet by remember { mutableStateOf(false) }
-  var showVehicleSwitchSheet by remember { mutableStateOf(false) }
-  var lastCommandAtMs by remember { mutableStateOf(0L) }
-  val commandLog = remember { ControlCommandActivityLog() }
-  var commandVersion by remember { mutableStateOf(0) }
+  val ui by viewModel.uiState.collectAsState()
+  val busy = ui.busy
+  val activeCommand = ui.activeCommand
+  val controlChannel = ui.controlChannel
+  val showChannelSheet = ui.showChannelSheet
+  val showVehicleSwitchSheet = ui.showVehicleSwitchSheet
+  val lastCommandAtMs = ui.lastCommandAtMs
+  val commandLog = viewModel.commandLog
+  val commandVersion = ui.commandVersion
+  val networkReady = ui.networkReady
 
   // String resources cached for coroutine-lambda use.
   val strBusyHint = stringResource(R.string.control_busy_hint)
@@ -161,39 +158,21 @@ fun ControlScreen(
     CommandCode.UNLOCK to stringResource(R.string.control_unconfirmed_unlock),
   )
 
-  // Dart subscribes to networkAvailabilityService.changes; BLE must keep
-  // working offline, so the flow fails open (NetworkAvailabilityService).
-  val networkService = remember { NetworkAvailabilityService(ctx) }
-  var networkReady by remember { mutableStateOf(true) }
-  LaunchedEffect(Unit) {
-    networkService.changes.collect { ready -> networkReady = ready }
-  }
-  val locationService = remember(ctx) {
-    com.tailg.plus.service.LocationService(ctx, vehicleStore)
-  }
+  val locationService = viewModel.locationService
 
   // Foreground resume → retry a failed/absent MQTT preconnect (Dart 229-237).
   val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
   DisposableEffect(lifecycleOwner) {
     val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
       if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
-        scope.launch {
-          if (!mqttService.isConnected && mqttService.lastPreconnectError != null) {
-            mqttService.retryPreconnect(cloudService)
-          }
-        }
+        viewModel.retryMqttPreconnectIfNeeded()
       }
     }
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
-  val commandExecutor = remember {
-    ControlCommandExecutor(
-      sendBleCommand = { command -> connectionManager.sendCommand(command.toBleCommandCode()) },
-      sendCloudCommand = { command -> mqttService.sendCommandPreferMqtt(command, cloudService) },
-    )
-  }
+  val commandExecutor = viewModel.commandExecutor
 
   val cloudVehicle = cloudState.selectedVehicle
   val battery = remember(cloudState) {
@@ -521,14 +500,13 @@ fun ControlScreen(
     }
     // QGJ open-seat firmware preflight (Dart checkQgjSeatSupport gate) runs
     // inside the send coroutine below (suspend check).
-    lastCommandAtMs = now
-    busy = true
-    activeCommand = cmd
+    viewModel.markCommandIssued(now)
+    viewModel.setBusy(true, cmd)
     val vehicleAtSend = cloudService.currentState.selectedVehicle
     val vehicleKeyAtSend = vehicleAtSend?.key
     val baseline = vehicleStateSnapshot()
     val activityId = commandLog.start(cmd, "${cmd.label}中…", "指令已发送，等待回执")
-    commandVersion++
+    viewModel.bumpCommandVersion()
     scope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)
@@ -643,9 +621,8 @@ fun ControlScreen(
         AppSnack.error(snackbarHostState, failureMessage(cmd, e.message, strFailureFormat, strFailureDetailFormat))
         commandLog.finish(activityId, "${cmd.label}失败", e.message ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
       } finally {
-        busy = false
-        activeCommand = null
-        commandVersion++
+        viewModel.setBusy(false)
+        viewModel.bumpCommandVersion()
       }
     }
   }
@@ -747,7 +724,7 @@ fun ControlScreen(
             if (busy) {
               scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
             } else if (cloudState.vehicles.size > 1) {
-              showVehicleSwitchSheet = true
+              viewModel.setShowVehicleSwitchSheet(true)
             } else {
               onNavigate(Routes.OFFICIAL_CLOUD)
             }
@@ -757,7 +734,7 @@ fun ControlScreen(
             scope.launch { ensureNearFieldLink() }
           },
           onMessages = { onNavigate(Routes.vehicleMessage("current")) },
-          onChannelTap = { showChannelSheet = true },
+          onChannelTap = { viewModel.setShowChannelSheet(true) },
         )
       }
       // Control grid + map stats + recent commands.
@@ -809,14 +786,14 @@ fun ControlScreen(
       onSelect = { target: OfficialVehicle ->
         try {
           cloudService.changeUsingVehicle(target)
-          showVehicleSwitchSheet = false
+          viewModel.setShowVehicleSwitchSheet(false)
           true
         } catch (e: Exception) {
           scope.launch { AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e)) }
           false
         }
       },
-      onDismiss = { showVehicleSwitchSheet = false },
+      onDismiss = { viewModel.setShowVehicleSwitchSheet(false) },
     )
   }
 
@@ -828,8 +805,8 @@ fun ControlScreen(
       channelStatus = controlChannelStatus,
       busy = busy,
       onSelect = { channel ->
-        controlChannel = channel
-        showChannelSheet = false
+        viewModel.setControlChannel(channel)
+        viewModel.setShowChannelSheet(false)
         if (channel == OfficialControlChannel.BLE) {
           // Silent BLE path: try linking the official vehicle now.
           scope.launch { ensureNearFieldLink(auto = true) }
@@ -837,7 +814,7 @@ fun ControlScreen(
           scope.launch { mqttService.preconnectForCloud(cloudService) }
         }
       },
-      onDismiss = { showChannelSheet = false },
+      onDismiss = { viewModel.setShowChannelSheet(false) },
       onOpenInduction = {
         onNavigate(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current"))
       },

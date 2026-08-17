@@ -48,6 +48,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.data.model.OfficialCloudMessage
 import com.tailg.plus.data.model.OfficialCloudMessageCategory
 import com.tailg.plus.data.store.MessageReadStore
@@ -86,16 +87,16 @@ import com.tailg.plus.R
 fun VehicleMessageScreen(
   vehicleId: String,
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   modifier: Modifier = Modifier,
   onNavigate: (String) -> Unit = {},
 ) {
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val context = androidx.compose.ui.platform.LocalContext.current
   val messageReadStore = remember { MessageReadStore(context) }
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val log = remember { LogService() }
+  val log = rememberTailgEntryPoint().logService()
   val cloudState by cloudService.stateFlow.collectAsState()
 
   var activeTab by remember { mutableStateOf(0) }

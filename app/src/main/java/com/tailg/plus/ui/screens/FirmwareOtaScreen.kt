@@ -65,11 +65,11 @@ import com.tailg.plus.R
 @Composable
 fun FirmwareOtaScreen(
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   connectionManager: ConnectionManager? = null,
 ) {
   val context = LocalContext.current
-  val cloud = cloudService ?: rememberOfficialCloudService()
+  val cloud = cloudService
   val connection = remember(connectionManager) { connectionManager ?: ConnectionManager(context) }
   val ota = remember(cloud, connection) { FirmwareOtaService(cloud = cloud, connectionManager = connection) }
   val snackbarHostState = remember { SnackbarHostState() }

@@ -1,5 +1,6 @@
 package com.tailg.plus.domain.control
 
+import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.model.OfficialVehicle
 
 /**
@@ -35,15 +36,6 @@ interface ControlCloudState {
    * — trims both sides, drops empty entries, returns the linked local device id.
    */
   fun linkedLocalVehicleId(officialVehicleKey: String): String?
-}
-
-/** Shared user-facing copy for official-cloud auth gates (Dart OfficialCloudMessages). */
-object OfficialCloudMessages {
-  const val SIGN_IN_REQUIRED = "请先登录官方账号"
-  const val SIGN_IN_AND_SELECT_VEHICLE_REQUIRED = "请先登录官方账号并选择车辆"
-
-  /** Contextual gate used by location sync actions. */
-  fun signInRequiredBefore(action: String): String = "请先登录官方账号后再$action"
 }
 
 data class ControlChannelAvailability(

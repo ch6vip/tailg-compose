@@ -112,11 +112,12 @@ fun LocationScreen(
   initialTab: LocationInitialTab = LocationInitialTab.MAP,
 ) {
   val scope = rememberCoroutineScope()
-  val log = remember { LogService() }
+  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
+  val log = entryPoint.logService()
   val cloudState by cloudService.stateFlow.collectAsState()
   val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
   val ctx = androidx.compose.ui.platform.LocalContext.current
-  val clipboard = remember(cloudService) { ClipboardText(ctx) }
+  val clipboard = entryPoint.clipboardText()
 
   var tabIndex by remember { mutableStateOf(LocationTab.valueOf(initialTab.name)) }
   var localLoading by remember { mutableStateOf(false) }

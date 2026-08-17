@@ -87,14 +87,14 @@ import kotlinx.coroutines.launch
 fun GarageScreen(
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   modifier: Modifier = Modifier,
   mqttService: com.tailg.plus.data.mqtt.OfficialMqttService? = null,
   connectionManager: com.tailg.plus.data.ble.platform.ConnectionManager? = null,
   scannedCode: String? = null,
   onConsumeScan: () -> Unit = {},
 ) {
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudState by cloudService.stateFlow.collectAsState()

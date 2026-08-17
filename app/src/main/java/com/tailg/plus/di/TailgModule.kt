@@ -8,6 +8,9 @@ import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudStorage
 import com.tailg.plus.data.cloud.OfficialCloudVehicleStore
 import com.tailg.plus.data.mqtt.OfficialMqttService
+import com.tailg.plus.data.network.NetworkAvailabilityService
+import com.tailg.plus.data.preferences.AppPreferencesService
+import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.screens.VehicleStoreCloudAdapter
@@ -22,12 +25,9 @@ import javax.inject.Singleton
 /**
  * Hilt DI graph for tailg-compose.
  *
- * Provides the app-wide singletons previously constructed by
- * `rememberOfficialCloudService()`. Screens still call that factory for now;
- * this module exists so future migrations can inject these bindings directly.
- *
- * All providers are [Singleton]-scoped inside [SingletonComponent] so the
- * instances survive configuration changes and are shared across the app.
+ * All app-wide services are [Singleton]-scoped. Screens and the navigation
+ * host resolve them through [TailgEntryPoint] (or constructor injection on
+ * ViewModels) — do not construct parallel instances via remember factories.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -109,4 +109,30 @@ object TailgModule {
   fun provideClipboardText(
     @ApplicationContext context: Context,
   ): ClipboardText = ClipboardText(context)
+
+  @Provides
+  @Singleton
+  fun provideAppPreferencesService(
+    @ApplicationContext context: Context,
+    log: LogService,
+  ): AppPreferencesService = AppPreferencesService(
+    context = context,
+    logService = log,
+  )
+
+  @Provides
+  @Singleton
+  fun provideNetworkAvailabilityService(
+    @ApplicationContext context: Context,
+  ): NetworkAvailabilityService = NetworkAvailabilityService(context)
+
+  @Provides
+  @Singleton
+  fun provideReplicaFeatureStore(
+    @ApplicationContext context: Context,
+    log: LogService,
+  ): ReplicaFeatureStore = ReplicaFeatureStore(
+    context = context,
+    logService = log,
+  )
 }

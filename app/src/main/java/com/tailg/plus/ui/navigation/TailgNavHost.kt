@@ -75,6 +75,7 @@ fun TailgNavHost() {
   val scope = rememberCoroutineScope()
   val entryPoint = rememberTailgEntryPoint()
   val cloudService = entryPoint.cloudService()
+  val cloudState by cloudService.stateFlow.collectAsState()
 
   // Bootstrap once (Dart `main()`): restore the persisted session, bind MQTT
   // to the cloud state and register the logout channel teardown. The first
@@ -83,14 +84,8 @@ fun TailgNavHost() {
   var bootstrapped by remember { mutableStateOf(false) }
   LaunchedEffect(Unit) {
     val mqttService = entryPoint.mqttService()
-    val connectionManager = entryPoint.connectionManager()
+    // Logout MQTT/BLE teardown is registered once in TailgApplication.
     mqttService.attachToCloud(cloudService)
-    if (cloudService.afterLogoutSideEffects.isEmpty()) {
-      cloudService.afterLogoutSideEffects += {
-        mqttService.disconnect()
-        connectionManager.disconnect()
-      }
-    }
     try {
       cloudService.init()
     } catch (e: Exception) {
@@ -104,7 +99,13 @@ fun TailgNavHost() {
     Box(modifier = Modifier.fillMaxSize().background(AppColors.pageBg))
     return
   }
-  val startDestination = if (cloudService.currentState.signedIn) Routes.SERVICE_HUB else Routes.LOGIN
+  // Capture the restored session only after bootstrap. Subsequent auth
+  // changes navigate explicitly from their submit/logout handlers; changing
+  // NavHost's startDestination after the graph is created would recreate the
+  // graph and can race that navigation.
+  val startDestination = remember(bootstrapped) {
+    if (cloudState.signedIn) Routes.vehicleHome(cloudState.selectedVehicle?.key) else Routes.LOGIN
+  }
 
   val backStackEntry by navController.currentBackStackEntryAsState()
   val currentRoute = backStackEntry?.destination?.route
@@ -114,7 +115,17 @@ fun TailgNavHost() {
     Routes.CONTROL,
     Routes.PROFILE_MINE,
   )
-  val vehicleRouteId = cloudService.currentState.selectedVehicle?.key?.takeIf { it.isNotBlank() } ?: "current"
+  val vehicleRouteId = cloudState.selectedVehicle?.key?.takeIf { it.isNotBlank() } ?: "current"
+
+  fun navigateBottomTab(route: String) {
+    navController.navigate(route) {
+      launchSingleTop = true
+      // The authenticated shell is rooted at the control destination. Using
+      // the route pattern also matches a concrete `control/<vehicleId>` entry.
+      popUpTo(Routes.CONTROL) { saveState = true }
+      restoreState = true
+    }
+  }
 
   Scaffold(
     containerColor = AppColors.pageBg,
@@ -131,25 +142,13 @@ fun TailgNavHost() {
         VoidOrbitalNav(
           currentIndex = index,
           onService = {
-            navController.navigate(Routes.SERVICE_HUB) {
-              launchSingleTop = true
-              popUpTo(Routes.SERVICE_HUB) { saveState = true }
-              restoreState = true
-            }
+            navigateBottomTab(Routes.SERVICE_HUB)
           },
           onVehicle = {
-            navController.navigate(Routes.control(vehicleRouteId)) {
-              launchSingleTop = true
-              popUpTo(Routes.SERVICE_HUB) { saveState = true }
-              restoreState = true
-            }
+            navigateBottomTab(Routes.vehicleHome(vehicleRouteId))
           },
           onMine = {
-            navController.navigate(Routes.PROFILE_MINE) {
-              launchSingleTop = true
-              popUpTo(Routes.SERVICE_HUB) { saveState = true }
-              restoreState = true
-            }
+            navigateBottomTab(Routes.PROFILE_MINE)
           },
         )
       }
@@ -165,7 +164,9 @@ fun TailgNavHost() {
         LoginScreen(
           cloudService = cloudService,
           onSignedIn = { successMessage ->
-            navController.navigate(Routes.SERVICE_HUB) {
+            // Match Flutter's returnToVehicleHome(): after either SMS or
+            // Token login, land directly on the vehicle/control tab.
+            navController.navigate(Routes.vehicleHome(cloudService.currentState.selectedVehicle?.key)) {
               launchSingleTop = true
               popUpTo(Routes.LOGIN) { inclusive = true }
             }
@@ -212,7 +213,7 @@ fun TailgNavHost() {
           onSignedOut = {
             navController.navigate(Routes.LOGIN) {
               launchSingleTop = true
-              popUpTo(Routes.SERVICE_HUB) { inclusive = true }
+              popUpTo(Routes.CONTROL) { inclusive = true }
             }
           },
         )
@@ -426,17 +427,20 @@ fun TailgNavHost() {
       composable(Routes.SETTINGS) {
         SettingsScreen(
           vehicleRouteId = vehicleRouteId,
+          preferencesService = entryPoint.appPreferences(),
           onBack = { navController.popBackStack() },
           onNavigate = { route -> navController.navigate(route) },
         )
       }
       composable(Routes.LANGUAGE_SETTINGS) {
         LanguageSettingsScreen(
+          preferencesService = entryPoint.appPreferences(),
           onBack = { navController.popBackStack() },
         )
       }
       composable(Routes.UNIT_SETTINGS) {
         UnitSettingsScreen(
+          preferencesService = entryPoint.appPreferences(),
           onBack = { navController.popBackStack() },
         )
       }
@@ -460,6 +464,7 @@ fun TailgNavHost() {
       composable(Routes.LOG) {
         LogScreen(
           cloudService = cloudService,
+          logService = entryPoint.logService(),
           onBack = { navController.popBackStack() },
         )
       }

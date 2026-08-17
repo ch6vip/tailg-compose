@@ -107,7 +107,7 @@ fun OfficialReplicaScreen(
   modifier: Modifier = Modifier,
 ) {
   val scope = rememberCoroutineScope()
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
   val snackbarHostState = remember { SnackbarHostState() }
   val context = androidx.compose.ui.platform.LocalContext.current
   val store = remember(context) { ReplicaFeatureStore(context) }

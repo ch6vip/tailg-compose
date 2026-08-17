@@ -100,7 +100,7 @@ fun BatteryDetailsScreen(
   onConsumeBatteryChanged: () -> Unit = {},
 ) {
   val scope = rememberCoroutineScope()
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
   val cloudState by cloudService.stateFlow.collectAsState()
   val snackbarHostState = remember { SnackbarHostState() }
   val bleState by connectionManager.stateFlow.collectAsState()

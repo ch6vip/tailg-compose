@@ -1,6 +1,7 @@
 package com.tailg.plus.domain.control
 
 import com.tailg.plus.data.cloud.OfficialCloudApiException
+import com.tailg.plus.data.cloud.OfficialCloudMessages
 
 /**
  * Port of `lib/services/official_remote_error_messages.dart`.

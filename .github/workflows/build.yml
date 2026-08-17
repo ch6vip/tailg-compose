@@ -49,6 +49,10 @@ jobs:
       - name: Assemble + unit tests + lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace
 
+      # Catch R8/ProGuard keep-rule regressions without requiring a release keystore.
+      - name: Assemble release (unsigned minify)
+        run: ./gradlew assembleRelease --stacktrace
+
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:

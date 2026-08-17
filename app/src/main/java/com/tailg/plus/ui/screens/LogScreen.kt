@@ -77,17 +77,17 @@ import com.tailg.plus.R
 @Composable
 fun LogScreen(
   onBack: () -> Unit,
-  logService: LogService? = null,
-  cloudService: OfficialCloudService? = null,
+  logService: LogService,
+  cloudService: OfficialCloudService,
 ) {
-  val context = LocalContext.current
-  val log = remember(logService) { logService ?: LogService() }
-  val clipboard = remember { ClipboardText(context) }
+  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
+  val log = logService
+  val clipboard = entryPoint.clipboardText()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
-  val cloud = cloudService ?: rememberOfficialCloudService()
-  val vehicleStore = remember { VehicleStore(context) }
+  val cloud = cloudService
+  val vehicleStore = entryPoint.vehicleStore()
   val exportService = remember {
     DiagnosticExportService(
       logService = log,

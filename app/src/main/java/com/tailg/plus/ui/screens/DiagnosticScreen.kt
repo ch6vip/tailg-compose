@@ -67,7 +67,7 @@ fun DiagnosticScreen(
   onBack: () -> Unit,
 ) {
   val context = LocalContext.current
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
   var history by remember { mutableStateOf<List<DiagnosticRecord>>(emptyList()) }
   val strDiagLoadFailed = stringResource(R.string.diag_load_failed)
 

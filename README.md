@@ -22,6 +22,9 @@ app/src/main/java/com/tailg/plus/
 
 ## 构建
 
+需要 **JDK 17 或 21**（Gradle 8.12 的 Kotlin DSL 无法在 JDK 25 上解析版本号）。
+CI 使用 Temurin 17；本机若默认是更新的 JDK，请设置 `JAVA_HOME` 后再构建。
+
 ```bash
 ./gradlew assembleDebug testDebugUnitTest lintDebug
 ```
@@ -36,6 +39,8 @@ app/src/main/java/com/tailg/plus/
 | UI 30 页 + 导航图 | ✅ |
 | 测试移植 | ✅ (19 个测试文件,162 测试,全部通过) |
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
-| Hilt DI 图 | ✅ (8 个单例 provider;屏幕仍走 factory 回退) |
+| Hilt DI 图 | ✅ (单例图 + EntryPoint；屏幕共用同一 graph，无双实例 factory) |
+| Control ViewModel | ✅ 控车页会话状态迁入 Hilt ViewModel |
+| MQTT TLS | ✅ Release 使用系统信任库；trust-all 仅 Debug 兼容 |
 | 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |
 | 地图 SDK | ✅ osmdroid（高德瓦片默认 / 天地图 token 可选）——位置/轨迹/围栏三 tab + ControlScreen 迷你图 |

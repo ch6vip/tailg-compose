@@ -401,8 +401,12 @@ class OfficialMqttService(
                 userName = mqUser
                 this.password = mqPass.toCharArray()
                 if (parsed.secure) {
-                    // Official MqttUtil installs a trust-all path for non-KKS/YJ SSL brokers.
-                    socketFactory = trustAllSslContext.socketFactory
+                    // Official MqttUtil installs a trust-all path for non-KKS/YJ
+                    // SSL brokers. Compatibility mode is debug-only; release uses
+                    // the platform default trust manager (system CA store).
+                    if (com.tailg.plus.BuildConfig.DEBUG) {
+                        socketFactory = trustAllSslContext.socketFactory
+                    }
                 }
             }
             created.setCallback(object : MqttCallback {
@@ -714,6 +718,9 @@ class OfficialMqttService(
     /**
      * Trust-all SSL context for the non-KKS/YJ brokers (official MqttUtil
      * installs the same trust-all path for model types other than 1/2).
+     *
+     * Debug builds only — release connect options skip this factory so the
+     * JVM default SSLSocketFactory / system trust store is used.
      */
     private val trustAllSslContext: SSLContext by lazy {
         val trustAll = object : X509TrustManager {

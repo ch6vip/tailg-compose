@@ -91,7 +91,7 @@ fun ReplaceBatteryScreen(
 ) {
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val log = remember { LogService() }
+  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
   val strSelectVehicle = stringResource(R.string.replace_battery_select_vehicle)
   val strNoTypes = stringResource(R.string.replace_battery_no_types)
   val strSelectType = stringResource(R.string.replace_battery_select_type)

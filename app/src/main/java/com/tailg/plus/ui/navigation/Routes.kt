@@ -63,4 +63,11 @@ object Routes {
 
     /** Argument key extracted from routes that carry a `{vehicleId}` segment. */
     const val ARG_VEHICLE_ID = "vehicleId"
+
+    /**
+     * Authenticated home destination. The control screen is the vehicle tab
+     * and remains the root of the authenticated bottom-nav stack.
+     */
+    fun vehicleHome(vehicleKey: String?): String =
+        control(vehicleKey?.trim()?.takeIf { it.isNotEmpty() } ?: "current")
 }

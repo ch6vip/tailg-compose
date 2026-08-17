@@ -75,8 +75,8 @@ import com.tailg.plus.R
  * Service access: [InductionModeService] needs a [ConnectionManager] (Android
  * BLE wrapper) and an [com.tailg.plus.service.InductionPrefs]; both are
  * constructable from the current [android.content.Context]. [OfficialCloudService]
- * is obtained via [rememberOfficialCloudService] and supplies the
- * selected vehicle for `bindVehicle`. [AppPermissionService] is used only on the
+ * is injected from the navigation host and supplies the
+ * selected vehicle for bindVehicle. [AppPermissionService] is used only on the
  * RSSI path to request notification permission.
  *
  * Token mapping (Dart → Compose): `CyberHomeColors.*` 1:1; `AppRadii.tile` for
@@ -90,11 +90,11 @@ import com.tailg.plus.R
 fun InductionSettingsScreen(
   vehicleId: String,
   onBack: () -> Unit,
-  cloudService: OfficialCloudService? = null,
+  cloudService: OfficialCloudService,
   connectionManager: ConnectionManager? = null,
 ) {
   val context = LocalContext.current
-  val cloudService = cloudService ?: rememberOfficialCloudService()
+  val cloudService = cloudService
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 

@@ -81,8 +81,8 @@ fun LanguageSettingsScreen(
   onBack: () -> Unit,
   preferencesService: AppPreferencesService? = null,
 ) {
-  val context = LocalContext.current
-  val prefs = preferencesService ?: remember { AppPreferencesService(context) }
+  val prefs = preferencesService
+    ?: com.tailg.plus.di.rememberTailgEntryPoint().appPreferences()
   var selected by remember { mutableStateOf(AppLanguagePreference.System) }
   var saving by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
@@ -159,8 +159,8 @@ fun UnitSettingsScreen(
   onBack: () -> Unit,
   preferencesService: AppPreferencesService? = null,
 ) {
-  val context = LocalContext.current
-  val prefs = preferencesService ?: remember { AppPreferencesService(context) }
+  val prefs = preferencesService
+    ?: com.tailg.plus.di.rememberTailgEntryPoint().appPreferences()
   var selected by remember { mutableStateOf(DistanceUnitPreference.Metric) }
   val scope = rememberCoroutineScope()
 
@@ -215,17 +215,17 @@ fun AboutAppScreen(
   logService: LogService? = null,
   cloudService: OfficialCloudService? = null,
 ) {
-  val context = LocalContext.current
-  val log = remember(logService) { logService ?: LogService() }
-  val clipboard = remember { ClipboardText(context) }
+  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
+  val log = logService ?: entryPoint.logService()
+  val clipboard = entryPoint.clipboardText()
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   val strCopiedReport = stringResource(R.string.prefs_copied_report)
   val strTerms = stringResource(R.string.prefs_terms)
   val strPrivacy = stringResource(R.string.prefs_privacy)
 
-  val cloud = cloudService ?: rememberOfficialCloudService()
-  val vehicleStore = remember { VehicleStore(context) }
+  val cloud = cloudService ?: entryPoint.cloudService()
+  val vehicleStore = entryPoint.vehicleStore()
   val exportService = remember {
     DiagnosticExportService(
       logService = log,

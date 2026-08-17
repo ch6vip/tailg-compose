@@ -70,6 +70,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import timber.log.Timber
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/garage_code_scanner_page.dart` — QR / barcode scanner.
@@ -185,12 +187,12 @@ fun GarageCodeScannerScreen(
           horizontalArrangement = Arrangement.SpaceBetween,
         ) {
           ScannerAction(
-            label = "返回",
+            label = stringResource(R.string.common_back),
             icon = Lucide.arrowLeft,
             onTap = onBack,
           )
           ScannerAction(
-            label = if (torchOn) "关闭手电筒" else "打开手电筒",
+            label = if (torchOn) stringResource(R.string.garage_scan_torch_off) else stringResource(R.string.garage_scan_torch_on),
             icon = Lucide.zap,
             active = torchOn,
             onTap = {
@@ -205,7 +207,7 @@ fun GarageCodeScannerScreen(
         }
         Spacer(modifier = Modifier.weight(1f))
         Text(
-          text = "扫描车辆二维码或车架条码",
+          text = stringResource(R.string.garage_scan_vehicle_qr),
           modifier = Modifier.fillMaxWidth(),
           textAlign = TextAlign.Center,
           style = TextStyle(
@@ -393,7 +395,7 @@ private fun ScannerPlaceholder(
     )
     Spacer(Modifier.height(12.dp))
     Text(
-      text = if (hasPermission) "扫码功能即将上线" else "需要相机权限才能扫码",
+      text = if (hasPermission) stringResource(R.string.garage_scan_coming_soon) else stringResource(R.string.garage_scan_camera_permission),
       textAlign = TextAlign.Center,
       style = TextStyle(
         color = CyberHomeColors.white,
@@ -410,7 +412,7 @@ private fun ScannerPlaceholder(
           contentColor = CyberHomeColors.white,
         ),
       ) {
-        Text("打开设置")
+        Text(stringResource(R.string.garage_scan_open_settings))
       }
     }
   }

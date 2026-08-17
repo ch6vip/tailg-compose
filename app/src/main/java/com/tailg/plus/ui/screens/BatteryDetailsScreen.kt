@@ -73,6 +73,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.BatteryHelpCopy
 import com.tailg.plus.util.formatRelativeSyncText
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 private val batteryCardDecoration: Modifier
   get() = Modifier
@@ -121,6 +123,17 @@ fun BatteryDetailsScreen(
     )
   }
   val isLithium = vehicle?.bmsTlvType?.trim() == "208"
+  val strBatterySynced = stringResource(R.string.battery_synced)
+  val strBatterySyncedNoDetail = stringResource(R.string.battery_synced_no_detail)
+  val strBatteryRefreshFailed = stringResource(R.string.battery_refresh_failed_short)
+  val strCoulombBleRequired = stringResource(R.string.battery_coulomb_ble_required_hint)
+  val strCoulombNeedLogin = stringResource(R.string.battery_coulomb_need_login)
+  val strCoulombRefreshHint = stringResource(R.string.battery_coulomb_refresh_hint)
+  val strBatteryQueryFailed = stringResource(R.string.battery_query_failed)
+  val strCoulombEnabled = stringResource(R.string.battery_coulomb_enabled)
+  val strCoulombDisabled = stringResource(R.string.battery_coulomb_disabled)
+  val strSetFailed = stringResource(R.string.battery_set_failed)
+  val strSelectVehicleFirst = stringResource(R.string.battery_select_vehicle_first)
   val bleReady = connectionManager.isProtocolLoggedIn
 
   var coulombBusy by remember { mutableStateOf(false) }
@@ -139,12 +152,12 @@ fun BatteryDetailsScreen(
         val info = cloudService.currentState.batteryInfo
         val bms = cloudService.currentState.bmsInfo
         if (info?.hasData == true || bms?.hasData == true) {
-          AppSnack.success(snackbarHostState, "电池信息已同步")
+          AppSnack.success(snackbarHostState, strBatterySynced)
         } else {
-          AppSnack.info(snackbarHostState, "已同步，当前暂无电池明细")
+          AppSnack.info(snackbarHostState, strBatterySyncedNoDetail)
         }
       } catch (e: Exception) {
-        log.operation("官方电池信息刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strBatteryRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -153,8 +166,8 @@ fun BatteryDetailsScreen(
   fun queryCoulombMeter(silent: Boolean = false) {
     if (!coulombSupported || coulombBusy) return
     if (!bleReady) {
-      if (!silent) scope.launch { AppSnack.info(snackbarHostState, "请先连接车辆蓝牙后再操作库仑计") }
-      coulombMessage = "需 BLE 已协议登录"
+      if (!silent) scope.launch { AppSnack.info(snackbarHostState, strCoulombBleRequired) }
+      coulombMessage = strCoulombNeedLogin
       coulombEnabled = null
       return
     }
@@ -164,10 +177,10 @@ fun BatteryDetailsScreen(
       try {
         val on = coulombMeterService.queryStatus()
         coulombEnabled = on
-        coulombMessage = if (on == null) "请点「刷新状态」：车辆上电后获取开关" else null
+        coulombMessage = if (on == null) strCoulombRefreshHint else null
       } catch (e: Exception) {
-        coulombMessage = if (e is IllegalStateException) e.message else "查询失败"
-        if (!silent) AppSnack.error(snackbarHostState, coulombMessage ?: "查询失败")
+        coulombMessage = if (e is IllegalStateException) e.message else strBatteryQueryFailed
+        if (!silent) AppSnack.error(snackbarHostState, coulombMessage ?: strBatteryQueryFailed)
       } finally {
         coulombBusy = false
       }
@@ -177,7 +190,7 @@ fun BatteryDetailsScreen(
   fun toggleCoulombMeter(value: Boolean) {
     if (!coulombSupported || coulombBusy) return
     if (!bleReady) {
-      scope.launch { AppSnack.info(snackbarHostState, "请先连接车辆蓝牙后再操作库仑计") }
+      scope.launch { AppSnack.info(snackbarHostState, strCoulombBleRequired) }
       return
     }
     coulombBusy = true
@@ -187,10 +200,10 @@ fun BatteryDetailsScreen(
         val on = coulombMeterService.setEnabled(value)
         coulombEnabled = on
         coulombMessage = null
-        AppSnack.success(snackbarHostState, if (value) "库仑计已开启" else "库仑计已关闭")
+        AppSnack.success(snackbarHostState, if (value) strCoulombEnabled else strCoulombDisabled)
       } catch (e: Exception) {
-        coulombMessage = if (e is IllegalStateException) e.message else "设置失败"
-        AppSnack.error(snackbarHostState, coulombMessage ?: "设置失败")
+        coulombMessage = if (e is IllegalStateException) e.message else strSetFailed
+        AppSnack.error(snackbarHostState, coulombMessage ?: strSetFailed)
       } finally {
         coulombBusy = false
       }
@@ -236,7 +249,7 @@ fun BatteryDetailsScreen(
               return@BatteryHeader
             }
             if (cloudService.currentState.selectedVehicle == null) {
-              scope.launch { AppSnack.info(snackbarHostState, "请先选择车辆") }
+              scope.launch { AppSnack.info(snackbarHostState, strSelectVehicleFirst) }
               return@BatteryHeader
             }
             onNavigate(Routes.replaceBattery("current"))
@@ -336,7 +349,7 @@ private fun BatteryHeader(
       background = CyberHomeColors.card,
       shadowElevation = 4.dp,
       shadowColor = CyberHomeColors.actionShadow,
-      semanticsLabel = "返回",
+      semanticsLabel = stringResource(R.string.common_back),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.arrowLeft, size = 20.dp, color = CyberHomeColors.inkSecondary)
@@ -344,7 +357,7 @@ private fun BatteryHeader(
     }
     Spacer(Modifier.width(12.dp))
     Text(
-      text = "电池信息",
+      text = stringResource(R.string.battery_info),
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
       style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
@@ -354,7 +367,7 @@ private fun BatteryHeader(
       onClick = { if (canRefresh && !loading) onRefresh() },
       enabled = canRefresh && !loading,
       shape = CircleShape,
-      semanticsLabel = "刷新",
+      semanticsLabel = stringResource(R.string.common_refresh),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         if (loading) {
@@ -368,7 +381,7 @@ private fun BatteryHeader(
       onClick = { if (canCorrect) onCorrect() },
       enabled = canCorrect,
       shape = CircleShape,
-      semanticsLabel = "更正电池",
+      semanticsLabel = stringResource(R.string.battery_replace),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.edit, size = 20.dp, color = if (canCorrect) CyberHomeColors.inkSecondary else CyberHomeColors.inkFaint)
@@ -392,7 +405,7 @@ private fun BatteryHero(snapshot: BatterySnapshot) {
       Box(modifier = Modifier.size(8.dp).clip(CircleShape).background(color))
       Spacer(Modifier.width(8.dp))
       Text(
-        text = snapshot.officialVehicle?.displayName ?: "当前车辆",
+        text = snapshot.officialVehicle?.displayName ?: stringResource(R.string.battery_current_vehicle),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkSecondary),
@@ -447,7 +460,7 @@ private fun BatteryHero(snapshot: BatterySnapshot) {
     }
     Spacer(Modifier.height(5.dp))
     Text(
-      text = "当前电量",
+      text = stringResource(R.string.battery_power),
       style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
       modifier = Modifier.align(Alignment.CenterHorizontally),
     )
@@ -475,7 +488,7 @@ private fun BatterySyncCard(cloudService: OfficialCloudService) {
   ) {
     LucideIcon(icon = Lucide.refresh, size = AppIconSizes.sm, color = CyberHomeColors.inkFaint)
     Spacer(Modifier.width(8.dp))
-    Text(text = "最后同步", style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted))
+    Text(text = stringResource(R.string.battery_last_sync), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted))
     Spacer(Modifier.weight(1f))
     Text(
       text = sync,
@@ -490,15 +503,15 @@ private fun SourceStrip(snapshot: BatterySnapshot, cloudState: OfficialCloudStat
   val loading = cloudState.batteryInfoLoading
   val error = cloudState.batteryInfoError
   val title = when {
-    loading -> "正在刷新电池信息"
-    error != null -> "电池信息刷新失败"
-    signedIn -> "电池数据已同步"
-    else -> "登录官方账号后可同步更多电池数据"
+    loading -> stringResource(R.string.battery_refreshing)
+    error != null -> stringResource(R.string.battery_refresh_failed_short)
+    signedIn -> stringResource(R.string.battery_data_synced)
+    else -> stringResource(R.string.battery_login_sync_more)
   }
   val subtitle = error ?: when {
-    loading -> "正在向官方电池服务请求最新数据"
-    signedIn -> "电量、电压、温度来自官方电池接口；维护、校准请前往官方服务渠道"
-    else -> "登录后可读取电量、电压、温度与 BMS 明细"
+    loading -> stringResource(R.string.battery_requesting_official)
+    signedIn -> stringResource(R.string.battery_service_desc_full)
+    else -> stringResource(R.string.battery_login_read)
   }
   val color = when {
     error != null -> CyberHomeColors.warning
@@ -539,10 +552,10 @@ private fun OfficialSummaryRow(snapshot: BatterySnapshot) {
   val bms = snapshot.bms
   val voltage = snapshot.voltage
   val items = listOf(
-    Metric("预估里程", withUnit(snapshot.remainingMileage, "km")),
-    Metric("总里程", withUnit(snapshot.totalMileage, "km")),
-    Metric("电压", if (voltage == null) "待读取" else "${"%.1f".format(voltage)}V"),
-    Metric("电池容量", bms.batteryCapacity ?: "待读取"),
+    Metric(stringResource(R.string.battery_est_range), withUnit(snapshot.remainingMileage, "km")),
+    Metric(stringResource(R.string.battery_total_range), withUnit(snapshot.totalMileage, "km")),
+    Metric(stringResource(R.string.battery_voltage), if (voltage == null) stringResource(R.string.battery_pending_read) else "${"%.1f".format(voltage)}V"),
+    Metric(stringResource(R.string.battery_capacity), bms.batteryCapacity ?: stringResource(R.string.battery_pending_read)),
   )
   Row(
     modifier = Modifier
@@ -572,7 +585,7 @@ private fun CompactMetric(metric: Metric, modifier: Modifier = Modifier) {
       style = androidx.compose.ui.text.TextStyle(
         fontSize = if (metric.value.length > 8) 14.sp else 16.sp,
         fontWeight = FontWeight.W700,
-        color = if (metric.value == "待读取") CyberHomeColors.inkFaint else CyberHomeColors.ink,
+        color = if (metric.value == stringResource(R.string.battery_pending_read)) CyberHomeColors.inkFaint else CyberHomeColors.ink,
       ),
     )
     Spacer(Modifier.height(4.dp))
@@ -592,10 +605,10 @@ private fun OfficialMetricGrid(
   onScoreHelp: () -> Unit,
 ) {
   val items = listOf(
-    Metric("今日耗电", BatterySnapshot.displayMetric(snapshot.consumePowerPercent, unit = "%"), Lucide.zap),
-    Metric("循环次数", BatterySnapshot.displayMetric(snapshot.loopCount), Lucide.rotateCcw, onCycleHelp),
-    Metric("当前温度", temperatureDisplay(snapshot), Lucide.thermometer),
-    Metric("电池评分", BatterySnapshot.displayMetric(snapshot.batteryScore, unit = "分"), Lucide.gauge, onScoreHelp),
+    Metric(stringResource(R.string.battery_today_consumption), BatterySnapshot.displayMetric(snapshot.consumePowerPercent, unit = "%"), Lucide.zap),
+    Metric(stringResource(R.string.battery_cycle_count), BatterySnapshot.displayMetric(snapshot.loopCount), Lucide.rotateCcw, onCycleHelp),
+    Metric(stringResource(R.string.battery_current_temp), temperatureDisplay(snapshot), Lucide.thermometer),
+    Metric(stringResource(R.string.battery_score), BatterySnapshot.displayMetric(snapshot.batteryScore, unit = stringResource(R.string.battery_score_unit)), Lucide.gauge, onScoreHelp),
   )
   Column {
     items.chunked(2).forEach { row ->
@@ -612,7 +625,7 @@ private fun OfficialMetricGrid(
 
 @Composable
 private fun MetricTile(metric: Metric, modifier: Modifier = Modifier) {
-  val hasValue = metric.value != "待读取"
+  val hasValue = metric.value != stringResource(R.string.battery_pending_read)
   Row(
     modifier = modifier
       .height(112.dp)
@@ -641,7 +654,7 @@ private fun MetricTile(metric: Metric, modifier: Modifier = Modifier) {
           AppPressable(
             onClick = metric.onHelp,
             shape = CircleShape,
-            semanticsLabel = "${metric.label}说明",
+            semanticsLabel = stringResource(R.string.battery_metric_desc_format, metric.label),
           ) {
             Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
               LucideIcon(icon = Lucide.help, size = 16.dp, color = CyberHomeColors.inkFaint)
@@ -686,7 +699,7 @@ private fun FaultCard(snapshot: BatterySnapshot) {
     )
     Spacer(Modifier.width(12.dp))
     Text(
-      text = if (faults.isEmpty()) "未发现电池相关故障" else faults.joinToString("、"),
+      text = if (faults.isEmpty()) stringResource(R.string.battery_no_fault) else faults.joinToString("、"),
       style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = CyberHomeColors.ink),
       modifier = Modifier.weight(1f),
     )
@@ -713,7 +726,7 @@ private fun BmsDetailsCard(
       LucideIcon(icon = Lucide.list, color = CyberHomeColors.primary, size = AppIconSizes.md)
       Spacer(Modifier.width(8.dp))
       Text(
-        text = "BMS 详情",
+        text = stringResource(R.string.battery_bms_details),
         style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         modifier = Modifier.weight(1f),
       )
@@ -721,7 +734,7 @@ private fun BmsDetailsCard(
         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
       } else {
         Text(
-          text = if (hasBms) "已同步" else (if (error == null) "待同步" else "同步失败"),
+          text = if (hasBms) stringResource(R.string.battery_synced_state) else (if (error == null) stringResource(R.string.battery_pending_sync) else stringResource(R.string.battery_sync_failed_state)),
           style = androidx.compose.ui.text.TextStyle(
             fontSize = 12.sp,
             color = if (hasBms) CyberHomeColors.success else (if (error == null) CyberHomeColors.inkFaint else CyberHomeColors.warning),
@@ -785,13 +798,14 @@ private fun BmsFieldRow(field: BmsField) {
 
 private data class SourceChip(val label: String, val color: Color)
 
+@Composable
 private fun sourceDisplay(field: BmsField): SourceChip {
-  if (!field.hasValue) return SourceChip("待同步", CyberHomeColors.warning)
+  if (!field.hasValue) return SourceChip(stringResource(R.string.battery_pending_sync), CyberHomeColors.warning)
   return when (field.source) {
-    BatteryDataSource.OFFICIAL_VEHICLE -> SourceChip("车辆状态", CyberHomeColors.success)
-    BatteryDataSource.OFFICIAL_BATTERY -> SourceChip("电池服务", CyberHomeColors.success)
-    BatteryDataSource.OFFICIAL_BMS -> SourceChip("BMS 服务", CyberHomeColors.success)
-    BatteryDataSource.BMS_RESERVED -> SourceChip("待同步", CyberHomeColors.warning)
+    BatteryDataSource.OFFICIAL_VEHICLE -> SourceChip(stringResource(R.string.battery_vehicle_state), CyberHomeColors.success)
+    BatteryDataSource.OFFICIAL_BATTERY -> SourceChip(stringResource(R.string.battery_service_label), CyberHomeColors.success)
+    BatteryDataSource.OFFICIAL_BMS -> SourceChip(stringResource(R.string.battery_bms_service), CyberHomeColors.success)
+    BatteryDataSource.BMS_RESERVED -> SourceChip(stringResource(R.string.battery_pending_sync), CyberHomeColors.warning)
   }
 }
 
@@ -814,7 +828,7 @@ private fun CoulombMeterCard(
       LucideIcon(icon = Lucide.battery, color = CyberHomeColors.primary, size = AppIconSizes.md)
       Spacer(Modifier.width(8.dp))
       Text(
-        text = "库仑计",
+        text = stringResource(R.string.battery_coulomb),
         style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         modifier = Modifier.weight(1f),
       )
@@ -836,13 +850,13 @@ private fun CoulombMeterCard(
     }
     Spacer(Modifier.height(6.dp))
     Text(
-      text = "开启后可自学习电量（锂电不可用）",
+      text = stringResource(R.string.battery_coulomb_desc),
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.45f, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.height(8.dp))
     if (!bleReady) {
       Text(
-        text = "需先近场连接并完成协议登录",
+        text = stringResource(R.string.battery_coulomb_ble_required),
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.warning),
       )
     } else if (message != null) {
@@ -858,7 +872,7 @@ private fun CoulombMeterCard(
     ) {
       LucideIcon(icon = Lucide.refresh, size = 18.dp)
       Spacer(Modifier.width(6.dp))
-      Text(text = "刷新状态", color = CyberHomeColors.primary)
+      Text(text = stringResource(R.string.battery_coulomb_refresh), color = CyberHomeColors.primary)
     }
   }
 }
@@ -878,18 +892,18 @@ private fun VehicleBatteryMetaCard(vehicle: OfficialVehicle) {
         .padding(16.dp),
     ) {
       Text(
-        text = "电池绑定信息",
+        text = stringResource(R.string.battery_bind_info),
         style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(10.dp))
       if (spec.isNotEmpty()) {
-        MetaLine(label = "当前使用", value = if (spec.startsWith("当前使用")) spec else "当前使用：$spec")
+        MetaLine(label = stringResource(R.string.battery_current_use), value = if (spec.startsWith(stringResource(R.string.battery_current_use))) spec else stringResource(R.string.battery_bind_current_use_format, spec))
       }
       if (bindLabel.isNotEmpty()) {
-        MetaLine(label = "绑定日期", value = "$bindLabel 绑定")
+        MetaLine(label = stringResource(R.string.battery_bind_date), value = stringResource(R.string.battery_bind_date_format, bindLabel))
       }
       if (typeId.isNotEmpty()) {
-        MetaLine(label = "电池类型 ID", value = typeId)
+        MetaLine(label = stringResource(R.string.battery_type_id), value = typeId)
       }
       if (tlv.isNotEmpty()) {
         MetaLine(label = "BMS TLV", value = tlv)
@@ -926,7 +940,7 @@ private fun BatteryRouteHintCard(vehicle: OfficialVehicle?) {
       .padding(16.dp),
   ) {
     Text(
-      text = "官方页面分流",
+      text = stringResource(R.string.battery_official_route),
       style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
     )
     Spacer(Modifier.height(8.dp))
@@ -942,20 +956,21 @@ private fun BatteryRouteHintCard(vehicle: OfficialVehicle?) {
     )
     Spacer(Modifier.height(6.dp))
     Text(
-      text = "本页合并展示官方通用电池信息 + BMS 明细；C39 / TLV 专页 UI 后续按需补齐。",
+      text = stringResource(R.string.battery_combined_desc),
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.45f, color = CyberHomeColors.inkMuted),
     )
   }
 }
 
+@Composable
 private fun officialBatteryRoute(modelType: Int?, isGps: Boolean, bmsTlvType: String): String {
-  if (modelType == 1 || modelType == 2) return "官方路由：BatteryInfoActivity（KKS/YJ）"
-  if (modelType == 10 || modelType == 14) return "官方路由：BatteryInfoC39Activity（C39）"
+  if (modelType == 1 || modelType == 2) return stringResource(R.string.battery_route_kks)
+  if (modelType == 10 || modelType == 14) return stringResource(R.string.battery_route_c39)
   if (isGps && (bmsTlvType == "176" || bmsTlvType == "208" || bmsTlvType == "6000")) {
-    return if (bmsTlvType == "176") "官方路由：BmsBatteryTlvActivity" else "官方路由：BatteryInfoTlvActivity"
+    return if (bmsTlvType == "176") stringResource(R.string.battery_route_tlv) else stringResource(R.string.battery_route_tlv2)
   }
-  if (isGps) return "官方路由：BatteryInfoActivity（GPS 通用）"
-  return "官方路由：可能进入换电/绑定流程（无 GPS）"
+  if (isGps) return stringResource(R.string.battery_route_gps)
+  return stringResource(R.string.battery_route_swap)
 }
 
 @Composable
@@ -972,7 +987,7 @@ private fun BatteryActionsCard(
       .padding(16.dp),
   ) {
     Text(
-      text = "电池服务",
+      text = stringResource(R.string.battery_service_label),
       style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
     )
     Spacer(Modifier.height(10.dp))
@@ -987,7 +1002,7 @@ private fun BatteryActionsCard(
           .weight(1f)
           .height(48.dp),
       ) {
-        Text(text = "更正电池")
+        Text(text = stringResource(R.string.battery_replace))
       }
       OutlinedButton(
         onClick = { if (signedIn && !shareCar) onSwapService() },
@@ -999,7 +1014,7 @@ private fun BatteryActionsCard(
           .weight(1f)
           .height(48.dp),
       ) {
-        Text(text = if (shareCar) "共享车不可换电" else "换电服务")
+        Text(text = if (shareCar) stringResource(R.string.battery_shared_no_swap) else stringResource(R.string.battery_swap_service))
       }
     }
   }
@@ -1017,13 +1032,13 @@ private fun BatteryReadOnlyCard() {
       LucideIcon(icon = Lucide.lock, size = AppIconSizes.sm, color = CyberHomeColors.inkMuted)
       Spacer(Modifier.width(8.dp))
       Text(
-        text = "电池服务说明",
+        text = stringResource(R.string.battery_service),
         style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
     }
     Spacer(Modifier.height(8.dp))
     Text(
-      text = "当前页面用于查看电量、电压、温度、健康状态和 BMS 信息。涉及电池校准、更换和升级的操作，请通过官方服务渠道完成。",
+      text = stringResource(R.string.battery_service_desc),
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.45f, color = CyberHomeColors.inkMuted),
     )
   }
@@ -1039,6 +1054,7 @@ private data class Metric(
 private fun withUnit(value: String?, unit: String): String =
   BatterySnapshot.displayMetric(value, unit = unit)
 
+@Composable
 private fun temperatureDisplay(snapshot: BatterySnapshot): String {
   val parsed = snapshot.temperature
   if (parsed != null) {
@@ -1051,7 +1067,7 @@ private fun temperatureDisplay(snapshot: BatterySnapshot): String {
     return "$text°C"
   }
   val raw = snapshot.officialBatteryInfo?.temperature?.trim() ?: ""
-  if (raw.isEmpty() || raw == "--") return "待读取"
+  if (raw.isEmpty() || raw == "--") return stringResource(R.string.battery_pending_read)
   if (raw.contains("°") || raw.contains("℃") || raw.contains("C")) {
     return raw.replace("℃", "°C")
   }

@@ -56,6 +56,8 @@ import com.tailg.plus.ui.theme.AppColors
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import com.tailg.plus.di.rememberTailgEntryPoint
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 import kotlinx.coroutines.launch
 import timber.log.Timber
 

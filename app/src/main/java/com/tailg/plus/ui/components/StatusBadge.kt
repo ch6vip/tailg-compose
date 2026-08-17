@@ -28,6 +28,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.ui.theme.AppColors
 import com.tailg.plus.ui.theme.AppRadii
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/status_badge.dart` — unified status badge (v8 chip).
@@ -62,13 +64,14 @@ private val StatusBadgeType.isActive: Boolean
     StatusBadgeType.Idle, StatusBadgeType.Offline -> false
   }
 
-private val StatusBadgeType.defaultLabel: String
-  get() = when (this) {
-    StatusBadgeType.Armed -> "已设防"
-    StatusBadgeType.Idle -> "未通电"
-    StatusBadgeType.Connected -> "已连接"
-    StatusBadgeType.Online -> "在线"
-    StatusBadgeType.Offline -> "离线"
+@Composable
+private fun StatusBadgeType.defaultLabel(): String
+  = when (this) {
+    StatusBadgeType.Armed -> stringResource(R.string.status_armed)
+    StatusBadgeType.Idle -> stringResource(R.string.status_unpowered)
+    StatusBadgeType.Connected -> stringResource(R.string.status_connected)
+    StatusBadgeType.Online -> stringResource(R.string.status_online)
+    StatusBadgeType.Offline -> stringResource(R.string.status_offline)
   }
 
 /** Unified status badge for the v8 design system (chip style). */
@@ -80,7 +83,7 @@ fun StatusBadge(
   showDot: Boolean = true,
   compact: Boolean = false,
 ) {
-  val displayLabel = label ?: type.defaultLabel
+  val displayLabel = label ?: type.defaultLabel()
   if (compact) {
     Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically) {
       if (showDot) {

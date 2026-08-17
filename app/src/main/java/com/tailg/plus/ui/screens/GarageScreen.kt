@@ -52,8 +52,10 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
@@ -116,6 +118,18 @@ fun GarageScreen(
 
   val signedIn = cloudState.signedIn
   val listState = rememberLazyListState()
+
+  // String resources resolved in composition so they can be used inside
+  // coroutine / callback lambdas (stringResource is @Composable-only).
+  val strFrameEmpty = stringResource(R.string.garage_frame_empty)
+  val strPhoneEmpty = stringResource(R.string.garage_phone_empty)
+  val strAlreadyUsing = stringResource(R.string.garage_already_using)
+  val strRenamed = stringResource(R.string.garage_renamed)
+  val strSwitched = stringResource(R.string.garage_switched)
+  val strUnbindPhoneIncomplete = stringResource(R.string.garage_unbind_phone_incomplete)
+  val strVerifyFailed = stringResource(R.string.garage_verify_failed)
+  val strUnbound = stringResource(R.string.garage_unbound)
+  val strNoFrame = stringResource(R.string.garage_no_frame)
 
   // Dart `_scanVehicleCode`: a scanned code auto-fills the frame search.
   LaunchedEffect(scannedCode) {
@@ -200,7 +214,7 @@ fun GarageScreen(
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
     bottomBar = {
       GarageAddBar(
-        label = if (signedIn) "添加爱车" else "登录并添加爱车",
+        label = if (signedIn) stringResource(R.string.garage_add_vehicle) else stringResource(R.string.garage_login_and_add),
         onTap = {
           if (signedIn) onNavigate(com.tailg.plus.ui.navigation.Routes.ADD_VEHICLE)
           else onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN)
@@ -227,7 +241,7 @@ fun GarageScreen(
             scope.launch {
               AppSnack.error(
                 snackbarHostState,
-                if (searchType == GarageSearchType.FRAME) "车架号不能为空" else "被分享人手机号不能为空",
+                if (searchType == GarageSearchType.FRAME) strFrameEmpty else strPhoneEmpty,
               )
             }
             return@GarageSearchHeader
@@ -271,7 +285,7 @@ fun GarageScreen(
       )
       Spacer(Modifier.height(8.dp))
       Text(
-        text = "点击卡片选择设备",
+        text = stringResource(R.string.garage_select_hint),
         style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
         modifier = Modifier.padding(start = 24.dp, bottom = 10.dp),
       )
@@ -279,17 +293,17 @@ fun GarageScreen(
         when {
           !signedIn -> GarageMessage(
             icon = Lucide.login,
-            title = "登录后查看我的车库",
-            subtitle = "车辆搜索、切换、改名和解绑需要官方账号。",
-            actionLabel = "登录账号",
+            title = stringResource(R.string.garage_login_to_view),
+            subtitle = stringResource(R.string.garage_login_subtitle),
+            actionLabel = stringResource(R.string.garage_login_account),
             onAction = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
           )
           loading && vehicles.isEmpty() -> GarageListSkeleton()
           error != null && vehicles.isEmpty() -> GarageMessage(
             icon = Lucide.cloudOff,
-            title = "车库加载失败",
+            title = stringResource(R.string.garage_loading_failed),
             subtitle = error!!,
-            actionLabel = "重新加载",
+            actionLabel = stringResource(R.string.garage_reload),
             onAction = {
               scope.launch {
                 loadGaragePage(
@@ -309,8 +323,8 @@ fun GarageScreen(
           )
           vehicles.isEmpty() -> GarageMessage(
             icon = if (activeQuery.isNotEmpty()) Lucide.search else Lucide.garage,
-            title = if (activeQuery.isNotEmpty()) "未找到车辆" else "车库暂无车辆",
-            subtitle = if (activeQuery.isNotEmpty()) "请检查搜索信息后重试。" else "添加爱车后会显示在这里。",
+            title = if (activeQuery.isNotEmpty()) stringResource(R.string.garage_not_found) else stringResource(R.string.garage_empty),
+            subtitle = if (activeQuery.isNotEmpty()) stringResource(R.string.garage_search_retry) else stringResource(R.string.garage_empty_hint),
           )
           else -> LazyColumn(
             state = listState,
@@ -328,7 +342,7 @@ fun GarageScreen(
                 busy = busyVehicleKey == vehicle.key,
                 onTap = {
                   if (isUsing) {
-                    scope.launch { AppSnack.info(snackbarHostState, "该车辆已是当前使用车辆") }
+                    scope.launch { AppSnack.info(snackbarHostState, strAlreadyUsing) }
                     return@GarageVehicleCard
                   }
                   pendingSwitchVehicle = vehicle
@@ -406,7 +420,7 @@ fun GarageScreen(
             vehicles = vehicles.map { item ->
               if (item.key == target.key) item.copyWith(carNickName = trimmed) else item
             }
-            AppSnack.success(snackbarHostState, "车辆名称已修改")
+            AppSnack.success(snackbarHostState, strRenamed)
           } catch (e: Exception) {
             AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
           } finally {
@@ -421,9 +435,9 @@ fun GarageScreen(
   pendingSwitchVehicle?.let { vehicle ->
     AlertDialog(
       onDismissRequest = { pendingSwitchVehicle = null },
-      title = { androidx.compose.material3.Text("切换车辆") },
+      title = { androidx.compose.material3.Text(stringResource(R.string.garage_switch_title)) },
       text = {
-        androidx.compose.material3.Text("切换到「${vehicle.displayName}」？将断开当前车辆的蓝牙与云端连接。")
+        androidx.compose.material3.Text(stringResource(R.string.garage_switch_message, vehicle.displayName))
       },
       confirmButton = {
         androidx.compose.material3.TextButton(
@@ -444,7 +458,7 @@ fun GarageScreen(
                   // Best-effort channel teardown before the switch.
                 }
                 cloudService.changeUsingVehicle(target)
-                AppSnack.success(snackbarHostState, "已切换到 ${target.displayName}")
+                AppSnack.success(snackbarHostState, strSwitched.format(target.displayName))
               } catch (e: Exception) {
                 AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
               } finally {
@@ -453,12 +467,12 @@ fun GarageScreen(
             }
           },
         ) {
-          androidx.compose.material3.Text("切换")
+          androidx.compose.material3.Text(stringResource(R.string.common_switch))
         }
       },
       dismissButton = {
         androidx.compose.material3.TextButton(onClick = { pendingSwitchVehicle = null }) {
-          androidx.compose.material3.Text("取消")
+          androidx.compose.material3.Text(stringResource(R.string.common_cancel))
         }
       },
     )
@@ -470,7 +484,7 @@ fun GarageScreen(
     if (!OfficialCloudLoginValidator.isValidPhone(phone)) {
       // Cannot unbind without a complete phone; dismiss with error.
       LaunchedEffect(vehicle) {
-        AppSnack.error(snackbarHostState, "账号手机号不完整，请使用手机号重新登录后解绑")
+        AppSnack.error(snackbarHostState, strUnbindPhoneIncomplete)
         showUnbindDialog = null
       }
     } else {
@@ -481,7 +495,7 @@ fun GarageScreen(
         onConfirm = { input ->
           showUnbindDialog = null
           if (input != phone.substring(3, 7)) {
-            scope.launch { AppSnack.error(snackbarHostState, "手机号验证失败") }
+            scope.launch { AppSnack.error(snackbarHostState, strVerifyFailed) }
             return@GarageUnbindDialog
           }
           val target = vehicle
@@ -492,7 +506,7 @@ fun GarageScreen(
                 carId = target.carId,
                 unbindType = if (target.shareCarFlag) 2 else 1,
               )
-              AppSnack.success(snackbarHostState, "车辆已解绑")
+              AppSnack.success(snackbarHostState, strUnbound)
               loadGaragePage(
                 cloudService = cloudService,
                 refresh = true,
@@ -520,7 +534,7 @@ fun GarageScreen(
   showVehicleCodeSheet?.let { vehicle ->
     if (vehicle.frame.isEmpty()) {
       LaunchedEffect(vehicle) {
-        AppSnack.error(snackbarHostState, "该车辆暂无车架号")
+        AppSnack.error(snackbarHostState, strNoFrame)
         showVehicleCodeSheet = null
       }
     } else {
@@ -535,9 +549,9 @@ fun GarageScreen(
 
 // ── Search type ───────────────────────────────────────────────────────────
 
-enum class GarageSearchType(val label: String, val hint: String) {
-  FRAME("车架号", "请输入车架号"),
-  SHARE_PHONE("被分享人手机号", "请输入手机号"),
+enum class GarageSearchType(val labelRes: Int, val hintRes: Int) {
+  FRAME(R.string.garage_search_frame, R.string.garage_frame_placeholder),
+  SHARE_PHONE(R.string.garage_search_phone, R.string.garage_phone_placeholder),
 }
 
 // ── Load helper ───────────────────────────────────────────────────────────
@@ -604,7 +618,7 @@ private fun GarageSearchHeader(
       AppPressable(
         onClick = onBack,
         shape = CircleShape,
-        semanticsLabel = "返回",
+        semanticsLabel = stringResource(R.string.common_back),
       ) {
         Box(
           modifier = Modifier.size(AppTouchTargets.min),
@@ -626,14 +640,14 @@ private fun GarageSearchHeader(
     ) {
       AppPressable(
         onClick = onChooseType,
-        semanticsLabel = "搜索方式：${type.label}",
+        semanticsLabel = stringResource(R.string.garage_search_type_format, stringResource(type.labelRes)),
       ) {
         Row(
           modifier = Modifier.padding(horizontal = 8.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Text(
-            text = type.label,
+            text = stringResource(type.labelRes),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkSecondary),
@@ -650,7 +664,7 @@ private fun GarageSearchHeader(
       )
       AppPressable(
         onClick = onScan,
-        semanticsLabel = "扫描车架码",
+        semanticsLabel = stringResource(R.string.garage_scan_frame),
       ) {
         Box(
           modifier = Modifier.size(AppTouchTargets.min),
@@ -667,7 +681,7 @@ private fun GarageSearchHeader(
         textStyle = TextStyle(fontSize = 13.sp, color = CyberHomeColors.ink),
         placeholder = {
           Text(
-            text = type.hint,
+            text = stringResource(type.hintRes),
             style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
           )
         },
@@ -679,7 +693,7 @@ private fun GarageSearchHeader(
       if (query.isNotEmpty()) {
         AppPressable(
           onClick = onClear,
-          semanticsLabel = "清空搜索",
+          semanticsLabel = stringResource(R.string.garage_clear_search),
         ) {
           Box(
             modifier = Modifier.size(width = 36.dp, height = 52.dp),
@@ -691,14 +705,14 @@ private fun GarageSearchHeader(
       }
       AppPressable(
         onClick = onSearch,
-        semanticsLabel = "搜索",
+        semanticsLabel = stringResource(R.string.common_search),
       ) {
         Box(
           modifier = Modifier.size(width = 48.dp, height = 52.dp),
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            text = "搜索",
+            text = stringResource(R.string.common_search),
             style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.primary),
           )
         }
@@ -726,14 +740,14 @@ private fun GarageSearchTypeSheet(
         .padding(start = 20.dp, end = 20.dp, bottom = 20.dp),
     ) {
       Text(
-        text = "搜索方式",
+        text = stringResource(R.string.garage_search_type),
         style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(10.dp))
       GarageSearchType.values().forEach { type ->
         AppPressable(
           onClick = { onSelect(type) },
-          semanticsLabel = type.label,
+          semanticsLabel = stringResource(type.labelRes),
           pressedBackground = CyberHomeColors.cardMuted,
           shape = RoundedCornerShape(AppRadii.tile),
         ) {
@@ -751,7 +765,7 @@ private fun GarageSearchTypeSheet(
             )
             Spacer(Modifier.width(12.dp))
             Text(
-              text = type.label,
+              text = stringResource(type.labelRes),
               modifier = Modifier.weight(1f),
               style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.ink),
             )
@@ -810,7 +824,7 @@ private fun GarageVehicleCard(
             Spacer(Modifier.height(8.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
               if (isUsing) {
-                GarageBadge(text = "使用中", color = CyberHomeColors.primary, background = CyberHomeColors.primarySoft)
+                GarageBadge(text = stringResource(R.string.garage_in_use), color = CyberHomeColors.primary, background = CyberHomeColors.primarySoft)
               }
               GarageStatus(online = vehicle.online)
             }
@@ -824,7 +838,7 @@ private fun GarageVehicleCard(
             )
             Spacer(Modifier.height(4.dp))
             Text(
-              text = if (shared) "好友车辆" else "车主车辆",
+              text = if (shared) stringResource(R.string.garage_shared_vehicle) else stringResource(R.string.garage_owner_vehicle),
               style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
             )
           }
@@ -845,7 +859,7 @@ private fun GarageVehicleCard(
             LucideIcon(icon = Lucide.share, size = 14.dp, color = CyberHomeColors.primary)
             Spacer(Modifier.width(5.dp))
             Text(
-              text = "已分享 ${vehicle.shareCount} 次",
+              text = stringResource(R.string.garage_shared_count, vehicle.shareCount.toString()),
               style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
             )
           }
@@ -853,20 +867,20 @@ private fun GarageVehicleCard(
         Spacer(Modifier.height(8.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
           if (!shared) {
-            GarageCardAction(icon = Lucide.scan, label = "车辆码", onTap = onVehicleCode)
+            GarageCardAction(icon = Lucide.scan, label = stringResource(R.string.garage_vehicle_code), onTap = onVehicleCode)
           }
           Spacer(Modifier.weight(1f))
           Text(
-            text = vehicle.carName.ifEmpty { "台铃智能车辆" },
+            text = vehicle.carName.ifEmpty { stringResource(R.string.garage_default_name) },
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkSecondary),
           )
           Spacer(Modifier.width(4.dp))
-          GarageCardAction(icon = Lucide.edit, label = "修改", compact = true, onTap = onRename)
+          GarageCardAction(icon = Lucide.edit, label = stringResource(R.string.garage_rename), compact = true, onTap = onRename)
           Spacer(Modifier.weight(1f))
           if (!shared) {
-            GarageCardAction(icon = Lucide.unlink, label = "解绑", danger = true, onTap = onUnbind)
+            GarageCardAction(icon = Lucide.unlink, label = stringResource(R.string.garage_unbind), danger = true, onTap = onUnbind)
           }
         }
       }
@@ -940,7 +954,7 @@ private fun GarageStatus(online: Boolean) {
     )
     Spacer(Modifier.width(5.dp))
     Text(
-      text = if (online) "在线" else "离线",
+      text = if (online) stringResource(R.string.common_online) else stringResource(R.string.common_offline),
       style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = color),
     )
   }
@@ -1085,14 +1099,14 @@ private fun GarageRenameDialog(
   AlertDialog(
     onDismissRequest = onDismiss,
     containerColor = CyberHomeColors.card,
-    title = { Text("修改设备名称") },
+    title = { Text(stringResource(R.string.garage_rename_title)) },
     text = {
       TextField(
         value = name,
         onValueChange = { name = it },
         singleLine = true,
         textStyle = TextStyle(color = CyberHomeColors.ink),
-        placeholder = { Text("请输入设备名称") },
+        placeholder = { Text(stringResource(R.string.garage_rename_hint)) },
         colors = cyberTextFieldColors(),
       )
     },
@@ -1101,10 +1115,10 @@ private fun GarageRenameDialog(
         onClick = { onConfirm(name) },
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
-      ) { Text("保存") }
+      ) { Text(stringResource(R.string.common_save)) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("取消") }
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
     },
   )
 }
@@ -1121,17 +1135,17 @@ private fun GarageUnbindDialog(
   AlertDialog(
     onDismissRequest = onDismiss,
     containerColor = CyberHomeColors.card,
-    title = { Text("验证后解绑") },
+    title = { Text(stringResource(R.string.garage_unbind_verify)) },
     text = {
       Column {
-        Text("请输入绑定号码 $maskedPhone 的中间 4 位")
+        Text(stringResource(R.string.garage_unbind_hint, maskedPhone))
         Spacer(Modifier.height(14.dp))
         OutlinedTextField(
           value = input,
           onValueChange = { value -> input = value.filter { it.isDigit() }.take(4) },
           singleLine = true,
           textStyle = TextStyle(color = CyberHomeColors.ink),
-          placeholder = { Text("手机号中间 4 位") },
+          placeholder = { Text(stringResource(R.string.garage_unbind_phone_hint)) },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
           colors = cyberTextFieldColors(),
           shape = RoundedCornerShape(AppRadii.tile),
@@ -1143,10 +1157,10 @@ private fun GarageUnbindDialog(
         onClick = { onConfirm(input) },
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
-      ) { Text("确认解绑") }
+      ) { Text(stringResource(R.string.garage_unbind_confirm)) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("取消") }
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
     },
   )
 }
@@ -1170,7 +1184,7 @@ private fun GarageVehicleCodeSheet(
       horizontalAlignment = Alignment.CenterHorizontally,
     ) {
       Text(
-        text = "车辆码",
+        text = stringResource(R.string.garage_vehicle_code),
         style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(18.dp))
@@ -1189,7 +1203,7 @@ private fun GarageVehicleCodeSheet(
       }
       Spacer(Modifier.height(14.dp))
       Text(
-        text = "车架号：$frame",
+        text = stringResource(R.string.vehicle_frame_number) + ":$frame",
         textAlign = TextAlign.Center,
         style = TextStyle(fontSize = 14.sp, color = CyberHomeColors.inkSecondary),
       )

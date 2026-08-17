@@ -43,12 +43,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.BatterySnapshot
@@ -103,6 +105,12 @@ fun ProfileMineScreen(
 
   val signedIn = cloudState.signedIn
 
+  // String resources resolved in composition (usable from coroutine lambdas).
+  val strNicknameEmpty = stringResource(R.string.profile_nickname_empty)
+  val strNicknameUpdated = stringResource(R.string.profile_nickname_updated)
+  val strLoginNow = stringResource(R.string.profile_login_now)
+  val strDefaultName = stringResource(R.string.profile_default_name)
+
   // Sync message badge + silent profile refresh.
   LaunchedEffect(cloudState) {
     if (!signedIn) {
@@ -117,16 +125,16 @@ fun ProfileMineScreen(
   }
 
   val nickname = remember(cloudState) {
-    if (!signedIn) "立即登录"
-    else cloudState.userProfile?.displayName?.trim()?.ifEmpty { null } ?: "台铃用户"
+    if (!signedIn) strLoginNow
+    else cloudState.userProfile?.displayName?.trim()?.ifEmpty { null } ?: strDefaultName
   }
   val avatarGlyph = remember(nickname) {
-    if (nickname.isEmpty() || nickname == "立即登录") "登" else nickname.first().toString()
+    if (nickname.isEmpty() || nickname == strLoginNow) "登" else nickname.first().toString()
   }
   val avatarUrl = if (signedIn) cloudState.userProfile?.avatarUrl else null
   val rawPhone = cloudState.phone.trim().ifEmpty { null }
   val maskedPhone = if (rawPhone == null) {
-    if (signedIn) "已登录" else "登录后同步车辆和消息"
+    if (signedIn) stringResource(R.string.profile_logged_in) else stringResource(R.string.profile_login_sync)
   } else {
     SensitiveValueMasker.phone(rawPhone, minMaskLength = 11)
   }
@@ -137,11 +145,11 @@ fun ProfileMineScreen(
       officialBatteryInfo = cloudState.batteryInfo,
     )
   }
-  val vehicleName = vehicle?.displayName ?: "暂无车辆"
+  val vehicleName = vehicle?.displayName ?: stringResource(R.string.profile_no_vehicle)
   val vehicleOnlineLabel = if (vehicle == null) {
-    if (signedIn) "未绑定" else "未登录"
+    if (signedIn) stringResource(R.string.profile_unbound) else stringResource(R.string.profile_not_logged_in)
   } else {
-    if (vehicle.online) "在线" else "离线"
+    if (vehicle.online) stringResource(R.string.common_online) else stringResource(R.string.common_offline)
   }
   val vehicleOnline = vehicle?.online ?: false
   val batteryLabel = run {
@@ -163,7 +171,7 @@ fun ProfileMineScreen(
         .padding(top = 6.dp),
     ) {
       Text(
-        text = "我的",
+        text = stringResource(R.string.nav_mine),
         modifier = Modifier.padding(start = 20.dp, top = 12.dp),
         style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
@@ -172,7 +180,7 @@ fun ProfileMineScreen(
         avatarUrl = avatarUrl,
         nickname = nickname,
         phoneLine = maskedPhone,
-        memberLabel = if (signedIn) "已登录" else "游客",
+        memberLabel = if (signedIn) stringResource(R.string.profile_logged_in) else stringResource(R.string.profile_guest),
         onAvatarTap = {
           if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true
         },
@@ -195,7 +203,7 @@ fun ProfileMineScreen(
           }
         },
       )
-      MineSectionLabel("账户与支持")
+      MineSectionLabel(stringResource(R.string.profile_section_account))
       SupportCard(
         messageBadge = if (signedIn && unreadCount > 0) unreadCount else null,
         onSettings = { onNavigate(Routes.SETTINGS) },
@@ -207,7 +215,7 @@ fun ProfileMineScreen(
         onAbout = { onNavigate(Routes.ABOUT_APP) },
       )
       AccountCard(
-        phoneValue = if (signedIn) maskedPhone else "未绑定",
+        phoneValue = if (signedIn) maskedPhone else stringResource(R.string.profile_unbound),
         showLogout = signedIn,
         onLogoutTap = { showLogoutSheet = true },
       )
@@ -249,7 +257,7 @@ fun ProfileMineScreen(
         showEditNickname = false
         val trimmed = next.trim()
         if (trimmed.isEmpty()) {
-          scope.launch { AppSnack.info(snackbarHostState, "昵称不能为空") }
+          scope.launch { AppSnack.info(snackbarHostState, strNicknameEmpty) }
           return@EditNicknameDialog
         }
         val current = cloudState.userProfile?.displayName ?: ""
@@ -257,7 +265,7 @@ fun ProfileMineScreen(
         scope.launch {
           try {
             cloudService.updateUserNickname(trimmed)
-            AppSnack.success(snackbarHostState, "昵称已更新")
+            AppSnack.success(snackbarHostState, strNicknameUpdated)
           } catch (e: Exception) {
             AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
           }
@@ -317,7 +325,7 @@ private fun ProfileHeader(
     AppPressable(
       onClick = onAvatarTap,
       shape = CircleShape,
-      semanticsLabel = "编辑资料",
+      semanticsLabel = stringResource(R.string.common_edit),
     ) {
       Box(
         modifier = Modifier
@@ -372,14 +380,14 @@ private fun ProfileHeader(
     }
     AppPressable(
       onClick = onEditTap,
-      semanticsLabel = "编辑",
+      semanticsLabel = stringResource(R.string.common_edit),
     ) {
       Box(
         modifier = Modifier.height(AppTouchTargets.min).padding(horizontal = 4.dp),
         contentAlignment = Alignment.Center,
       ) {
         Text(
-          text = "编辑",
+          text = stringResource(R.string.common_edit),
           style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkSecondary),
         )
       }
@@ -400,7 +408,7 @@ private fun VehicleCard(
   AppPressable(
     onClick = onTap,
     shape = RoundedCornerShape(AppRadii.tile),
-    semanticsLabel = "切换默认车辆 $name",
+    semanticsLabel = stringResource(R.string.profile_switch_vehicle) + " $name",
   ) {
     Box(
       modifier = Modifier
@@ -459,7 +467,7 @@ private fun VehicleCard(
         }
         Row(verticalAlignment = Alignment.CenterVertically) {
           Text(
-            text = "切换",
+            text = stringResource(R.string.common_switch),
             style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkSecondary),
           )
           LucideIcon(icon = Lucide.chevronRight, size = 16.dp, color = CyberHomeColors.inkFaint)
@@ -479,9 +487,9 @@ private fun SupportCard(
   onAbout: () -> Unit,
 ) {
   val rows = listOf(
-    SupportRowData(Lucide.tune, "设置", onSettings, null),
-    SupportRowData(Lucide.message, "消息中心", onMessages, messageBadge),
-    SupportRowData(Lucide.info, "关于我们", onAbout, null),
+    SupportRowData(Lucide.tune, stringResource(R.string.profile_settings), onSettings, null),
+    SupportRowData(Lucide.message, stringResource(R.string.profile_message_center), onMessages, messageBadge),
+    SupportRowData(Lucide.info, stringResource(R.string.profile_about_us), onAbout, null),
   )
   Column(
     modifier = Modifier
@@ -584,7 +592,7 @@ private fun AccountCard(
       verticalAlignment = Alignment.CenterVertically,
     ) {
       Text(
-        text = "手机号",
+        text = stringResource(R.string.profile_phone),
         modifier = Modifier.weight(1f),
         style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W500, color = CyberHomeColors.ink),
       )
@@ -598,7 +606,7 @@ private fun AccountCard(
       AppPressable(
         onClick = onLogoutTap,
         pressedBackground = CyberHomeColors.cardMuted,
-        semanticsLabel = "退出登录",
+        semanticsLabel = stringResource(R.string.common_logout),
       ) {
         Box(
           modifier = Modifier
@@ -607,7 +615,7 @@ private fun AccountCard(
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            text = "退出登录",
+            text = stringResource(R.string.common_logout),
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.danger),
           )
         }
@@ -645,12 +653,12 @@ private fun LogoutSheet(
       )
       Spacer(Modifier.height(14.dp))
       Text(
-        text = "退出登录？",
+        text = stringResource(R.string.profile_logout_title),
         style = TextStyle(fontSize = 17.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(6.dp))
       Text(
-        text = "下次登录需验证手机号。本机车辆缓存会保留。",
+        text = stringResource(R.string.profile_logout_message),
         textAlign = TextAlign.Center,
         style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted, lineHeight = 13.sp * 1.5f),
         modifier = Modifier.padding(horizontal = 12.dp),
@@ -660,7 +668,7 @@ private fun LogoutSheet(
         onClick = onConfirm,
         shape = RoundedCornerShape(AppRadii.tile),
         background = CyberHomeColors.danger,
-        semanticsLabel = "确认退出",
+        semanticsLabel = stringResource(R.string.common_confirm),
       ) {
         Box(
           modifier = Modifier
@@ -669,7 +677,7 @@ private fun LogoutSheet(
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            text = "退出",
+            text = stringResource(R.string.profile_logout),
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.white),
           )
         }
@@ -679,7 +687,7 @@ private fun LogoutSheet(
         onClick = onDismiss,
         shape = RoundedCornerShape(AppRadii.tile),
         background = CyberHomeColors.cardMuted,
-        semanticsLabel = "取消",
+        semanticsLabel = stringResource(R.string.common_cancel),
       ) {
         Box(
           modifier = Modifier
@@ -688,7 +696,7 @@ private fun LogoutSheet(
           contentAlignment = Alignment.Center,
         ) {
           Text(
-            text = "取消",
+            text = stringResource(R.string.common_cancel),
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkSecondary),
           )
         }
@@ -709,14 +717,14 @@ private fun EditNicknameDialog(
   AlertDialog(
     onDismissRequest = onDismiss,
     containerColor = CyberHomeColors.card,
-    title = { Text("修改昵称", style = TextStyle(color = CyberHomeColors.ink, fontWeight = FontWeight.W700)) },
+    title = { Text(stringResource(R.string.profile_edit_nickname), style = TextStyle(color = CyberHomeColors.ink, fontWeight = FontWeight.W700)) },
     text = {
       OutlinedTextField(
         value = name,
         onValueChange = { name = it },
         singleLine = true,
         textStyle = TextStyle(color = CyberHomeColors.ink),
-        placeholder = { Text("输入昵称") },
+        placeholder = { Text(stringResource(R.string.profile_nickname_hint)) },
         colors = cyberTextFieldColors(),
         shape = RoundedCornerShape(AppRadii.tile),
       )
@@ -726,10 +734,10 @@ private fun EditNicknameDialog(
         onClick = { onConfirm(name) },
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
-      ) { Text("保存") }
+      ) { Text(stringResource(R.string.common_save)) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("取消") }
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
     },
   )
 }

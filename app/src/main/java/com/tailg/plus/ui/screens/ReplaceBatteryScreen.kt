@@ -70,9 +70,11 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
- * Port of `lib/pages/replace_battery_page.dart` — official "更正电池信息"
+ * Port of `lib/pages/replace_battery_page.dart` — official stringResource(R.string.replace_battery_title)
  * flow (`ReplaceBatteryActivity` / `affirmBatteryInfo`).
  *
  * Bootstraps battery types + specs from the official cloud, pre-fills from
@@ -90,6 +92,16 @@ fun ReplaceBatteryScreen(
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val log = remember { LogService() }
+  val strSelectVehicle = stringResource(R.string.replace_battery_select_vehicle)
+  val strNoTypes = stringResource(R.string.replace_battery_no_types)
+  val strSelectType = stringResource(R.string.replace_battery_select_type)
+  val strNoCarId = stringResource(R.string.replace_battery_no_car_id)
+  val strEnterVoltage = stringResource(R.string.replace_battery_enter_voltage)
+  val strEnterAh = stringResource(R.string.replace_battery_enter_ah)
+  val strSelectSpec = stringResource(R.string.replace_battery_select_spec)
+  val strSelectDate = stringResource(R.string.replace_battery_select_date)
+  val strUpdated = stringResource(R.string.replace_battery_updated)
+  val strUpdateFailed = stringResource(R.string.replace_battery_update_failed)
 
   var loadingTypes by remember { mutableStateOf(true) }
   var loadingSpecs by remember { mutableStateOf(false) }
@@ -112,7 +124,7 @@ fun ReplaceBatteryScreen(
     val v = vehicle
     if (v == null) {
       loadingTypes = false
-      error = "请先选择车辆"
+      error = strSelectVehicle
       return@LaunchedEffect
     }
     bootstrap(
@@ -122,7 +134,7 @@ fun ReplaceBatteryScreen(
         types = loaded
         selectedType = selected
         loadingTypes = false
-        error = if (loaded.isEmpty()) "未获取到电池类型列表" else null
+        error = if (loaded.isEmpty()) strNoTypes else null
       },
       onSpecs = { loaded, selected ->
         specs = loaded
@@ -152,7 +164,7 @@ fun ReplaceBatteryScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "更正电池信息", onBack = { onBack(false) })
+      CyberPageHeader(title = stringResource(R.string.replace_battery_title), onBack = { onBack(false) })
       if (loadingTypes) {
         Box(
           modifier = Modifier.fillMaxSize(),
@@ -188,7 +200,7 @@ fun ReplaceBatteryScreen(
           val type = selectedType
           val custom = type?.isCustom == true
 
-          SectionCard(title = "电池类型") {
+          SectionCard(title = stringResource(R.string.replace_battery_type)) {
             var expanded by remember { mutableStateOf(false) }
             ExposedDropdownMenuBox(
               expanded = expanded,
@@ -244,14 +256,14 @@ fun ReplaceBatteryScreen(
           Spacer(Modifier.height(12.dp))
 
           if (custom) {
-            SectionCard(title = "自定义电压 / 安时") {
+            SectionCard(title = stringResource(R.string.replace_battery_custom)) {
               Row {
                 OutlinedTextField(
                   value = voltage,
                   onValueChange = { value -> voltage = value.filter { it.isDigit() || it == '.' } },
                   enabled = !submitting,
                   singleLine = true,
-                  label = { Text("电压 (V)") },
+                  label = { Text(stringResource(R.string.replace_battery_voltage)) },
                   keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                   colors = cyberTextFieldColors(),
                   shape = cyberTextFieldShape,
@@ -263,7 +275,7 @@ fun ReplaceBatteryScreen(
                   onValueChange = { value -> ah = value.filter { it.isDigit() || it == '.' } },
                   enabled = !submitting,
                   singleLine = true,
-                  label = { Text("安时 (AH)") },
+                  label = { Text(stringResource(R.string.replace_battery_ah)) },
                   keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                   colors = cyberTextFieldColors(),
                   shape = cyberTextFieldShape,
@@ -272,7 +284,7 @@ fun ReplaceBatteryScreen(
               }
             }
           } else {
-            SectionCard(title = "电池规格") {
+            SectionCard(title = stringResource(R.string.replace_battery_spec)) {
               if (loadingSpecs) {
                 Box(
                   modifier = Modifier
@@ -326,8 +338,8 @@ fun ReplaceBatteryScreen(
           }
           Spacer(Modifier.height(12.dp))
 
-          SectionCard(title = "绑定日期") {
-            val dateLabel = bindDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: "请选择绑定日期"
+          SectionCard(title = stringResource(R.string.replace_battery_bind_date)) {
+            val dateLabel = bindDate?.format(DateTimeFormatter.ISO_LOCAL_DATE) ?: strSelectDate
             AppPressable(
               onClick = {
                 if (!submitting) {
@@ -336,7 +348,7 @@ fun ReplaceBatteryScreen(
               },
               enabled = !submitting,
               shape = RoundedCornerShape(AppRadii.tile),
-              semanticsLabel = "选择绑定日期，$dateLabel",
+              semanticsLabel = stringResource(R.string.replace_battery_select_date_format, dateLabel),
               semanticsButton = true,
             ) {
               Row(
@@ -366,16 +378,16 @@ fun ReplaceBatteryScreen(
               val vv = vehicle
               val tt = selectedType
               if (vv == null) {
-                scope.launch { AppSnack.error(snackbarHostState, "请先选择车辆") }
+                scope.launch { AppSnack.error(snackbarHostState, strSelectVehicle) }
                 return@Button
               }
               if (tt == null) {
-                scope.launch { AppSnack.error(snackbarHostState, "请选择电池类型") }
+                scope.launch { AppSnack.error(snackbarHostState, strSelectType) }
                 return@Button
               }
               val carId = vv.carId.trim()
               if (carId.isEmpty()) {
-                scope.launch { AppSnack.error(snackbarHostState, "车辆缺少 carId，无法提交") }
+                scope.launch { AppSnack.error(snackbarHostState, strNoCarId) }
                 return@Button
               }
               val request: AffirmBatteryInfoRequest
@@ -383,11 +395,11 @@ fun ReplaceBatteryScreen(
                 val vText = voltage.trim()
                 val ahText = ah.trim()
                 if (vText.isEmpty()) {
-                  scope.launch { AppSnack.error(snackbarHostState, "请输入电压") }
+                  scope.launch { AppSnack.error(snackbarHostState, strEnterVoltage) }
                   return@Button
                 }
                 if (ahText.isEmpty()) {
-                  scope.launch { AppSnack.error(snackbarHostState, "请输入安时数") }
+                  scope.launch { AppSnack.error(snackbarHostState, strEnterAh) }
                   return@Button
                 }
                 request = AffirmBatteryInfoRequest(
@@ -400,11 +412,11 @@ fun ReplaceBatteryScreen(
               } else {
                 val spec = selectedSpec
                 if (spec == null) {
-                  scope.launch { AppSnack.error(snackbarHostState, "请选择电池规格") }
+                  scope.launch { AppSnack.error(snackbarHostState, strSelectSpec) }
                   return@Button
                 }
                 if (bindDate == null) {
-                  scope.launch { AppSnack.error(snackbarHostState, "请选择绑定日期") }
+                  scope.launch { AppSnack.error(snackbarHostState, strSelectDate) }
                   return@Button
                 }
                 request = AffirmBatteryInfoRequest(
@@ -417,11 +429,11 @@ fun ReplaceBatteryScreen(
               scope.launch {
                 try {
                   cloudService.affirmBatteryInfo(request)
-                  AppSnack.success(snackbarHostState, "电池信息已更正")
+                  AppSnack.success(snackbarHostState, strUpdated)
                   onBack(true)
                 } catch (e: Exception) {
                   log.operation(
-                    "更正电池失败",
+                    strUpdateFailed,
                     detail = e.toString(),
                     level = LogLevel.WARNING,
                   )
@@ -446,14 +458,14 @@ fun ReplaceBatteryScreen(
               )
             } else {
               Text(
-                text = "确认提交",
+                text = stringResource(R.string.replace_battery_submit),
                 style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700),
               )
             }
           }
           Spacer(Modifier.height(12.dp))
           Text(
-            text = "提交后将调用官方 batterySetUp 接口，并自动刷新车辆与电池信息。",
+            text = stringResource(R.string.replace_battery_submit_desc),
             style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
           )
         }
@@ -536,10 +548,10 @@ private fun VehicleBatterySummary(vehicle: OfficialVehicle) {
       overflow = TextOverflow.Ellipsis,
     )
     Spacer(Modifier.height(4.dp))
-    val spec = if (vehicle.batterySpecLabel.isEmpty()) "未设置规格" else vehicle.batterySpecLabel
+    val spec = if (vehicle.batterySpecLabel.isEmpty()) stringResource(R.string.replace_battery_no_spec) else vehicle.batterySpecLabel
     val date = if (vehicle.batteryBindDate.isEmpty()) "" else " · ${vehicle.batteryBindDate}"
     Text(
-      text = "当前：$spec$date",
+      text = stringResource(R.string.replace_battery_current_format, spec, date),
       style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
     )
   }
@@ -588,10 +600,10 @@ private fun BindDatePickerDialog(
           }
         },
         colors = cyberFilledButtonColors(),
-      ) { Text("确定") }
+      ) { Text(stringResource(R.string.common_confirm)) }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) { Text("取消") }
+      TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
     },
     text = {
       DatePicker(state = state)

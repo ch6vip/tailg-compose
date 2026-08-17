@@ -1,0 +1,22 @@
+=== ReplaceBatteryScreen ===
+L341: "\u9009\u62e9\u7ed1\u5b9a\u65e5\u671f\uff0c$dateLabel"
+   punct: 选(U+9009) 择(U+62E9) 绑(U+7ED1) 定(U+5B9A) 日(U+65E5) 期(U+671F) ，(U+FF0C)
+L380: "\u8f66\u8f86\u7f3a\u5c11 carId\uff0c\u65e0\u6cd5\u63d0\u4ea4"
+   punct: 车(U+8F66) 辆(U+8F86) 缺(U+7F3A) 少(U+5C11) ，(U+FF0C) 无(U+65E0) 法(U+6CD5) 提(U+63D0) 交(U+4EA4)
+L458: "\u63d0\u4ea4\u540e\u5c06\u8c03\u7528\u5b98\u65b9 batterySetUp \u63a5\u53e3\uff0c\u5e76\u81ea\u52a8\u5237\u65b0\u8f66\u8f86\u4e0e\u7535\u6c60\u4fe1\u606f\u3002"
+   punct: 提(U+63D0) 交(U+4EA4) 后(U+540E) 将(U+5C06) 调(U+8C03) 用(U+7528) 官(U+5B98) 方(U+65B9) 接(U+63A5) 口(U+53E3) ，(U+FF0C) 并(U+5E76) 自(U+81EA) 动(U+52A8) 刷(U+5237) 新(U+65B0) 车(U+8F66) 辆(U+8F86) 与(U+4E0E) 电(U+7535) 池(U+6C60) 信(U+4FE1) 息(U+606F) 。(U+3002)
+L544: "\u5f53\u524d\uff1a$spec$date"
+   punct: 当(U+5F53) 前(U+524D) ：(U+FF1A)
+=== RideStatsScreen ===
+L66: "\u4e3a\u5254\u9664\u8f66\u8f86\u9759\u6b62\u65f6\u7684\u536b\u661f\u4fe1\u53f7\u98d8\u79fb\u3001\u77ed\u8ddd\u79bb\u9a91\u884c\u3001\u539f\u5730\u63a8\u8f66\u6216\u77ed\u6682\u632a\u52a8\u7b49\u65e0\u6548\u5e72\u6270\uff0c"
+   punct: 为(U+4E3A) 剔(U+5254) 除(U+9664) 车(U+8F66) 辆(U+8F86) 静(U+9759) 止(U+6B62) 时(U+65F6) 的(U+7684) 卫(U+536B) 星(U+661F) 信(U+4FE1) 号(U+53F7) 飘(U+98D8) 移(U+79FB) 、(U+3001) 短(U+77ED) 距(U+8DDD) 离(U+79BB) 骑(U+9A91) 行(U+884C) 、(U+3001) 原(U+539F) 地(U+5730) 推(U+63A8) 车(U+8F66) 或(U+6216) 短(U+77ED) 暂(U+6682) 挪(U+632A) 动(U+52A8) 等(U+7B49) 无(U+65E0) 效(U+6548) 干(U+5E72) 扰(U+6270) ，(U+FF0C)
+L67: "\u7cfb\u7edf\u8bbe\u5b9a\u5355\u6b21\u6301\u7eed\u79fb\u52a8\u8ddd\u79bb\u5c0f\u4e8e50\u7c73\u65f6\uff0c\u4e0d\u7eb3\u5165\u603b\u91cc\u7a0b\u7d2f\u8ba1\u3002"
+   punct: 系(U+7CFB) 统(U+7EDF) 设(U+8BBE) 定(U+5B9A) 单(U+5355) 次(U+6B21) 持(U+6301) 续(U+7EED) 移(U+79FB) 动(U+52A8) 距(U+8DDD) 离(U+79BB) 小(U+5C0F) 于(U+4E8E) 米(U+7C73) 时(U+65F6) ，(U+FF0C) 不(U+4E0D) 纳(U+7EB3) 入(U+5165) 总(U+603B) 里(U+91CC) 程(U+7A0B) 累(U+7D2F) 计(U+8BA1) 。(U+3002)
+L68: "\u8fd9\u786e\u4fdd\u60a8\u4eea\u8868\u76d8\u4e0a\u7684\u6bcf\u4e00\u516c\u91cc\uff0c\u90fd\u771f\u5b9e\u53cd\u6620\u60a8\u7684\u5b9e\u9645\u9a91\u884c\u8db3\u8ff9\u3002"
+   punct: 这(U+8FD9) 确(U+786E) 保(U+4FDD) 您(U+60A8) 仪(U+4EEA) 表(U+8868) 盘(U+76D8) 上(U+4E0A) 的(U+7684) 每(U+6BCF) 公(U+516C) 里(U+91CC) ，(U+FF0C) 都(U+90FD) 真(U+771F) 实(U+5B9E) 反(U+53CD) 映(U+6620) 您(U+60A8) 的(U+7684) 实(U+5B9E) 际(U+9645) 骑(U+9A91) 行(U+884C) 足(U+8DB3) 迹(U+8FF9) 。(U+3002)
+L134: "\u6682\u65e0\u8f66\u8f86\uff0c\u8bf7\u5148\u540c\u6b65\u5b98\u65b9\u8f66\u8f86"
+   punct: 暂(U+6682) 无(U+65E0) 车(U+8F66) 辆(U+8F86) ，(U+FF0C) 请(U+8BF7) 先(U+5148) 同(U+540C) 步(U+6B65) 官(U+5B98) 方(U+65B9) 车(U+8F66) 辆(U+8F86)
+L163: "\u6bcf\u884c\u9a761\u516c\u91cc\uff0c\u76f8\u5f53\u4e8e\\n\u51cf\u6392\u4e8c\u6c27\u5316\u78b30.171kg"
+   punct: 每(U+6BCF) 行(U+884C) 驶(U+9A76) 公(U+516C) 里(U+91CC) ，(U+FF0C) 相(U+76F8) 当(U+5F53) 于(U+4E8E) 减(U+51CF) 排(U+6392) 二(U+4E8C) 氧(U+6C27) 化(U+5316) 碳(U+78B3)
+L166: "\u6bcf\u68f5\u6811\u5e73\u5747\u6bcf\u5929\u5438\u6536\\n\u4e8c\u6c27\u5316\u78b35.023kg"
+   punct: 每(U+6BCF) 棵(U+68F5) 树(U+6811) 平(U+5E73) 均(U+5747) 每(U+6BCF) 天(U+5929) 吸(U+5438) 收(U+6536) 二(U+4E8C) 氧(U+6C27) 化(U+5316) 碳(U+78B3)

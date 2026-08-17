@@ -69,6 +69,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.SmsCountdown
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 import kotlinx.coroutines.launch
 
 /**
@@ -96,6 +98,13 @@ fun OfficialCloudScreen(
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsState()
 
+  val strSmsSent = stringResource(R.string.cloud_sms_sent)
+  val strSmsFailed = stringResource(R.string.cloud_sms_failed)
+  val strLoginSuccess = stringResource(R.string.cloud_login_success)
+  val strLoginFailed = stringResource(R.string.cloud_login_failed)
+  val strVehicleRefreshed = stringResource(R.string.cloud_vehicle_refreshed)
+  val strVehicleRefreshFailed = stringResource(R.string.cloud_vehicle_refresh_failed)
+  val strVehicleSwitched = stringResource(R.string.cloud_vehicle_switched)
   fun requestCode() {
     if (smsCountdown.isActive) return
     val normalizedPhone = OfficialCloudLoginValidator.compactPhone(phone)
@@ -103,9 +112,9 @@ fun OfficialCloudScreen(
       try {
         cloudService.requestSmsCode(normalizedPhone)
         smsCountdown.start()
-        AppSnack.success(snackbarHostState, "验证码已发送")
+        AppSnack.success(snackbarHostState, strSmsSent)
       } catch (e: Exception) {
-        log.operation("官云验证码发送失败", detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+        log.operation(strSmsFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -116,9 +125,9 @@ fun OfficialCloudScreen(
     scope.launch {
       try {
         cloudService.login(normalizedPhone, smsCode.trim())
-        AppSnack.success(snackbarHostState, "官方账号登录成功")
+        AppSnack.success(snackbarHostState, strLoginSuccess)
       } catch (e: Exception) {
-        log.operation("官云登录失败", detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+        log.operation(strLoginFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -128,9 +137,9 @@ fun OfficialCloudScreen(
     scope.launch {
       try {
         cloudService.refreshVehicles()
-        AppSnack.success(snackbarHostState, "官方车辆已刷新")
+        AppSnack.success(snackbarHostState, strVehicleRefreshed)
       } catch (e: Exception) {
-        log.operation("官云车辆刷新失败", detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+        log.operation(strVehicleRefreshFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -149,9 +158,9 @@ fun OfficialCloudScreen(
     ) {
       item {
         CloudHeader(
-          title = "我的车辆",
+          title = stringResource(R.string.cloud_my_vehicle),
           actionIcon = if (cloudState.signedIn) Lucide.refresh else null,
-          actionLabel = if (cloudState.signedIn) "刷新车辆" else null,
+          actionLabel = if (cloudState.signedIn) stringResource(R.string.cloud_refresh_vehicle) else null,
           onAction = if (cloudState.signedIn && !cloudState.loading) { { refresh() } } else null,
           onBack = onBack,
         )
@@ -178,7 +187,7 @@ fun OfficialCloudScreen(
             onSelectVehicle = { vehicle ->
               scope.launch {
                 cloudService.selectVehicle(vehicle)
-                AppSnack.success(snackbarHostState, "已切换车辆")
+                AppSnack.success(snackbarHostState, strVehicleSwitched)
               }
             },
           )
@@ -212,7 +221,7 @@ fun OfficialCloudScreen(
             .padding(16.dp),
         ) {
           Text(
-            text = "登录后会同步账号下已绑定车辆。车辆绑定、解绑和转让请按官方服务流程完成。",
+            text = stringResource(R.string.cloud_login_desc),
             style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.45f, color = CyberHomeColors.inkMuted),
           )
         }
@@ -239,7 +248,7 @@ private fun CloudHeader(
       background = CyberHomeColors.card,
       shadowElevation = 4.dp,
       shadowColor = CyberHomeColors.actionShadow,
-      semanticsLabel = "返回",
+      semanticsLabel = stringResource(R.string.common_back),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.arrowLeft, size = 20.dp, color = CyberHomeColors.inkSecondary)
@@ -295,7 +304,7 @@ private fun LoginCard(
       .padding(16.dp),
   ) {
     Text(
-      text = "登录后查看车辆",
+      text = stringResource(R.string.cloud_vehicle_hint),
       style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
     )
     Spacer(Modifier.height(14.dp))
@@ -304,9 +313,9 @@ private fun LoginCard(
       onValueChange = onPhoneChange,
       singleLine = true,
       isError = showPhoneError,
-      supportingText = if (showPhoneError) { { Text("请输入 11 位手机号") } } else null,
+      supportingText = if (showPhoneError) { { Text(stringResource(R.string.cloud_phone_hint)) } } else null,
       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-      placeholder = { Text("手机号") },
+      placeholder = { Text(stringResource(R.string.cloud_phone)) },
       colors = cyberTextFieldColors(),
       shape = cyberTextFieldShape,
       modifier = Modifier.fillMaxWidth(),
@@ -318,9 +327,9 @@ private fun LoginCard(
         onValueChange = onSmsCodeChange,
         singleLine = true,
         isError = showSmsError,
-        supportingText = if (showSmsError) { { Text("请输入短信验证码") } } else null,
+        supportingText = if (showSmsError) { { Text(stringResource(R.string.cloud_sms_hint)) } } else null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        placeholder = { Text("短信验证码") },
+        placeholder = { Text(stringResource(R.string.cloud_sms)) },
         colors = cyberTextFieldColors(),
         shape = cyberTextFieldShape,
         modifier = Modifier.weight(1f),
@@ -334,7 +343,7 @@ private fun LoginCard(
         border = cyberOutlinedButtonBorder,
         modifier = Modifier.height(48.dp),
       ) {
-        Text(text = if (countdown > 0) "${countdown}s" else "获取")
+        Text(text = if (countdown > 0) "${countdown}s" else stringResource(R.string.cloud_sms_get))
       }
     }
     Spacer(Modifier.height(16.dp))
@@ -350,7 +359,7 @@ private fun LoginCard(
       if (loading) {
         CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = CyberHomeColors.white)
       } else {
-        Text(text = "登录", style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
+        Text(text = stringResource(R.string.cloud_login_action), style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
       }
     }
   }
@@ -386,7 +395,7 @@ private fun VehicleListCard(
         .padding(16.dp),
     ) {
       Text(
-        text = "暂无车辆，请确认当前账号已完成车辆绑定。",
+        text = stringResource(R.string.cloud_no_vehicle),
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.45f, color = CyberHomeColors.inkMuted),
       )
     }
@@ -441,11 +450,11 @@ private fun OfficialVehicleCard(
       StatusChip(label = vehicle.defenceLabel, color = CyberHomeColors.primary)
       StatusChip(label = vehicle.powerLabel, color = CyberHomeColors.warning)
       StatusChip(
-        label = if (vehicle.electricQuantity == null) "电量 --" else "电量 ${vehicle.electricQuantity}%",
+        label = if (vehicle.electricQuantity == null) stringResource(R.string.cloud_electricity_placeholder) else stringResource(R.string.cloud_electricity_format, vehicle.electricQuantity),
         color = CyberHomeColors.success,
       )
       StatusChip(
-        label = if (vehicle.voltage == null) "电压 --" else "${vehicle.voltage}V",
+        label = if (vehicle.voltage == null) stringResource(R.string.cloud_voltage_placeholder) else "${vehicle.voltage}V",
         color = CyberHomeColors.primary,
       )
     }
@@ -461,7 +470,7 @@ private fun OfficialVehicleCard(
     ) {
       LucideIcon(icon = Lucide.info, size = AppIconSizes.sm)
       Spacer(Modifier.width(6.dp))
-      Text(text = "详情")
+      Text(text = stringResource(R.string.cloud_vehicle_detail))
     }
   }
 }
@@ -489,7 +498,7 @@ private fun DetailLine(
   onTap: (() -> Unit)? = null,
 ) {
   val text = value.trim()
-  val display = if (text.isEmpty()) "未返回" else text
+  val display = if (text.isEmpty()) stringResource(R.string.cloud_not_returned) else text
   val row = Row(
     modifier = Modifier
       .padding(vertical = 7.dp)

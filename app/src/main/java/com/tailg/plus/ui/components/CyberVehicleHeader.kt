@@ -41,6 +41,8 @@ import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.flow.collect
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/cyber_vehicle_header.dart` — collapsing header for the
@@ -212,7 +214,7 @@ private fun CyberHeroHeader(
       AppPressable(
         onClick = onTitleTap,
         shape = RoundedCornerShape(AppRadii.sm),
-        semanticsLabel = "切换车辆",
+        semanticsLabel = stringResource(R.string.vehicle_header_switch),
       ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
           Text(
@@ -230,7 +232,7 @@ private fun CyberHeroHeader(
       AppPressable(
         onClick = onBatteryTap,
         shape = RoundedCornerShape(AppRadii.pill),
-        semanticsLabel = "电池详情",
+        semanticsLabel = stringResource(R.string.vehicle_header_battery),
       ) {
         Row(
           modifier = Modifier
@@ -295,7 +297,7 @@ private fun CyberTopBar(
     AppPressable(
       onClick = onTitleTap,
       shape = RoundedCornerShape(AppRadii.sm),
-      semanticsLabel = "切换车辆",
+      semanticsLabel = stringResource(R.string.vehicle_header_switch),
     ) {
       Column(modifier = Modifier.widthIn(max = 140.dp)) {
         Text(
@@ -317,7 +319,7 @@ private fun CyberTopBar(
       AnimatedStatusIcon(online = online, bluetoothConnected = bluetoothConnected)
       Spacer(Modifier.width(6.dp))
       Text(
-        text = if (online) "在线" else "离线",
+        text = if (online) stringResource(R.string.vehicle_header_online) else stringResource(R.string.vehicle_header_offline),
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
       )
     }
@@ -352,7 +354,7 @@ private fun CyberStatusLine(
     AnimatedStatusIcon(online = online, bluetoothConnected = bluetoothConnected)
     Spacer(Modifier.width(6.dp))
     Text(
-      text = if (online) "在线" else "离线",
+      text = if (online) stringResource(R.string.vehicle_header_online) else stringResource(R.string.vehicle_header_offline),
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.width(10.dp))
@@ -364,7 +366,7 @@ private fun CyberStatusLine(
       )
       Spacer(Modifier.width(3.dp))
       Text(
-        text = if (isLocked) "已设防" else "未设防",
+        text = if (isLocked) stringResource(R.string.vehicle_header_armed) else stringResource(R.string.vehicle_header_disarmed),
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
       )
     }
@@ -372,7 +374,7 @@ private fun CyberStatusLine(
     AppPressable(
       onClick = onChannelTap,
       shape = RoundedCornerShape(AppRadii.pill),
-      semanticsLabel = "控车渠道 ${channelStatus.label}",
+      semanticsLabel = stringResource(R.string.vehicle_header_channel_format, channelStatus.label),
     ) {
       Row(
         modifier = Modifier
@@ -400,7 +402,7 @@ private fun CyberStatusLine(
         LucideIcon(icon = Lucide.power, size = 13.dp, color = CyberHomeColors.inkFaint)
         Spacer(Modifier.width(3.dp))
         Text(
-          text = if (powered) "已通电" else "已断电",
+          text = if (powered) stringResource(R.string.vehicle_header_powered) else stringResource(R.string.vehicle_header_unpowered),
           style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -448,11 +450,11 @@ private fun VehicleThumb(powered: Boolean?, isLocked: Boolean) {
 private fun CyberBleChip(state: OfficialBleChipState, onClick: () -> Unit) {
   if (state == OfficialBleChipState.Hidden) return
   val (icon, label, connected) = when (state) {
-    OfficialBleChipState.NoBle -> Triple(Lucide.bluetoothOff, "无蓝牙", false)
-    OfficialBleChipState.ClickToConnect -> Triple(Lucide.bluetooth, "点击连接", false)
-    OfficialBleChipState.Connecting -> Triple(Lucide.bluetoothSearching, "连接中", false)
-    OfficialBleChipState.Disconnecting -> Triple(Lucide.bluetooth, "断开中", false)
-    OfficialBleChipState.Connected -> Triple(Lucide.bluetooth, "已连接", true)
+    OfficialBleChipState.NoBle -> Triple(Lucide.bluetoothOff, stringResource(R.string.vehicle_header_no_ble), false)
+    OfficialBleChipState.ClickToConnect -> Triple(Lucide.bluetooth, stringResource(R.string.vehicle_header_connect), false)
+    OfficialBleChipState.Connecting -> Triple(Lucide.bluetoothSearching, stringResource(R.string.vehicle_header_connecting), false)
+    OfficialBleChipState.Disconnecting -> Triple(Lucide.bluetooth, stringResource(R.string.vehicle_header_disconnecting), false)
+    OfficialBleChipState.Connected -> Triple(Lucide.bluetooth, stringResource(R.string.vehicle_header_connected), true)
     OfficialBleChipState.Hidden -> Triple(Lucide.bluetooth, "", false)
   }
   AppPressable(

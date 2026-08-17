@@ -42,6 +42,8 @@ import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/settings_page.dart` → `SettingsScreen.kt`.
@@ -81,55 +83,55 @@ fun SettingsScreen(
         .padding(padding)
         .padding(bottom = 32.dp),
     ) {
-      CyberPageHeader(title = "设置", onBack = onBack)
-      CyberSectionLabel("账号与车辆")
+      CyberPageHeader(title = stringResource(R.string.settings_title), onBack = onBack)
+      CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
       settingsGroup(
         settingItemModel(
           icon = Lucide.garage,
-          title = "我的车辆",
-          subtitle = "账号车辆、默认车辆与同步",
+          title = stringResource(R.string.settings_my_vehicle),
+          subtitle = stringResource(R.string.settings_account_vehicle_desc),
           onClick = { onNavigate(Routes.GARAGE) },
         ),
         settingItemModel(
           icon = Lucide.message,
-          title = "消息中心",
-          subtitle = "系统消息、设备消息和安全提醒",
+          title = stringResource(R.string.settings_message_center),
+          subtitle = stringResource(R.string.settings_message_center_desc),
           onClick = { onNavigate(Routes.vehicleMessage(vehicleRouteId)) },
         ),
       )
-      CyberSectionLabel("用车设置")
+      CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
       settingsGroup(
         settingItemModel(
           icon = Lucide.tune,
-          title = "车辆设置",
-          subtitle = "声音、灵敏度、车辆功能、骑行设置",
+          title = stringResource(R.string.settings_vehicle_settings),
+          subtitle = stringResource(R.string.settings_vehicle_settings_desc),
           onClick = { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.battery,
-          title = "电池/BMS",
-          subtitle = "电量、电压、温度、故障和预留 BMS 数据",
+          title = stringResource(R.string.settings_battery_bms),
+          subtitle = stringResource(R.string.settings_battery_bms_desc),
           onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
         ),
       )
-      CyberSectionLabel("通用")
+      CyberSectionLabel(stringResource(R.string.settings_general))
       settingsGroup(
         settingItemModel(
           icon = Lucide.languages,
-          title = "语言设置",
+          title = stringResource(R.string.settings_language_setting),
           subtitle = language.label,
           onClick = { onNavigate(Routes.LANGUAGE_SETTINGS) },
         ),
         settingItemModel(
           icon = Lucide.ruler,
-          title = "单位设置",
+          title = stringResource(R.string.settings_unit_setting),
           subtitle = "${distanceUnit.label} · ${distanceUnit.hint}",
           onClick = { onNavigate(Routes.UNIT_SETTINGS) },
         ),
         settingItemModel(
           icon = Lucide.type,
-          title = "跟随系统字号",
-          subtitle = if (respectTextScale) "允许系统字号设置生效（限 0.9-1.3 倍）" else "关闭后忽略系统字号",
+          title = stringResource(R.string.settings_follow_system_font),
+          subtitle = if (respectTextScale) stringResource(R.string.settings_follow_system_font_desc) else stringResource(R.string.settings_ignore_system_font),
           trailing = {
             Switch(
               checked = respectTextScale,
@@ -149,27 +151,27 @@ fun SettingsScreen(
           },
         ),
       )
-      CyberSectionLabel("高级")
+      CyberSectionLabel(stringResource(R.string.settings_advanced))
       settingsGroup(
         settingItemModel(
           icon = Lucide.shieldCheck,
-          title = "高级诊断",
-          subtitle = "设备信息、日志、协议和升级前检测",
+          title = stringResource(R.string.settings_diagnostics),
+          subtitle = stringResource(R.string.settings_diagnostics_desc),
           onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.key,
-          title = "官方会话 / Token",
-          subtitle = "调试用：粘贴或复制官方登录凭证",
+          title = stringResource(R.string.settings_official_token),
+          subtitle = stringResource(R.string.settings_official_token_desc),
           onClick = { onNavigate(Routes.CLOUD_TOKEN) },
         ),
       )
-      CyberSectionLabel("关于")
+      CyberSectionLabel(stringResource(R.string.settings_about))
       settingsGroup(
         settingItemModel(
           icon = Lucide.info,
-          title = "关于台铃智能",
-          subtitle = "版本信息、用户协议和隐私政策",
+          title = stringResource(R.string.settings_about_app),
+          subtitle = stringResource(R.string.settings_about_app_desc),
           onClick = { onNavigate(Routes.ABOUT_APP) },
         ),
       )
@@ -198,19 +200,19 @@ fun AdvancedDiagnosticsScreen(
         .padding(padding)
         .padding(bottom = 32.dp),
     ) {
-      CyberPageHeader(title = "高级诊断", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.settings_diagnostics), onBack = onBack)
       Spacer(Modifier.height(4.dp))
       settingsGroup(
         settingItemModel(
           icon = Lucide.stethoscope,
-          title = "故障诊断",
-          subtitle = "读取车辆错误码",
+          title = stringResource(R.string.settings_fault_diagnostics),
+          subtitle = stringResource(R.string.settings_fault_diagnostics_desc),
           onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.fileText,
-          title = "日志",
-          subtitle = "查看操作记录",
+          title = stringResource(R.string.settings_logs),
+          subtitle = stringResource(R.string.settings_logs_desc),
           onClick = { onNavigate(Routes.LOG) },
         ),
       )

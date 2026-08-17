@@ -55,6 +55,8 @@ import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/vehicle_settings_page.dart` — vehicle detail / settings.
@@ -78,6 +80,8 @@ fun VehicleSettingsScreen(
   val scope = rememberCoroutineScope()
   val log = remember { LogService() }
   var showUnbindDialog by remember { mutableStateOf(false) }
+  val strUnboundRefreshed = stringResource(R.string.vehicle_settings_unbound_refreshed)
+  val strUnbindFailed = stringResource(R.string.vehicle_settings_unbind_failed)
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -89,7 +93,7 @@ fun VehicleSettingsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "车辆设置", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.vehicle_settings_title), onBack = onBack)
       val vehicle = state.selectedVehicle
       if (vehicle == null) {
         SettingsEmptyState(
@@ -113,28 +117,28 @@ fun VehicleSettingsScreen(
             VehicleSummary(vehicle = vehicle)
           }
           item {
-            SettingsSectionLabel("车辆功能")
+            SettingsSectionLabel(stringResource(R.string.vehicle_settings_functions))
           }
           item {
             SettingsActionGroup {
               SettingsActionRow(
                 icon = Lucide.message,
-                title = "通知偏好",
-                subtitle = "车辆、系统与活动消息",
+                title = stringResource(R.string.vehicle_settings_notifications),
+                subtitle = stringResource(R.string.vehicle_settings_notifications_desc),
                 showDivider = true,
                 onTap = onOpenNotificationPrefs,
               )
               SettingsActionRow(
                 icon = Lucide.sensors,
-                title = "感应解锁",
-                subtitle = "手动模式、靠近解锁与感应距离",
+                title = stringResource(R.string.vehicle_settings_induction),
+                subtitle = stringResource(R.string.vehicle_settings_induction_desc),
                 showDivider = false,
                 onTap = onOpenInductionSettings,
               )
             }
           }
           item {
-            SettingsSectionLabel("车辆管理")
+            SettingsSectionLabel(stringResource(R.string.vehicle_settings_management))
           }
           item {
             DangerActionRow(onTap = { showUnbindDialog = true })
@@ -155,10 +159,10 @@ fun VehicleSettingsScreen(
           scope.launch {
             try {
               cloudService.unbindVehicle(carId = vehicle.carId)
-              AppSnack.success(snackbarHostState, "已解绑并刷新列表")
+              AppSnack.success(snackbarHostState, strUnboundRefreshed)
             } catch (e: Exception) {
               log.operation(
-                "解绑车辆失败",
+                strUnbindFailed,
                 detail = e.toString(),
                 level = LogLevel.WARNING,
               )
@@ -204,9 +208,9 @@ private fun VehicleSummary(vehicle: OfficialVehicle) {
     Spacer(Modifier.height(16.dp))
     HorizontalDivider(thickness = 1.dp, color = CyberHomeColors.line)
     Spacer(Modifier.height(10.dp))
-    VehicleInfoRow(label = "车架号", value = vehicle.frame.ifEmpty { "未知" })
-    VehicleInfoRow(label = "IMEI", value = vehicle.imei.ifEmpty { "未知" })
-    VehicleInfoRow(label = "车型编号", value = vehicle.modelType?.toString() ?: "-", isLast = true)
+    VehicleInfoRow(label = stringResource(R.string.vehicle_settings_frame_no), value = vehicle.frame.ifEmpty { stringResource(R.string.vehicle_settings_unknown) })
+    VehicleInfoRow(label = "IMEI", value = vehicle.imei.ifEmpty { stringResource(R.string.vehicle_settings_unknown) })
+    VehicleInfoRow(label = stringResource(R.string.vehicle_settings_model_id), value = vehicle.modelType?.toString() ?: "-", isLast = true)
   }
 }
 
@@ -349,7 +353,7 @@ private fun SettingsActionRow(
 private fun DangerActionRow(onTap: () -> Unit) {
   AppPressable(
     onClick = onTap,
-    semanticsLabel = "解绑车辆，解除当前账号与车辆的绑定",
+    semanticsLabel = stringResource(R.string.vehicle_settings_unbind_desc),
     semanticsButton = true,
   ) {
     Row(
@@ -378,12 +382,12 @@ private fun DangerActionRow(onTap: () -> Unit) {
       Spacer(Modifier.width(12.dp))
       Column(modifier = Modifier.weight(1f)) {
         Text(
-          text = "解绑车辆",
+          text = stringResource(R.string.vehicle_settings_unbind),
           style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.danger),
         )
         Spacer(Modifier.height(4.dp))
         Text(
-          text = "解除当前账号与车辆的绑定",
+          text = stringResource(R.string.vehicle_settings_unbind_hint),
           style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -414,12 +418,12 @@ private fun SettingsEmptyState(
     }
     Spacer(Modifier.height(16.dp))
     Text(
-      text = "未选择车辆",
+      text = stringResource(R.string.vehicle_settings_no_vehicle),
       style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
     )
     Spacer(Modifier.height(7.dp))
     Text(
-      text = "请先登录并选择一辆车",
+      text = stringResource(R.string.vehicle_settings_login_first),
       style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.height(18.dp))
@@ -430,7 +434,7 @@ private fun SettingsEmptyState(
         contentColor = CyberHomeColors.white,
       ),
     ) {
-      Text(text = if (signedIn) "添加车辆" else "去登录")
+      Text(text = if (signedIn) stringResource(R.string.vehicle_settings_add_vehicle) else stringResource(R.string.vehicle_settings_login_action))
     }
   }
 }
@@ -447,13 +451,13 @@ private fun UnbindConfirmDialog(
     shape = RoundedCornerShape(AppRadii.tile),
     title = {
       Text(
-        text = "解绑车辆",
+        text = stringResource(R.string.vehicle_settings_unbind),
         style = TextStyle(color = CyberHomeColors.ink, fontWeight = FontWeight.W700),
       )
     },
     text = {
       Text(
-        text = "解绑后将无法继续查看或控制「$vehicleName」。确认解绑？",
+        text = stringResource(R.string.vehicle_settings_unbind_confirm_format, vehicleName),
         style = TextStyle(color = CyberHomeColors.inkMuted, lineHeight = 13.sp * 1.5f),
       )
     },
@@ -465,12 +469,12 @@ private fun UnbindConfirmDialog(
           contentColor = CyberHomeColors.white,
         ),
       ) {
-        Text("确认解绑")
+        Text(stringResource(R.string.vehicle_settings_confirm_unbind))
       }
     },
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("取消", color = CyberHomeColors.inkMuted)
+        Text(stringResource(R.string.common_cancel), color = CyberHomeColors.inkMuted)
       }
     },
   )

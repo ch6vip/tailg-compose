@@ -76,6 +76,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/scan_page.dart` — BLE device scan + connect.
@@ -247,12 +249,12 @@ fun ScanScreen(
           .fillMaxSize()
           .verticalScroll(rememberScrollState()),
       ) {
-        CyberPageHeader(title = "搜索设备", onBack = onBack)
+        CyberPageHeader(title = stringResource(R.string.scan_search), onBack = onBack)
         if (!bluetoothOn) {
           ScanHintCard(
             icon = Lucide.bluetoothOff,
-            title = "蓝牙未开启",
-            subtitle = "开启蓝牙后即可搜索附近车辆",
+            title = stringResource(R.string.scan_ble_off),
+            subtitle = stringResource(R.string.scan_ble_off_hint),
           )
         }
         Spacer(Modifier.height(16.dp))
@@ -264,15 +266,15 @@ fun ScanScreen(
         ) {
           Text(
             text = when {
-              !bluetoothOn -> "等待蓝牙开启"
-              scanning -> "正在搜索附近设备..."
-              else -> "点击下方按钮开始搜索"
+              !bluetoothOn -> stringResource(R.string.scan_ble_waiting)
+              scanning -> stringResource(R.string.scan_searching)
+              else -> stringResource(R.string.scan_search_hint)
             },
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
           )
           Spacer(Modifier.height(4.dp))
           Text(
-            text = "请确保蓝牙已开启且靠近车辆",
+            text = stringResource(R.string.scan_ble_ensure),
             style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
           )
         }
@@ -564,7 +566,7 @@ private fun DeviceCard(
   disabled: Boolean,
   onTap: () -> Unit,
 ) {
-  val name = if (device.name.isNotEmpty()) device.name else "未知设备"
+  val name = if (device.name.isNotEmpty()) device.name else stringResource(R.string.scan_unknown_device)
   val isTailg = name.lowercase().contains("tl") || name.lowercase().contains("tailg")
   val strength = when {
     device.rssi > -60 -> SignalStrength.STRONG
@@ -626,7 +628,7 @@ private fun DeviceCard(
           )
           Spacer(Modifier.height(6.dp))
           Text(
-            text = "连接中",
+            text = stringResource(R.string.scan_connecting),
             style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
           )
         }
@@ -635,7 +637,7 @@ private fun DeviceCard(
           SignalBars(strength = strength)
           Spacer(Modifier.height(6.dp))
           Text(
-            text = if (disabled) "等待" else "连接绑定",
+            text = if (disabled) stringResource(R.string.scan_waiting) else stringResource(R.string.scan_connect_bind),
             style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
           )
         }
@@ -683,7 +685,7 @@ private fun ScanFab(
     onClick = if (enabled) onTap else null,
     enabled = enabled,
     haptic = false,
-    semanticsLabel = if (scanning) "停止扫描" else "扫描",
+    semanticsLabel = if (scanning) stringResource(R.string.scan_stop) else stringResource(R.string.scan_start),
     semanticsButton = true,
     shape = RoundedCornerShape(AppRadii.tile),
     background = when {
@@ -706,7 +708,7 @@ private fun ScanFab(
       )
       Spacer(Modifier.width(8.dp))
       Text(
-        text = if (scanning) "停止" else "扫描",
+        text = if (scanning) stringResource(R.string.scan_stop_short) else stringResource(R.string.scan_start),
         style = TextStyle(
           color = if (enabled) CyberHomeColors.white else CyberHomeColors.inkFaint,
           fontSize = 15.sp,

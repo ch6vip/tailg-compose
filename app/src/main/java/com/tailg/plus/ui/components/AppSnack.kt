@@ -27,6 +27,8 @@ import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppColorsLight
 import com.tailg.plus.ui.theme.AppRadii
 import kotlinx.coroutines.CoroutineScope
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 import kotlinx.coroutines.launch
 
 /**
@@ -112,30 +114,30 @@ object AppSnack {
   }
 
   /** Placeholder / not-yet-open feature entry (cloud-only product boundary). */
-  suspend fun featureUnavailable(hostState: SnackbarHostState, label: String) {
-    info(hostState, "${label}暂未开放，可先使用官方云端控车")
+  suspend fun featureUnavailable(hostState: SnackbarHostState, message: String) {
+    info(hostState, message)
   }
 
-  fun featureUnavailable(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
-    scope.launch { featureUnavailable(hostState, label) }
+  fun featureUnavailable(scope: CoroutineScope, hostState: SnackbarHostState, message: String) {
+    scope.launch { featureUnavailable(hostState, message) }
   }
 
   /** Out-of-scope feature (L3 / non-replica) — never implies official support. */
-  suspend fun outOfReplicaScope(hostState: SnackbarHostState, label: String) {
-    info(hostState, "${label}不在复刻范围内")
+  suspend fun outOfReplicaScope(hostState: SnackbarHostState, message: String) {
+    info(hostState, message)
   }
 
-  fun outOfReplicaScope(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
-    scope.launch { outOfReplicaScope(hostState, label) }
+  fun outOfReplicaScope(scope: CoroutineScope, hostState: SnackbarHostState, message: String) {
+    scope.launch { outOfReplicaScope(hostState, message) }
   }
 
   /** Short not-yet-open notice for legal/support entries without a cloud fallback. */
-  suspend fun notYetOpen(hostState: SnackbarHostState, label: String) {
-    info(hostState, "${label}暂未开放")
+  suspend fun notYetOpen(hostState: SnackbarHostState, message: String) {
+    info(hostState, message)
   }
 
-  fun notYetOpen(scope: CoroutineScope, hostState: SnackbarHostState, label: String) {
-    scope.launch { notYetOpen(hostState, label) }
+  fun notYetOpen(scope: CoroutineScope, hostState: SnackbarHostState, message: String) {
+    scope.launch { notYetOpen(hostState, message) }
   }
 
   private suspend fun show(

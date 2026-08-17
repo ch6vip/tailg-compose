@@ -9,6 +9,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * QR code image rendered with zxing-core (Dart used the `qr_flutter`
@@ -33,7 +35,7 @@ fun QrImage(
   }
   Image(
     bitmap = bitmap.asImageBitmap(),
-    contentDescription = "二维码",
+    contentDescription = stringResource(R.string.qr_image_label),
     modifier = modifier,
   )
 }

@@ -2,6 +2,8 @@ package com.tailg.plus.ui.components
 
 import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.cloud.OfficialCloudState
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/cloud_vehicle_gate.dart` — gate for vehicle-dependent
@@ -41,7 +43,7 @@ suspend fun requireCloudVehicle(
     return false
   }
 
-  snackbarInfo(message ?: "暂无车辆，请先同步官方车辆")
+  snackbarInfo(message ?: "暂无车辆,请先同步官方车辆")
   if (offerAddVehicle) {
     onNavigateAddVehicle() // Dart: unawaited(Navigator.push(AddVehiclePage()))
   }

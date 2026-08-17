@@ -58,6 +58,8 @@ import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.formatLogClockTime
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/log_page.dart` → `LogScreen.kt`.
@@ -102,16 +104,19 @@ fun LogScreen(
     log.changes.collectLatest { listGeneration++ }
   }
 
+
+  val strNoCopy = stringResource(R.string.log_no_copy)
+  val strCopiedFormat = stringResource(R.string.log_copied_format)
   val copyAll: () -> Unit = {
     scope.launch {
       val entries = log.all
       if (entries.isEmpty()) {
-        AppSnack.info(snackbarHostState, "当前没有可复制的日志")
+        AppSnack.info(snackbarHostState, strNoCopy)
         return@launch
       }
       val report = exportService.buildReport(entries)
       clipboard.writeClipboardText(report)
-      AppSnack.success(snackbarHostState, "已复制诊断报告（${entries.size} 条日志）")
+      AppSnack.success(snackbarHostState, strCopiedFormat.format(entries.size))
     }
   }
 
@@ -121,8 +126,8 @@ fun LogScreen(
     AlertDialog(
       onDismissRequest = { showClearDialog = false },
       containerColor = CyberHomeColors.card,
-      title = { Text("清空日志") },
-      text = { Text("清空后无法恢复。") },
+      title = { Text(stringResource(R.string.log_clear_title)) },
+      text = { Text(stringResource(R.string.log_clear_confirm)) },
       confirmButton = {
         Button(
           onClick = {
@@ -134,10 +139,10 @@ fun LogScreen(
             containerColor = CyberHomeColors.danger,
             contentColor = CyberHomeColors.white,
           ),
-        ) { Text("清空") }
+        ) { Text(stringResource(R.string.log_clear)) }
       },
       dismissButton = {
-        TextButton(onClick = { showClearDialog = false }) { Text("取消") }
+        TextButton(onClick = { showClearDialog = false }) { Text(stringResource(R.string.common_cancel)) }
       },
     )
   }
@@ -151,12 +156,12 @@ fun LogScreen(
         .padding(padding),
     ) {
       CyberPageHeader(
-        title = "日志",
+        title = stringResource(R.string.log_title),
         onBack = onBack,
         actions = {
-          CyberHeaderAction(icon = Lucide.copy, label = "复制全部", onTap = copyAll)
-          CyberHeaderAction(icon = Lucide.refresh, label = "刷新", onTap = { listGeneration++ })
-          CyberHeaderAction(icon = Lucide.trash, label = "清空", onTap = confirmClear)
+          CyberHeaderAction(icon = Lucide.copy, label = stringResource(R.string.log_copy_all), onTap = copyAll)
+          CyberHeaderAction(icon = Lucide.refresh, label = stringResource(R.string.common_refresh), onTap = { listGeneration++ })
+          CyberHeaderAction(icon = Lucide.trash, label = stringResource(R.string.log_clear), onTap = confirmClear)
         },
       )
       val entries = log.all
@@ -167,8 +172,8 @@ fun LogScreen(
         ) {
           CyberEmptyState(
             icon = Lucide.receipt,
-            title = "暂无日志",
-            subtitle = "云端控车与诊断操作的运行日志会显示在这里。",
+            title = stringResource(R.string.log_empty),
+            subtitle = stringResource(R.string.log_empty_hint),
           )
         }
       } else {

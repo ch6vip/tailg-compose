@@ -33,14 +33,16 @@ import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/add_vehicle_page.dart` — the "add vehicle" hub.
  *
  * Three entry points mirror the Dart page:
- * - "我的车辆" → official cloud vehicles page ([onOpenOfficialVehicles])
- * - "IMEI 绑车" → [onOpenImeiBind]
- * - "扫描附近车辆" → BLE scan page ([onOpenBleScan])
+ * - stringResource(R.string.add_vehicle_my) → official cloud vehicles page ([onOpenOfficialVehicles])
+ * - stringResource(R.string.add_vehicle_imei) → [onOpenImeiBind]
+ * - stringResource(R.string.add_vehicle_scan) → BLE scan page ([onOpenBleScan])
  *
  * The Dart page navigates via `Navigator.push` / `openScanTab`; the Compose
  * port exposes plain callbacks so the host can wire navigation.
@@ -64,34 +66,34 @@ fun AddVehicleScreen(
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp),
     ) {
-      CyberPageHeader(title = "添加车辆", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.add_vehicle_title), onBack = onBack)
       Spacer(Modifier.height(10.dp))
       AddVehicleHero()
       Spacer(Modifier.height(18.dp))
-      AddVehicleSectionLabel("已有车辆")
+      AddVehicleSectionLabel(stringResource(R.string.add_vehicle_existing))
       Spacer(Modifier.height(8.dp))
       AddVehicleAction(
         icon = Lucide.cloud,
-        title = "我的车辆",
-        subtitle = "登录官方账号后同步账号下已绑定车辆",
+        title = stringResource(R.string.add_vehicle_my),
+        subtitle = stringResource(R.string.add_vehicle_sync_desc),
         onTap = onOpenOfficialVehicles,
       )
       Spacer(Modifier.height(18.dp))
-      AddVehicleSectionLabel("绑定新车")
+      AddVehicleSectionLabel(stringResource(R.string.add_vehicle_bind_new))
       Spacer(Modifier.height(8.dp))
       AddVehicleAction(
         icon = Lucide.pin,
-        title = "IMEI 绑车",
-        subtitle = "手写/粘贴坐垫二维码中的设备 IMEI（官方 bikeBind）",
+        title = stringResource(R.string.add_vehicle_imei),
+        subtitle = stringResource(R.string.add_vehicle_imei_desc),
         onTap = onOpenImeiBind,
       )
       Spacer(Modifier.height(18.dp))
-      AddVehicleSectionLabel("蓝牙车辆")
+      AddVehicleSectionLabel(stringResource(R.string.add_vehicle_ble))
       Spacer(Modifier.height(8.dp))
       AddVehicleAction(
         icon = Lucide.bluetoothSearching,
-        title = "扫描附近车辆",
-        subtitle = "通过蓝牙扫描并连接本地车辆",
+        title = stringResource(R.string.add_vehicle_scan),
+        subtitle = stringResource(R.string.add_vehicle_scan_desc),
         onTap = onOpenBleScan,
       )
       Spacer(Modifier.height(14.dp))
@@ -104,7 +106,7 @@ fun AddVehicleScreen(
           .padding(16.dp),
       ) {
         Text(
-          text = "支持官方云端同步、IMEI 绑定与本地蓝牙直连。蓝牙连接成功后会绑定为默认本地车辆，控车优先走 BLE。",
+          text = stringResource(R.string.add_vehicle_support_desc),
           style = TextStyle(
             fontSize = 13.sp,
             lineHeight = 13.sp * 1.45f,
@@ -140,14 +142,14 @@ private fun AddVehicleHero() {
     Spacer(Modifier.size(14.dp))
     Column {
       Text(
-        text = "同步你的台铃车辆",
+        text = stringResource(R.string.add_vehicle_sync_your),
         style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
       )
       Spacer(Modifier.height(4.dp))
       Text(
-        text = "登录官方账号后，可使用控车、定位、轨迹、电池和车辆服务。",
+        text = stringResource(R.string.add_vehicle_login_desc),
         style = TextStyle(
           fontSize = 13.sp,
           lineHeight = 13.sp * 1.45f,

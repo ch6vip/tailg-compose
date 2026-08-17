@@ -40,6 +40,8 @@ import com.tailg.plus.data.model.ControlCommandActivity
 import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/cyber_recent_commands.dart` — recent control-command
@@ -88,7 +90,7 @@ fun CyberRecentCommands(
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
-        text = "最近命令",
+        text = stringResource(R.string.recent_commands_title),
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 14.sp,
           fontWeight = FontWeight.W600,
@@ -97,13 +99,13 @@ fun CyberRecentCommands(
       )
       Spacer(Modifier.weight(1f))
       Text(
-        text = if (commands.isEmpty()) "暂无" else "${commands.size} 条",
+        text = if (commands.isEmpty()) stringResource(R.string.recent_commands_empty) else stringResource(R.string.recent_commands_count_format, commands.size),
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
     }
     if (commands.isEmpty()) {
       Text(
-        text = "发送控车指令后会显示在这里",
+        text = stringResource(R.string.recent_commands_empty_hint),
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
         modifier = Modifier.padding(vertical = 12.dp),
       )
@@ -177,7 +179,7 @@ private fun CmdRow(entry: ControlCommandActivity) {
       )
     }
     Text(
-      text = "刚刚",
+      text = stringResource(R.string.recent_commands_just_now),
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
     )
   }

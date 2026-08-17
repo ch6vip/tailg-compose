@@ -45,6 +45,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.formatMonthDayMinuteText
 import kotlinx.coroutines.flow.first
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 private val Context.diagnosticDataStore by preferencesDataStore(name = "diagnostic_history")
 private val DIAGNOSTIC_HISTORY_KEY = stringSetPreferencesKey("diagnostic_history_entries")
@@ -67,9 +69,10 @@ fun DiagnosticScreen(
   val context = LocalContext.current
   val log = remember { LogService() }
   var history by remember { mutableStateOf<List<DiagnosticRecord>>(emptyList()) }
+  val strDiagLoadFailed = stringResource(R.string.diag_load_failed)
 
   LaunchedEffect(Unit) {
-    history = loadHistory(context, log)
+    history = loadHistory(context, log, strDiagLoadFailed)
   }
 
   Scaffold(
@@ -80,7 +83,7 @@ fun DiagnosticScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "故障诊断", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.diag_title), onBack = onBack)
 
       // Info banner: real-time diagnosis unavailable, history only.
       Row(
@@ -96,7 +99,7 @@ fun DiagnosticScreen(
         LucideIcon(icon = Lucide.info, color = CyberHomeColors.primary, size = 20.dp)
         Spacer(Modifier.width(10.dp))
         Text(
-          text = "实时故障诊断暂不可用，当前仅显示历史记录",
+          text = stringResource(R.string.diag_unavailable_hint),
           style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
           modifier = Modifier.weight(1f),
         )
@@ -115,12 +118,12 @@ fun DiagnosticScreen(
             )
             Spacer(Modifier.height(10.dp))
             Text(
-              text = "暂无诊断记录",
+              text = stringResource(R.string.diag_no_records),
               style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             )
             Spacer(Modifier.height(4.dp))
             Text(
-              text = "历史诊断记录将在此显示",
+              text = stringResource(R.string.diag_no_records_hint),
               style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
             )
           }
@@ -161,7 +164,7 @@ private fun DiagnosticRecordCard(record: DiagnosticRecord) {
     Spacer(Modifier.width(8.dp))
     Column(modifier = Modifier.weight(1f)) {
       Text(
-        text = if (hasFaults) "发现 ${record.faults.size} 个故障" else "车辆状态正常",
+        text = if (hasFaults) stringResource(R.string.diag_faults_format, record.faults.size) else stringResource(R.string.diag_normal),
         style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = statusColor),
       )
       if (hasFaults) {
@@ -187,13 +190,13 @@ data class DiagnosticRecord(
 )
 
 /** Load persisted diagnostic history from DataStore. */
-private suspend fun loadHistory(context: Context, log: LogService): List<DiagnosticRecord> {
+private suspend fun loadHistory(context: Context, log: LogService, strLoadFailed: String): List<DiagnosticRecord> {
   return try {
     val raw = context.diagnosticDataStore.data.first()[DIAGNOSTIC_HISTORY_KEY] ?: emptySet()
     raw.mapNotNull { parseRecord(it) }
       .sortedByDescending { it.time }
   } catch (e: Exception) {
-    log.operation("加载诊断历史失败", detail = e.toString(), level = LogLevel.WARNING)
+    log.operation(strLoadFailed, detail = e.toString(), level = LogLevel.WARNING)
     emptyList()
   }
 }

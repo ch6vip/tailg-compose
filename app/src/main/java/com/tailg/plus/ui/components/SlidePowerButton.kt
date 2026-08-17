@@ -48,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 import kotlinx.coroutines.launch
 
 /**
@@ -168,12 +170,12 @@ fun SlidePowerButton(
   }
 
   val label = when {
-    awaitingResult -> if (commandOriginPowered == true) "正在断电" else "正在通电"
-    busy -> "指令执行中"
-    isPowered == null -> "车辆状态未知"
-    !enabled -> "控车不可用"
-    isPowered == true -> "左滑关闭"
-    else -> "右滑启动"
+    awaitingResult -> if (commandOriginPowered == true) stringResource(R.string.slide_power_offing) else stringResource(R.string.slide_power_oning)
+    busy -> stringResource(R.string.slide_power_busy)
+    isPowered == null -> stringResource(R.string.slide_power_unknown)
+    !enabled -> stringResource(R.string.slide_power_unavailable)
+    isPowered == true -> stringResource(R.string.slide_power_slide_off)
+    else -> stringResource(R.string.slide_power_slide_on)
   }
 
   val opacity by animateFloatAsState(

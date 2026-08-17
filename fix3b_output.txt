@@ -1,0 +1,11 @@
+ReplaceBatteryScreen(carId): replaced 1
+ReplaceBatteryScreen(submit): replaced 1
+ReplaceBatteryScreen(date): replaced 1
+ReplaceBatteryScreen(current): replaced 1
+RideStatsScreen(desc1): replaced 1
+RideStatsScreen(desc2): replaced 1
+RideStatsScreen(desc3): replaced 1
+RideStatsScreen(no_vehicle): replaced 1
+RideStatsScreen(carbon): replaced 1
+RideStatsScreen(tree): replaced 1
+DONE

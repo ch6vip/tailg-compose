@@ -1,0 +1,7 @@
+OK: notif_save_failed
+OK: imei_desc
+OK: support_desc
+OK: login_desc
+NotificationPrefsScreen remaining: 0
+AddVehicleScreen remaining: 0
+DONE

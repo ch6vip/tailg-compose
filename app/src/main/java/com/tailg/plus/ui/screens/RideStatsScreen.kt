@@ -59,11 +59,14 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.navigation.Routes
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
-private const val RIDE_NOTICE =
-  "为剔除车辆静止时的卫星信号飘移、短距离骑行、原地推车或短暂挪动等无效干扰，" +
-    "系统设定单次持续移动距离小于50米时，不纳入总里程累计。" +
-    "这确保您仪表盘上的每一公里，都真实反映您的实际骑行足迹。"
+@Composable
+private fun rideNotice(): String =
+  stringResource(R.string.ride_stats_desc_1) +
+    stringResource(R.string.ride_stats_desc_2) +
+    stringResource(R.string.ride_stats_desc_3)
 
 /**
  * Port of `lib/pages/ride_stats_page.dart` — ride statistics with period
@@ -90,6 +93,12 @@ fun RideStatsScreen(
   var error by remember { mutableStateOf<String?>(null) }
   var gate by remember { mutableStateOf(RideStatsGate.READY) }
   var showInfoSheet by remember { mutableStateOf<InfoSheetContent?>(null) }
+  val strRideNotice = rideNotice()
+  val strHelp = stringResource(R.string.ride_stats_help)
+  val strCarbonHelp = stringResource(R.string.ride_stats_carbon_help)
+  val strCarbonDesc = stringResource(R.string.ride_stats_carbon_desc)
+  val strTreeHelp = stringResource(R.string.ride_stats_tree_help)
+  val strTreeDesc = stringResource(R.string.ride_stats_tree_desc)
 
   // Initial load.
   LaunchedEffect(Unit) {
@@ -119,18 +128,18 @@ fun RideStatsScreen(
     ) {
       RideStatsHeader(
         onBack = onBack,
-        onHelp = { showInfoSheet = InfoSheetContent("轨迹记录、统计说明", RIDE_NOTICE) },
+        onHelp = { showInfoSheet = InfoSheetContent(strHelp, strRideNotice) },
       )
       Box(modifier = Modifier.fillMaxSize()) {
         when {
           gate == RideStatsGate.NEED_LOGIN -> GateState(
-            title = "请先登录官方账号",
-            actionLabel = "去登录",
+            title = stringResource(R.string.ride_stats_login_required),
+            actionLabel = stringResource(R.string.ride_stats_login_action),
             onAction = { onNavigate(Routes.LOGIN) },
           )
           gate == RideStatsGate.NEED_VEHICLE -> GateState(
-            title = "暂无车辆，请先同步官方车辆",
-            actionLabel = "添加车辆",
+            title = stringResource(R.string.ride_stats_no_vehicle),
+            actionLabel = stringResource(R.string.ride_stats_add_vehicle),
             onAction = { onNavigate(Routes.ADD_VEHICLE) },
           )
           error != null && statistics == null -> ErrorState(
@@ -158,10 +167,10 @@ fun RideStatsScreen(
                 period = period,
                 statistics = statistics,
                 onCarbonHelp = {
-                  showInfoSheet = InfoSheetContent("节碳量说明", "每行驶1公里，相当于\n减排二氧化碳0.171kg")
+                  showInfoSheet = InfoSheetContent(strCarbonHelp, strCarbonDesc)
                 },
                 onTreeHelp = {
-                  showInfoSheet = InfoSheetContent("树木吸碳说明", "每棵树平均每天吸收\n二氧化碳5.023kg")
+                  showInfoSheet = InfoSheetContent(strTreeHelp, strTreeDesc)
                 },
               )
               Column(
@@ -282,7 +291,7 @@ private fun RideStatsHeader(
     Box(modifier = Modifier.width(92.dp)) {
       AppPressable(
         onClick = onBack,
-        semanticsLabel = "返回",
+        semanticsLabel = stringResource(R.string.common_back),
       ) {
         Box(
           modifier = Modifier.size(AppTouchTargets.min),
@@ -293,7 +302,7 @@ private fun RideStatsHeader(
       }
     }
     Text(
-      text = "骑行统计",
+      text = stringResource(R.string.ride_stats_title),
       modifier = Modifier.weight(1f),
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
@@ -302,7 +311,7 @@ private fun RideStatsHeader(
     )
     AppPressable(
       onClick = onHelp,
-      semanticsLabel = "查看统计说明",
+      semanticsLabel = stringResource(R.string.ride_stats_view_help),
       modifier = Modifier.width(92.dp),
     ) {
       Box(
@@ -312,7 +321,7 @@ private fun RideStatsHeader(
         contentAlignment = Alignment.CenterEnd,
       ) {
         Text(
-          text = "统计说明",
+          text = stringResource(R.string.ride_stats_help),
           maxLines = 1,
           style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.primary),
         )
@@ -343,18 +352,18 @@ private fun EnvironmentalSummary(
       unit = "kg",
       icon = Lucide.leaf,
       accent = CyberHomeColors.success,
-      tooltip = "节碳量说明",
+      tooltip = stringResource(R.string.ride_stats_carbon_help),
       onHelp = onCarbonHelp,
     )
     Spacer(Modifier.width(12.dp))
     EcoMetric(
       modifier = Modifier.weight(1f),
-      title = "树木吸碳",
+      title = stringResource(R.string.ride_stats_tree),
       value = OfficialRideStatistics.displayValue(statistics?.carbonAbsorption ?: ""),
-      unit = "棵",
+      unit = stringResource(R.string.ride_stats_tree_unit),
       icon = Lucide.activity,
       accent = CyberHomeColors.warning,
-      tooltip = "树木吸碳说明",
+      tooltip = stringResource(R.string.ride_stats_tree_help),
       onHelp = onTreeHelp,
     )
   }
@@ -425,7 +434,7 @@ private fun PeriodSelector(
     OfficialRidePeriod.values().forEach { period ->
       AppPressable(
         onClick = { onSelected(period) },
-        semanticsLabel = "按${period.tabLabel}查看骑行统计",
+        semanticsLabel = stringResource(R.string.ride_stats_tab_format, period.tabLabel),
         modifier = Modifier.weight(1f),
       ) {
         Box(
@@ -454,7 +463,7 @@ private fun PeriodSelector(
 @Composable
 private fun MileageNotice() {
   Text(
-    text = "* $RIDE_NOTICE",
+    text = "* ${rideNotice()}",
     style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint, lineHeight = 12.sp * 1.45f),
   )
 }
@@ -488,7 +497,7 @@ private fun MileageSummary(
     )
     MileageValue(
       modifier = Modifier.weight(1f),
-      label = "累计里程",
+      label = stringResource(R.string.ride_stats_total_distance),
       value = OfficialRideStatistics.formatMileageKm(statistics?.totalMileage ?: ""),
     )
   }
@@ -534,7 +543,7 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
     Row {
       MetricCell(
         modifier = Modifier.weight(1f),
-        label = "最快时速",
+        label = stringResource(R.string.ride_stats_max_speed),
         value = value(statistics?.maxSpeed),
         unit = "km/h",
         icon = Lucide.gauge,
@@ -548,9 +557,9 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
       )
       MetricCell(
         modifier = Modifier.weight(1f),
-        label = "总时长",
+        label = stringResource(R.string.ride_stats_total_duration),
         value = value(statistics?.ridingTime),
-        unit = "分钟",
+        unit = stringResource(R.string.ride_stats_minutes),
         icon = Lucide.history,
         accent = CyberHomeColors.warning,
       )
@@ -564,9 +573,9 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
     Row {
       MetricCell(
         modifier = Modifier.weight(1f),
-        label = "骑行次数",
+        label = stringResource(R.string.ride_stats_total_trips),
         value = value(statistics?.ridingCount),
-        unit = "次",
+        unit = stringResource(R.string.ride_stats_trip_unit),
         icon = Lucide.route,
         accent = CyberHomeColors.rideAccent,
       )
@@ -578,7 +587,7 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
       )
       MetricCell(
         modifier = Modifier.weight(1f),
-        label = "平均时速",
+        label = stringResource(R.string.ride_stats_avg_speed),
         value = value(statistics?.avgSpeed),
         unit = "km/h",
         icon = Lucide.activity,
@@ -677,7 +686,7 @@ private fun ErrorState(
       )
       Spacer(Modifier.height(12.dp))
       TextButton(onClick = onRetry) {
-        Text("重试", color = CyberHomeColors.primary)
+        Text(stringResource(R.string.ride_stats_retry), color = CyberHomeColors.primary)
       }
     }
   }
@@ -709,7 +718,7 @@ private fun InfoSheet(
       )
       AppPressable(
         onClick = onDismiss,
-        semanticsLabel = "关闭",
+        semanticsLabel = stringResource(R.string.ride_stats_close),
       ) {
         LucideIcon(icon = Lucide.x, size = 20.dp, color = CyberHomeColors.inkMuted)
       }

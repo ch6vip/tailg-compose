@@ -48,6 +48,8 @@ import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/notification_prefs_page.dart` — official-cloud message
@@ -78,6 +80,9 @@ fun NotificationPrefsScreen(
   var loading by remember { mutableStateOf(true) }
   var saving by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
+  val strLoadFailed = stringResource(R.string.notif_load_failed)
+  val strSaved = stringResource(R.string.notif_saved)
+  val strSaveFailed = stringResource(R.string.notif_save_failed)
 
   // Dart `initState` → `unawaited(_load())`.
   LaunchedEffect(cloudService) {
@@ -86,7 +91,7 @@ fun NotificationPrefsScreen(
     try {
       config = cloudService.getMessageControl()
     } catch (e: Exception) {
-      error = "加载失败"
+      error = strLoadFailed
     } finally {
       loading = false
     }
@@ -101,15 +106,15 @@ fun NotificationPrefsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "通知偏好", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.notif_title), onBack = onBack)
       Box(modifier = Modifier.fillMaxSize()) {
         when {
           loading -> LoadingState()
           error != null -> NotificationState(
             icon = Lucide.wifiOff,
-            title = "通知偏好加载失败",
+            title = stringResource(R.string.notif_load_failed_title),
             subtitle = error!!,
-            actionLabel = "重试",
+            actionLabel = stringResource(R.string.notif_retry),
             onAction = {
               scope.launch {
                 loading = true
@@ -117,7 +122,7 @@ fun NotificationPrefsScreen(
                 try {
                   config = cloudService.getMessageControl()
                 } catch (e: Exception) {
-                  error = "加载失败"
+                  error = strLoadFailed
                 } finally {
                   loading = false
                 }
@@ -126,8 +131,8 @@ fun NotificationPrefsScreen(
           )
           config.isEmpty() -> NotificationState(
             icon = Lucide.message,
-            title = "暂无可配置项",
-            subtitle = "当前账号没有可同步的消息开关",
+            title = stringResource(R.string.notif_no_items),
+            subtitle = stringResource(R.string.notif_no_items_desc),
           )
           else -> NotificationList(
             entries = config.entries.toList(),
@@ -140,9 +145,9 @@ fun NotificationPrefsScreen(
                 saving = true
                 try {
                   cloudService.setMessagePushConfig(config)
-                  AppSnack.success(snackbarHostState, "通知偏好已保存")
+                  AppSnack.success(snackbarHostState, strSaved)
                 } catch (e: Exception) {
-                  AppSnack.error(snackbarHostState, "保存失败，请重试")
+                  AppSnack.error(snackbarHostState, strSaveFailed)
                 } finally {
                   saving = false
                 }
@@ -175,7 +180,7 @@ private fun NotificationList(
     ) {
       item {
         Text(
-          text = "消息推送",
+          text = stringResource(R.string.notif_push),
           modifier = Modifier.padding(start = 2.dp, bottom = 9.dp),
           style = TextStyle(
             fontSize = 12.sp,
@@ -377,7 +382,7 @@ private fun SaveBar(saving: Boolean, onSave: () -> Unit) {
           LucideIcon(icon = Lucide.check, size = 18.dp, color = CyberHomeColors.white)
           Spacer(Modifier.width(8.dp))
           Text(
-            text = "保存设置",
+            text = stringResource(R.string.notif_save),
             style = TextStyle(
               fontSize = 15.sp,
               fontWeight = FontWeight.W700,
@@ -391,13 +396,14 @@ private fun SaveBar(saving: Boolean, onSave: () -> Unit) {
 }
 
 /** Dart `_labelFor` — friendly Chinese label per config key. */
+@Composable
 private fun labelFor(key: String): String = when (key) {
-  "carMsg" -> "车辆消息通知"
-  "sysMsg" -> "系统消息通知"
-  "alarm" -> "报警通知"
-  "fence" -> "围栏通知"
-  "lowBattery" -> "低电量提醒"
-  "maintenance" -> "保养提醒"
+  "carMsg" -> stringResource(R.string.notif_vehicle_msg)
+  "sysMsg" -> stringResource(R.string.notif_system_msg)
+  "alarm" -> stringResource(R.string.notif_alarm)
+  "fence" -> stringResource(R.string.notif_fence)
+  "lowBattery" -> stringResource(R.string.notif_low_battery)
+  "maintenance" -> stringResource(R.string.notif_maintenance)
   else -> key
 }
 

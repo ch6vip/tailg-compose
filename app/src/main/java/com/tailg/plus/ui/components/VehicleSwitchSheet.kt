@@ -35,6 +35,8 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.ui.theme.AppColors
 import com.tailg.plus.ui.theme.AppColorsDark
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 import kotlinx.coroutines.launch
 
 /**
@@ -85,7 +87,7 @@ fun VehicleSwitchSheet(
       )
       Spacer(Modifier.height(16.dp))
       Text(
-        text = "切换车辆",
+        text = stringResource(R.string.vehicle_switch_title),
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 16.sp,
           fontWeight = FontWeight.W600,
@@ -165,8 +167,11 @@ private fun VehicleTile(
   }
 }
 
+@Composable
 private fun subtitle(vehicle: OfficialVehicle): String {
-  val parts = mutableListOf(if (vehicle.online) "在线" else "离线")
+  val strOnline = stringResource(R.string.vehicle_switch_online)
+  val strOffline = stringResource(R.string.vehicle_switch_offline)
+  val parts = mutableListOf(if (vehicle.online) strOnline else strOffline)
   val battery = vehicle.electricQuantity
   if (battery != null && battery > 0) {
     parts += "$battery%"

@@ -88,6 +88,8 @@ import com.tailg.plus.util.formatDecimalDown
 import com.tailg.plus.util.ClipboardText
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 private enum class LocationTab { MAP, TRAVEL, FENCE }
 
@@ -120,6 +122,26 @@ fun LocationScreen(
   var localLoading by remember { mutableStateOf(false) }
   var localError by remember { mutableStateOf<String?>(null) }
 
+  val strLocationRefreshFailed = stringResource(R.string.location_refresh_failed)
+  val strSyncData = stringResource(R.string.location_sync_data)
+  val strDataSynced = stringResource(R.string.location_data_synced)
+  val strSyncedNoCoords = stringResource(R.string.location_synced_no_coords)
+  val strSyncTravel = stringResource(R.string.location_sync_travel)
+  val strSyncedNoTravel = stringResource(R.string.location_synced_no_travel)
+  val strTravelSyncedFormat = stringResource(R.string.location_travel_synced_format)
+  val strTravelRefreshFailed = stringResource(R.string.location_travel_refresh_failed)
+  val strSyncFence = stringResource(R.string.location_sync_fence)
+  val strFenceSyncedFormat = stringResource(R.string.location_fence_synced_format)
+  val strSyncedNoFence = stringResource(R.string.location_synced_no_fence)
+  val strFenceRefreshFailed = stringResource(R.string.location_fence_refresh_failed)
+  val strCoordsCopied = stringResource(R.string.location_coordinates_copied)
+  val strLocationTitle = stringResource(R.string.location_title)
+  val strNoMapApp = stringResource(R.string.location_no_map_app)
+  val strReadTravel = stringResource(R.string.location_read_travel)
+  val strTravelMissingId = stringResource(R.string.location_travel_missing_id)
+  val strTravelLoadedFormat = stringResource(R.string.location_travel_loaded_format)
+  val strTravelNoPoints = stringResource(R.string.location_travel_no_points)
+  val strTravelDetailFailed = stringResource(R.string.location_travel_detail_failed)
   val localVehicle = vehicleStore.defaultVehicle
   val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
   val location = remember(cloudState, localVehicle) {
@@ -129,9 +151,9 @@ fun LocationScreen(
     cloudState.travelLoading || cloudState.fenceLoading
 
   val title = when (tabIndex) {
-    LocationTab.MAP -> "地图/轨迹/围栏"
-    LocationTab.TRAVEL -> "历史轨迹"
-    LocationTab.FENCE -> "电子围栏"
+    LocationTab.MAP -> stringResource(R.string.location_tab_map)
+    LocationTab.TRAVEL -> stringResource(R.string.location_travel_title)
+    LocationTab.FENCE -> stringResource(R.string.location_fence_title)
   }
 
   LaunchedEffect(Unit) {
@@ -142,7 +164,7 @@ fun LocationScreen(
         cloudService.refreshFenceData(silent = true)
         cloudService.refreshTravelHistory(silent = true)
       } catch (e: Exception) {
-        log.operation("官云地图数据刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strLocationRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
       }
     }
   }
@@ -150,7 +172,7 @@ fun LocationScreen(
   fun refreshOfficial(silent: Boolean = false) {
     if (!cloudService.currentState.signedIn) {
       if (!silent) {
-        scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore("同步位置数据")) }
+        scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore(strSyncData)) }
       }
       return
     }
@@ -162,10 +184,10 @@ fun LocationScreen(
         cloudService.refreshTravelHistory(silent = silent)
         if (!silent) {
           val hasLocation = resolveVehicleLocation(cloudState = cloudService.currentState, localVehicle = localVehicle) != null
-          AppSnack.info(snackbarHostState, if (hasLocation) "位置数据已同步" else "已同步，当前暂无停车坐标")
+          AppSnack.info(snackbarHostState, if (hasLocation) strDataSynced else strSyncedNoCoords)
         }
       } catch (e: Exception) {
-        log.operation("官云地图数据刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strLocationRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         if (!silent) {
           val message = OfficialCloudRedactor.errorMessage(e)
           localError = message
@@ -177,7 +199,7 @@ fun LocationScreen(
 
   fun refreshTravelHistory(month: String? = null) {
     if (!cloudService.currentState.signedIn) {
-      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore("同步轨迹")) }
+      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore(strSyncTravel)) }
       return
     }
     scope.launch {
@@ -185,9 +207,9 @@ fun LocationScreen(
         cloudService.refreshTravelHistory(month = month, force = true)
         val days = cloudService.currentState.travelDays
         val count = days.sumOf { it.records.size }
-        AppSnack.info(snackbarHostState, if (count == 0) "已同步，本月暂无轨迹记录" else "轨迹已同步 · ${count}条")
+        AppSnack.info(snackbarHostState, if (count == 0) strSyncedNoTravel else strTravelSyncedFormat.format(count))
       } catch (e: Exception) {
-        log.operation("官云行程历史刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strTravelRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -201,7 +223,7 @@ fun LocationScreen(
 
   fun refreshFenceData() {
     if (!cloudService.currentState.signedIn) {
-      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore("同步围栏")) }
+      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore(strSyncFence)) }
       return
     }
     scope.launch {
@@ -209,12 +231,12 @@ fun LocationScreen(
         cloudService.refreshFenceData(force = true)
         val fence = cloudService.currentState.fenceData
         if (fence?.hasData == true) {
-          AppSnack.info(snackbarHostState, "围栏配置已同步 · ${fence.statusLabel} · ${fence.radiusLabel}")
+          AppSnack.info(snackbarHostState, strFenceSyncedFormat.format(fence.statusLabel, fence.radiusLabel))
         } else {
-          AppSnack.info(snackbarHostState, "已同步，当前暂无围栏配置")
+          AppSnack.info(snackbarHostState, strSyncedNoFence)
         }
       } catch (e: Exception) {
-        log.operation("官云电子围栏刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strFenceRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -229,31 +251,31 @@ fun LocationScreen(
 
   fun copyLocation(loc: ResolvedVehicleLocation) {
     clipboard.writeClipboardText(loc.coordinateText)
-    scope.launch { AppSnack.info(snackbarHostState, "坐标已复制") }
+    scope.launch { AppSnack.info(snackbarHostState, strCoordsCopied) }
   }
 
   fun openMap(loc: ResolvedVehicleLocation) {
     val lat = loc.latitude ?: return
     val lng = loc.longitude ?: return
-    val label = android.net.Uri.encode(loc.address.ifEmpty { "车辆位置" })
+    val label = android.net.Uri.encode(loc.address.ifEmpty { strLocationTitle })
     val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng($label)")
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
     try {
       ctx.startActivity(intent)
     } catch (e: android.content.ActivityNotFoundException) {
       clipboard.writeClipboardText(googleMapsSearchUri(lat, lng).toString())
-      scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用，坐标链接已复制") }
+      scope.launch { AppSnack.info(snackbarHostState, strNoMapApp) }
     }
   }
 
   fun loadTravelDetail(record: OfficialTravelRecord) {
     if (!cloudService.currentState.signedIn) {
-      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore("读取轨迹")) }
+      scope.launch { AppSnack.error(snackbarHostState, OfficialCloudMessages.signInRequiredBefore(strReadTravel)) }
       return
     }
     val travelId = record.deviceTravelId.trim()
     if (travelId.isEmpty()) {
-      scope.launch { AppSnack.info(snackbarHostState, "该记录缺少轨迹ID，暂无法读取") }
+      scope.launch { AppSnack.info(snackbarHostState, strTravelMissingId) }
       return
     }
     scope.launch {
@@ -261,12 +283,12 @@ fun LocationScreen(
         cloudService.refreshTravelDetail(travelId)
         val points = cloudService.currentState.travelDetails[travelId]?.size ?: 0
         if (points >= 2) {
-          AppSnack.success(snackbarHostState, "轨迹已加载 · ${points}个点")
+          AppSnack.success(snackbarHostState, strTravelLoadedFormat.format(points))
         } else {
-          AppSnack.info(snackbarHostState, "该记录暂无轨迹点")
+          AppSnack.info(snackbarHostState, strTravelNoPoints)
         }
       } catch (e: Exception) {
-        log.operation("官方轨迹详情加载失败", detail = e.toString(), level = LogLevel.WARNING)
+        log.operation(strTravelDetailFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
@@ -342,7 +364,7 @@ private fun LocationHeader(
         background = CyberHomeColors.card,
         shadowElevation = 4.dp,
         shadowColor = CyberHomeColors.actionShadow,
-        semanticsLabel = "返回",
+        semanticsLabel = stringResource(R.string.common_back),
       ) {
         Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
           LucideIcon(icon = Lucide.arrowLeft, size = 20.dp, color = CyberHomeColors.inkSecondary)
@@ -361,7 +383,7 @@ private fun LocationHeader(
       onClick = { if (!loading) onRefresh() },
       enabled = !loading,
       shape = CircleShape,
-      semanticsLabel = "刷新地图数据",
+      semanticsLabel = stringResource(R.string.location_refresh),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         if (loading) {
@@ -376,7 +398,7 @@ private fun LocationHeader(
 
 @Composable
 private fun LocationSegmentedTabs(index: Int, onChanged: (Int) -> Unit) {
-  val tabs = listOf(Triple(Lucide.mapPin, "位置", 0), Triple(Lucide.route, "轨迹", 1), Triple(Lucide.radar, "围栏", 2))
+  val tabs = listOf(Triple(Lucide.mapPin, stringResource(R.string.location_tab_label_position), 0), Triple(Lucide.route, stringResource(R.string.location_tab_label_travel), 1), Triple(Lucide.radar, stringResource(R.string.location_tab_label_fence), 2))
   Row(
     modifier = Modifier
       .padding(start = 20.dp, top = 14.dp, end = 20.dp)
@@ -449,7 +471,7 @@ private fun MapTab(
     }
     item { Spacer(Modifier.height(14.dp)) }
     item {
-      ReadOnlyNotice(title = "车辆位置服务", subtitle = "优先显示官方停车位置；无坐标时显示\"暂无位置\"。可点刷新重新同步。")
+      ReadOnlyNotice(title = stringResource(R.string.location_service), subtitle = stringResource(R.string.location_service_desc) + stringResource(R.string.location_refresh_hint))
     }
   }
 }
@@ -494,7 +516,7 @@ private fun MiniMapPlaceholder(location: ResolvedVehicleLocation?, fence: Offici
       LucideIcon(icon = Lucide.mapPin, size = 13.dp, color = CyberHomeColors.primary)
       Spacer(Modifier.width(5.dp))
       Text(
-        text = location?.address?.ifEmpty { null } ?: location?.coordinateText ?: "暂无位置信息",
+        text = location?.address?.ifEmpty { null } ?: location?.coordinateText ?: stringResource(R.string.location_no_data),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
@@ -514,9 +536,9 @@ private fun LocationDetailCard(
   onCopy: (() -> Unit)?,
   onOpenMap: (() -> Unit)?,
 ) {
-  val title = vehicleName ?: "未绑定车辆"
+  val title = vehicleName ?: stringResource(R.string.location_no_vehicle)
   val addressText = if (location == null) {
-    if (signedIn) "暂无停车位置，可下拉或点刷新同步" else "登录官方账号后同步停车位置"
+    if (signedIn) stringResource(R.string.location_no_parking) else stringResource(R.string.location_login_required)
   } else {
     location.address.ifEmpty { location.coordinateText }
   }
@@ -562,17 +584,17 @@ private fun LocationDetailCard(
     if (location != null) {
       Spacer(Modifier.height(16.dp))
       Row {
-        LocationMetaBox(value = location.source, label = "定位来源", modifier = Modifier.weight(1f))
+        LocationMetaBox(value = location.source, label = stringResource(R.string.location_source), modifier = Modifier.weight(1f))
         Spacer(Modifier.width(10.dp))
         LocationMetaBox(
-          value = if (location.timeLabel.isEmpty()) "待读取" else location.timeLabel,
-          label = "最近更新",
+          value = if (location.timeLabel.isEmpty()) stringResource(R.string.location_pending) else location.timeLabel,
+          label = stringResource(R.string.location_recent_update),
           modifier = Modifier.weight(1f),
         )
         Spacer(Modifier.width(10.dp))
         LocationMetaBox(
           value = if (location.accuracy > 0) "±${location.accuracy.toInt()}m" else "—",
-          label = "定位精度",
+          label = stringResource(R.string.location_accuracy),
           modifier = Modifier.weight(1f),
         )
       }
@@ -583,11 +605,11 @@ private fun LocationDetailCard(
     }
     Spacer(Modifier.height(16.dp))
     Row {
-      LocationActionButton(icon = Lucide.locate, label = "刷新", loading = loading, onTap = if (!loading) onRefresh else null, modifier = Modifier.weight(1f))
+      LocationActionButton(icon = Lucide.locate, label = stringResource(R.string.location_refresh), loading = loading, onTap = if (!loading) onRefresh else null, modifier = Modifier.weight(1f))
       Spacer(Modifier.width(10.dp))
-      LocationActionButton(icon = Lucide.copy, label = "复制", onTap = onCopy, modifier = Modifier.weight(1f))
+      LocationActionButton(icon = Lucide.copy, label = stringResource(R.string.location_copy), onTap = onCopy, modifier = Modifier.weight(1f))
       Spacer(Modifier.width(10.dp))
-      LocationActionButton(icon = Lucide.navigation, label = "导航", primary = true, onTap = onOpenMap, modifier = Modifier.weight(1f))
+      LocationActionButton(icon = Lucide.navigation, label = stringResource(R.string.location_navigate), primary = true, onTap = onOpenMap, modifier = Modifier.weight(1f))
     }
   }
 }
@@ -714,7 +736,7 @@ private fun TravelTab(
   ) {
     item {
       TravelMonthSelector(
-        month = if (cloudState.travelMonth.isEmpty()) "本月轨迹" else cloudState.travelMonth,
+        month = if (cloudState.travelMonth.isEmpty()) stringResource(R.string.location_travel_current_month) else cloudState.travelMonth,
         onPreviousMonth = if (!cloudState.travelLoading) { { onChangeMonth(-1) } } else null,
         onNextMonth = if (!cloudState.travelLoading) { { onChangeMonth(1) } } else null,
       )
@@ -747,15 +769,15 @@ private fun TravelTab(
     }
     item { Spacer(Modifier.height(14.dp)) }
     when {
-      cloudState.travelLoading -> item { LoadingCard(text = "正在读取官方历史轨迹") }
+      cloudState.travelLoading -> item { LoadingCard(text = stringResource(R.string.location_travel_loading)) }
       !cloudState.signedIn -> item {
-        EmptyCard(icon = Lucide.cloudOff, title = "未登录官方账号", subtitle = "登录官方账号后可同步本月骑行轨迹。")
+        EmptyCard(icon = Lucide.cloudOff, title = stringResource(R.string.location_travel_need_login), subtitle = stringResource(R.string.location_travel_need_login_hint))
       }
       cloudState.travelError != null -> item {
-        EmptyCard(icon = Lucide.info, title = "历史轨迹暂不可用", subtitle = cloudState.travelError)
+        EmptyCard(icon = Lucide.info, title = stringResource(R.string.location_travel_not_available), subtitle = cloudState.travelError)
       }
       records.isEmpty() -> item {
-        EmptyCard(icon = Lucide.route, title = "暂无轨迹记录", subtitle = "本月还没有可显示的骑行轨迹，可点右上角刷新或切换月份。")
+        EmptyCard(icon = Lucide.route, title = stringResource(R.string.location_travel_no_data), subtitle = stringResource(R.string.location_travel_no_data_hint))
       }
       else -> itemsIndexed(dateGroups, key = { index, day -> day.travelDate.ifEmpty { "day-$index" } }) { _, day ->
         Spacer(Modifier.height(10.dp))
@@ -769,7 +791,7 @@ private fun TravelTab(
     }
     item { Spacer(Modifier.height(4.dp)) }
     item {
-      ReadOnlyNotice(title = "轨迹服务", subtitle = "轨迹数据会按月份同步展示，删除轨迹和纠偏等操作请前往官方服务渠道处理。")
+      ReadOnlyNotice(title = stringResource(R.string.location_travel_service), subtitle = stringResource(R.string.location_travel_service_desc))
     }
   }
 }
@@ -786,7 +808,7 @@ private fun TravelMonthSelector(month: String, onPreviousMonth: (() -> Unit)?, o
     verticalAlignment = Alignment.CenterVertically,
   ) {
     IconButton(onClick = { onPreviousMonth?.invoke() }, enabled = onPreviousMonth != null) {
-      LucideIcon(icon = Lucide.chevronLeft, size = AppIconSizes.md, contentDescription = "上个月")
+      LucideIcon(icon = Lucide.chevronLeft, size = AppIconSizes.md, contentDescription = stringResource(R.string.location_prev_month))
     }
     Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
       Row(verticalAlignment = Alignment.CenterVertically) {
@@ -801,7 +823,7 @@ private fun TravelMonthSelector(month: String, onPreviousMonth: (() -> Unit)?, o
       }
     }
     IconButton(onClick = { onNextMonth?.invoke() }, enabled = onNextMonth != null) {
-      LucideIcon(icon = Lucide.chevronRight, size = AppIconSizes.md, contentDescription = "下个月")
+      LucideIcon(icon = Lucide.chevronRight, size = AppIconSizes.md, contentDescription = stringResource(R.string.location_next_month))
     }
   }
 }
@@ -827,7 +849,7 @@ private fun TravelDayCard(
       .padding(start = 15.dp, top = 14.dp, end = 15.dp, bottom = 12.dp),
   ) {
     Text(
-      text = if (day.travelDate.isEmpty()) "官方轨迹" else day.travelDate,
+      text = if (day.travelDate.isEmpty()) stringResource(R.string.location_official_travel) else day.travelDate,
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.height(14.dp))
@@ -838,11 +860,11 @@ private fun TravelDayCard(
         .background(CyberHomeColors.control)
         .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
     ) {
-      SummaryValue(label = "总次数", value = "${records.size}", unit = "次", modifier = Modifier.weight(1f))
+      SummaryValue(label = stringResource(R.string.location_total_count), value = "${records.size}", unit = stringResource(R.string.location_count_unit), modifier = Modifier.weight(1f))
       VerticalDivider(modifier = Modifier.height(75.dp), color = CyberHomeColors.lineStrong)
-      SummaryValue(label = "总里程", value = mileageParts.first, unit = mileageParts.second, modifier = Modifier.weight(1f))
+      SummaryValue(label = stringResource(R.string.location_total_distance), value = mileageParts.first, unit = mileageParts.second, modifier = Modifier.weight(1f))
       VerticalDivider(modifier = Modifier.height(75.dp), color = CyberHomeColors.lineStrong)
-      SummaryValue(label = "总时长", value = if (duration.isEmpty()) "--" else duration, unit = "", modifier = Modifier.weight(1f))
+      SummaryValue(label = stringResource(R.string.location_total_duration), value = if (duration.isEmpty()) "--" else duration, unit = "", modifier = Modifier.weight(1f))
     }
     if (records.isNotEmpty()) {
       Spacer(Modifier.height(12.dp))
@@ -894,10 +916,10 @@ private fun TravelRecordCard(
   onTap: () -> Unit,
 ) {
   val actionText = when {
-    loading && loadedPoints == null -> "读取中…"
-    loadedPoints != null && loadedPoints >= 2 -> "已加载 ${loadedPoints}点"
-    loadedPoints != null -> "无轨迹点"
-    else -> "点击读取"
+    loading && loadedPoints == null -> stringResource(R.string.location_reading)
+    loadedPoints != null && loadedPoints >= 2 -> stringResource(R.string.location_loaded_points_format, loadedPoints)
+    loadedPoints != null -> stringResource(R.string.location_no_points)
+    else -> stringResource(R.string.location_tap_read)
   }
   Row(
     modifier = Modifier
@@ -969,13 +991,15 @@ private fun FenceTab(
   var timeTo by remember(fence) { mutableStateOf(fence?.fenceTimeTo ?: "22:00") }
   var saving by remember { mutableStateOf(false) }
   var dirty by remember(fence) { mutableStateOf(false) }
+  val strFenceSaved = stringResource(R.string.location_fence_saved)
+  val strFenceSaveFailed = stringResource(R.string.location_fence_save_failed)
 
   val minRadius = fence?.fenceRadiusMin?.toDoubleOrNull() ?: 1.0
   val maxRadius = fence?.fenceRadiusMax?.toDoubleOrNull() ?: 100.0
   val radius = radiusValue * 100
   val minRadiusDisplay = minRadius * 100
   val maxRadiusDisplay = maxRadius * 100
-  val source = if (fence?.hasData == true) "围栏配置已同步" else if (cloudState.signedIn) "暂无围栏配置" else "登录后同步围栏配置"
+  val source = if (fence?.hasData == true) stringResource(R.string.location_fence_sync_desc) else if (cloudState.signedIn) stringResource(R.string.location_fence_no_data) else stringResource(R.string.location_fence_login_required)
 
   Column(modifier = Modifier.fillMaxSize()) {
     // Floating header for fence tab.
@@ -989,7 +1013,7 @@ private fun FenceTab(
         onClick = { onTabChanged(0) },
         shape = CircleShape,
         background = CyberHomeColors.white96,
-        semanticsLabel = "返回",
+        semanticsLabel = stringResource(R.string.common_back),
       ) {
         Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
           LucideIcon(icon = Lucide.arrowLeft, color = CyberHomeColors.ink)
@@ -1003,7 +1027,7 @@ private fun FenceTab(
             .padding(horizontal = 16.dp, vertical = 8.dp),
         ) {
           Text(
-            text = "电子围栏",
+            text = stringResource(R.string.location_fence_title),
             style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
           )
         }
@@ -1043,7 +1067,7 @@ private fun FenceTab(
     ) {
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-          text = "围栏设置",
+          text = stringResource(R.string.location_fence_settings),
           style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         )
         Spacer(Modifier.width(8.dp))
@@ -1052,7 +1076,7 @@ private fun FenceTab(
         AppPressable(
           onClick = { if (!cloudState.fenceLoading) onRefresh() },
           shape = CircleShape,
-          semanticsLabel = "刷新围栏",
+          semanticsLabel = stringResource(R.string.location_fence_refresh),
         ) {
           Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
             if (cloudState.fenceLoading) {
@@ -1078,7 +1102,7 @@ private fun FenceTab(
       ) {
         Column(modifier = Modifier.weight(1f)) {
           Text(
-            text = "电子围栏",
+            text = stringResource(R.string.location_fence_title),
             style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
           )
           Spacer(Modifier.height(3.dp))
@@ -1102,7 +1126,7 @@ private fun FenceTab(
       ) {
         Row {
           Text(
-            text = "范围设置",
+            text = stringResource(R.string.location_fence_range),
             style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             modifier = Modifier.weight(1f),
           )
@@ -1127,7 +1151,7 @@ private fun FenceTab(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = "时间设置",
+              text = stringResource(R.string.location_fence_time),
               style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             )
             Spacer(Modifier.height(3.dp))
@@ -1161,10 +1185,10 @@ private fun FenceTab(
                 timeTo = timeTo,
               )
               dirty = false
-              AppSnack.success(snackbarHostState, "围栏设置已保存")
+              AppSnack.success(snackbarHostState, strFenceSaved)
             } catch (e: Exception) {
               // dirty stays true so user can retry.
-              AppSnack.error(snackbarHostState, "保存失败,请重试")
+              AppSnack.error(snackbarHostState, strFenceSaveFailed)
             } finally {
               saving = false
             }
@@ -1185,7 +1209,7 @@ private fun FenceTab(
         if (saving) {
           CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = CyberHomeColors.white)
         } else {
-          Text(text = "保存", style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W800))
+          Text(text = stringResource(R.string.common_save), style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W800))
         }
       }
     }

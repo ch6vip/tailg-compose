@@ -19,9 +19,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.R
 import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.ui.theme.AppRadii
@@ -66,7 +68,7 @@ fun CyberChannelStrip(
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
-        text = "控车渠道",
+        text = stringResource(R.string.channel_strip_title),
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 14.sp,
           fontWeight = FontWeight.W600,
@@ -75,7 +77,7 @@ fun CyberChannelStrip(
       )
       Spacer(Modifier.weight(1f))
       Text(
-        text = if (busy) "指令执行中" else status.label,
+        text = if (busy) stringResource(R.string.channel_strip_busy) else status.label,
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 12.sp,
           color = if (busy) CyberHomeColors.warning else CyberHomeColors.inkMuted,
@@ -85,10 +87,10 @@ fun CyberChannelStrip(
       AppPressable(
         onClick = onInduction,
         shape = RoundedCornerShape(AppRadii.sm),
-        semanticsLabel = "感应设置",
+        semanticsLabel = stringResource(R.string.channel_strip_induction),
       ) {
         Text(
-          text = "感应",
+          text = stringResource(R.string.channel_strip_induction_short),
           style = androidx.compose.ui.text.TextStyle(
             fontSize = 12.sp,
             color = CyberHomeColors.primary,
@@ -101,7 +103,7 @@ fun CyberChannelStrip(
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
       ChannelChip(
         channel = OfficialControlChannel.AUTOMATIC,
-        label = "智能",
+        label = stringResource(R.string.channel_strip_auto),
         selected = selected,
         busy = busy,
         onSelect = { onChanged(OfficialControlChannel.AUTOMATIC) },
@@ -109,7 +111,7 @@ fun CyberChannelStrip(
       )
       ChannelChip(
         channel = OfficialControlChannel.BLE,
-        label = "仅蓝牙",
+        label = stringResource(R.string.channel_strip_ble_only),
         selected = selected,
         busy = busy,
         onSelect = { onChanged(OfficialControlChannel.BLE) },
@@ -117,7 +119,7 @@ fun CyberChannelStrip(
       )
       ChannelChip(
         channel = OfficialControlChannel.OFFICIAL_CLOUD,
-        label = "仅云端",
+        label = stringResource(R.string.channel_strip_cloud_only),
         selected = selected,
         busy = busy,
         onSelect = { onChanged(OfficialControlChannel.OFFICIAL_CLOUD) },

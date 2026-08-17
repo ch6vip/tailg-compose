@@ -32,6 +32,8 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/cyber_map_stats.dart` — map + ride-stats card row.
@@ -72,7 +74,7 @@ fun CyberMapStatsRow(
     val mapCard = AppPressable(
       onClick = onMapTap,
       shape = RoundedCornerShape(AppRadii.sheet),
-      semanticsLabel = "车辆位置 $address",
+      semanticsLabel = stringResource(R.string.map_stats_vehicle_location, address),
       shadowElevation = 6.dp,
       shadowColor = CyberHomeColors.actionShadow,
     ) {
@@ -86,7 +88,7 @@ fun CyberMapStatsRow(
     val rideCard = AppPressable(
       onClick = onRideStatsTap,
       shape = RoundedCornerShape(AppRadii.sheet),
-      semanticsLabel = "查看骑行统计",
+      semanticsLabel = stringResource(R.string.map_stats_view_ride),
       shadowElevation = 6.dp,
       shadowColor = CyberHomeColors.actionShadow,
     ) {
@@ -170,7 +172,7 @@ private fun MiniMap(
       LucideIcon(icon = Lucide.mapPin, size = 13.dp, color = CyberHomeColors.primary)
       Spacer(Modifier.width(5.dp))
       Text(
-        text = address.ifEmpty { "暂无位置信息" },
+        text = address.ifEmpty { stringResource(R.string.map_stats_no_location) },
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
@@ -197,7 +199,7 @@ private fun RideCard(
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
-        text = "骑行数据",
+        text = stringResource(R.string.map_stats_ride_data),
         style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.weight(1f))
@@ -222,7 +224,7 @@ private fun RideCard(
           style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         )
         Text(
-          text = "今日里程 (km)",
+          text = stringResource(R.string.map_stats_today_distance),
           style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -233,7 +235,7 @@ private fun RideCard(
           style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         )
         Text(
-          text = "总里程 (km)",
+          text = stringResource(R.string.map_stats_total_distance),
           style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -243,8 +245,8 @@ private fun RideCard(
       modifier = Modifier.fillMaxWidth(),
       horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-      Metric(value = lastDistance, label = "上次骑行距离")
-      Metric(value = lastDuration, label = "上次骑行时长")
+      Metric(value = lastDistance, label = stringResource(R.string.map_stats_last_ride_distance))
+      Metric(value = lastDuration, label = stringResource(R.string.map_stats_last_ride_duration))
     }
   }
 }

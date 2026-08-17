@@ -39,6 +39,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,6 +71,8 @@ import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.ZoneId
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/vehicle_message_page.dart` — message center with three
@@ -104,6 +107,17 @@ fun VehicleMessageScreen(
   var hiddenIds by remember { mutableStateOf<Set<String>>(emptySet()) }
   var detailMessage by remember { mutableStateOf<VehicleMessage?>(null) }
 
+  val strNoDetail = stringResource(R.string.msg_no_detail)
+  val strTypeFault = stringResource(R.string.msg_type_fault)
+  val strTypeAlarm = stringResource(R.string.msg_type_alarm)
+  val strTypeError = stringResource(R.string.msg_type_error)
+  val strTypeFailed = stringResource(R.string.msg_type_failed)
+  val strClearedFormat = stringResource(R.string.msg_cleared_format)
+  val strTypeLocation = stringResource(R.string.msg_type_location)
+  val strTypeGps = stringResource(R.string.msg_type_gps)
+  val strTypePower = stringResource(R.string.msg_type_power)
+  val strTypeBattery = stringResource(R.string.msg_type_battery)
+  val strRefreshFailed = stringResource(R.string.msg_refresh_failed)
   val signedIn = cloudState.signedIn
 
   // Bootstrap: load read state + refresh messages.
@@ -121,6 +135,7 @@ fun VehicleMessageScreen(
       onReadIds = { readIds = it },
       onHiddenIds = { hiddenIds = it },
       log = log,
+      strRefreshFailed = strRefreshFailed,
     )
   }
 
@@ -135,8 +150,8 @@ fun VehicleMessageScreen(
   val visibleMessages = remember(cloudState, hiddenIds) {
     if (!signedIn) emptyList()
     else buildList {
-      cloudState.vehicleMessages.forEach { add(mapCloudMessage(it)) }
-      cloudState.systemMessages.forEach { add(mapCloudMessage(it)) }
+      cloudState.vehicleMessages.forEach { add(mapCloudMessage(it, strNoDetail, strTypeFault, strTypeAlarm, strTypeError, strTypeFailed, strTypeLocation, strTypeGps, strTypePower, strTypeBattery)) }
+      cloudState.systemMessages.forEach { add(mapCloudMessage(it, strNoDetail, strTypeFault, strTypeAlarm, strTypeError, strTypeFailed, strTypeLocation, strTypeGps, strTypePower, strTypeBattery)) }
     }.sortedByDescending { it.time }
       .filter { it.id !in hiddenIds }
   }
@@ -187,7 +202,7 @@ fun VehicleMessageScreen(
               hiddenIds = newHidden
               readIds = newRead
               messageReadStore.replaceState(readIds = newRead, hiddenIds = newHidden)
-              AppSnack.success(snackbarHostState, "已清空 ${allMessages.size} 条消息")
+              AppSnack.success(snackbarHostState, strClearedFormat.format(allMessages.size))
             } catch (e: Exception) {
               AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
             } finally {
@@ -207,6 +222,7 @@ fun VehicleMessageScreen(
               onReadIds = { readIds = it },
               onHiddenIds = { hiddenIds = it },
               log = log,
+      strRefreshFailed = strRefreshFailed,
             )
           }
         },
@@ -219,17 +235,17 @@ fun VehicleMessageScreen(
         when {
           !signedIn -> MessageState(
             icon = Lucide.lock,
-            title = "请先登录官方账号",
-            subtitle = "登录后可同步车辆消息与系统通知",
-            actionLabel = "去登录",
+            title = stringResource(R.string.msg_login_required),
+            subtitle = stringResource(R.string.msg_login_hint),
+            actionLabel = stringResource(R.string.msg_login_action),
             onAction = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
           )
           loading && !initialized -> MessageListSkeleton()
           error != null && allMessages.isEmpty() -> MessageState(
             icon = Lucide.wifiOff,
-            title = "消息加载失败",
+            title = stringResource(R.string.msg_load_failed),
             subtitle = error,
-            actionLabel = "重试",
+            actionLabel = stringResource(R.string.msg_retry),
             onAction = if (loading) null else {
               {
                 scope.launch {
@@ -243,6 +259,7 @@ fun VehicleMessageScreen(
                     onReadIds = { readIds = it },
                     onHiddenIds = { hiddenIds = it },
                     log = log,
+      strRefreshFailed = strRefreshFailed,
                   )
                 }
               }
@@ -250,8 +267,8 @@ fun VehicleMessageScreen(
           )
           tabMessages.isEmpty() -> MessageState(
             icon = Lucide.message,
-            title = "暂无消息",
-            subtitle = "车辆告警和系统通知会显示在这里",
+            title = stringResource(R.string.msg_empty),
+            subtitle = stringResource(R.string.msg_empty_hint),
           )
           else -> LazyColumn(
             modifier = Modifier.fillMaxSize(),
@@ -302,9 +319,16 @@ data class VehicleMessage(
   val severity: VehicleMessageSeverity,
 )
 
-enum class VehicleMessageCategory(val label: String) {
-  SYSTEM("系统消息"),
-  DEVICE("设备消息"),
+enum class VehicleMessageCategory {
+  SYSTEM,
+  DEVICE,
+}
+
+
+@Composable
+private fun categoryLabel(category: VehicleMessageCategory): String = when (category) {
+  VehicleMessageCategory.SYSTEM -> stringResource(R.string.msg_system)
+  VehicleMessageCategory.DEVICE -> stringResource(R.string.msg_device)
 }
 
 enum class VehicleMessageSeverity(val color: Color) {
@@ -313,25 +337,25 @@ enum class VehicleMessageSeverity(val color: Color) {
   ERROR(CyberHomeColors.danger),
 }
 
-private fun mapCloudMessage(message: OfficialCloudMessage): VehicleMessage {
+private fun mapCloudMessage(message: OfficialCloudMessage, strNoDetail: String, strTypeFault: String, strTypeAlarm: String, strTypeError: String, strTypeFailed: String, strTypeLocation: String, strTypeGps: String, strTypePower: String, strTypeBattery: String): VehicleMessage {
   val isSystem = message.category == OfficialCloudMessageCategory.SYSTEM
   val lower = "${message.title} ${message.content}".lowercase()
-  val severity = severityFor(lower)
+  val severity = severityFor(lower, strTypeFault, strTypeAlarm, strTypeError, strTypeFailed)
   return VehicleMessage(
     id = message.id,
     title = message.title,
-    subtitle = if (message.content.isEmpty()) "暂无详细内容" else message.content,
+    subtitle = if (message.content.isEmpty()) strNoDetail else message.content,
     time = message.time,
-    icon = if (isSystem) Lucide.megaphone else iconFor(lower, severity),
+    icon = if (isSystem) Lucide.megaphone else iconFor(lower, severity, strTypeLocation, strTypeGps, strTypePower, strTypeBattery),
     category = if (isSystem) VehicleMessageCategory.SYSTEM else VehicleMessageCategory.DEVICE,
     severity = severity,
   )
 }
 
-private fun severityFor(lower: String): VehicleMessageSeverity {
-  val hasFault = lower.contains("故障") || lower.contains("error") || lower.contains("报警")
-  val hasWarn = lower.contains("报警") || lower.contains("异常") || lower.contains("失败") ||
-    lower.contains("warning") || lower.contains("故障")
+private fun severityFor(lower: String, strTypeFault: String, strTypeAlarm: String, strTypeError: String, strTypeFailed: String): VehicleMessageSeverity {
+  val hasFault = lower.contains(strTypeFault) || lower.contains("error") || lower.contains(strTypeAlarm)
+  val hasWarn = lower.contains(strTypeAlarm) || lower.contains(strTypeError) || lower.contains(strTypeFailed) ||
+    lower.contains("warning") || lower.contains(strTypeFault)
   return when {
     hasFault -> VehicleMessageSeverity.ERROR
     hasWarn -> VehicleMessageSeverity.WARNING
@@ -339,10 +363,10 @@ private fun severityFor(lower: String): VehicleMessageSeverity {
   }
 }
 
-private fun iconFor(lower: String, severity: VehicleMessageSeverity): androidx.compose.ui.graphics.vector.ImageVector {
+private fun iconFor(lower: String, severity: VehicleMessageSeverity, strTypeLocation: String, strTypeGps: String, strTypePower: String, strTypeBattery: String): ImageVector {
   return when {
-    lower.contains("位置") || lower.contains("定位") -> Lucide.mapPin
-    lower.contains("电") || lower.contains("电池") -> Lucide.batteryWarning
+    lower.contains(strTypeLocation) || lower.contains(strTypeGps) -> Lucide.mapPin
+    lower.contains(strTypePower) || lower.contains(strTypeBattery) -> Lucide.batteryWarning
     severity == VehicleMessageSeverity.ERROR -> Lucide.alert
     else -> Lucide.vehicle
   }
@@ -360,6 +384,7 @@ private suspend fun refreshMessages(
   onReadIds: (Set<String>) -> Unit,
   onHiddenIds: (Set<String>) -> Unit,
   log: LogService,
+  strRefreshFailed: String,
 ) {
   if (!cloudService.currentState.signedIn) {
     onInitialized(true)
@@ -383,7 +408,7 @@ private suspend fun refreshMessages(
     onLoading(false)
     onInitialized(true)
     onError(OfficialCloudRedactor.errorMessage(e))
-    log.operation("官方消息刷新失败", detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+    log.operation(strRefreshFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
   }
 }
 
@@ -407,13 +432,13 @@ private fun MessageHeader(
   ) {
     HeaderButton(
       icon = Lucide.arrowLeft,
-      label = "返回",
+      label = stringResource(R.string.common_back),
       onTap = onBack,
       filled = true,
     )
     Spacer(Modifier.width(12.dp))
     Text(
-      text = "消息中心",
+      text = stringResource(R.string.msg_title),
       modifier = Modifier.weight(1f),
       maxLines = 1,
       overflow = TextOverflow.Ellipsis,
@@ -421,21 +446,21 @@ private fun MessageHeader(
     )
     HeaderButton(
       icon = Lucide.check,
-      label = "全部已读",
+      label = stringResource(R.string.msg_mark_all_read),
       enabled = canMarkRead,
       badge = unreadCount,
       onTap = onMarkRead,
     )
     HeaderButton(
       icon = Lucide.trash,
-      label = "清空全部消息",
+      label = stringResource(R.string.msg_clear_all),
       enabled = canClear,
       loading = clearing,
       onTap = onClear,
     )
     HeaderButton(
       icon = Lucide.refresh,
-      label = "刷新",
+      label = stringResource(R.string.common_refresh),
       enabled = !refreshing,
       loading = refreshing,
       onTap = onRefresh,
@@ -512,7 +537,7 @@ private fun MessageTabs(
   activeTab: Int,
   onSelect: (Int) -> Unit,
 ) {
-  val tabs = listOf("全部", "系统消息", "设备消息")
+  val tabs = listOf(stringResource(R.string.msg_filter_all), stringResource(R.string.msg_system), stringResource(R.string.msg_device))
   Row(
     modifier = Modifier
       .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 10.dp)
@@ -564,7 +589,7 @@ private fun MessageCard(
   val borderColor = if (read) CyberHomeColors.line else message.severity.color.copy(alpha = 0.16f)
   AppPressable(
     onClick = onOpen,
-    semanticsLabel = "${message.title}，${message.subtitle}，${message.category.label}，${if (read) "已读" else "未读"}",
+    semanticsLabel = "${message.title}，${message.subtitle}，${categoryLabel(message.category)}，${if (read) stringResource(R.string.msg_read) else stringResource(R.string.msg_unread)}",
   ) {
     Box(
       modifier = Modifier
@@ -603,7 +628,7 @@ private fun MessageCard(
           )
           Spacer(Modifier.height(10.dp))
           Row(verticalAlignment = Alignment.CenterVertically) {
-            Tag(text = message.category.label)
+            Tag(text = categoryLabel(message.category))
             Spacer(Modifier.width(8.dp))
             Box(
               modifier = Modifier
@@ -613,7 +638,7 @@ private fun MessageCard(
             )
             Spacer(Modifier.width(5.dp))
             Text(
-              text = if (read) "已读" else "未读",
+              text = if (read) stringResource(R.string.msg_read) else stringResource(R.string.msg_unread),
               style = TextStyle(fontSize = 10.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
             )
             Spacer(Modifier.weight(1f))
@@ -798,7 +823,7 @@ private fun MessageDetailSheet(
       )
       Spacer(Modifier.height(18.dp))
       Row(verticalAlignment = Alignment.CenterVertically) {
-        Tag(text = message.category.label)
+        Tag(text = categoryLabel(message.category))
         Spacer(Modifier.width(8.dp))
         Tag(text = formatMonthDayMinuteText(
           LocalDateTime.ofInstant(message.time, ZoneId.systemDefault()),
@@ -811,7 +836,7 @@ private fun MessageDetailSheet(
         colors = cyberFilledButtonColors(),
         shape = cyberButtonShape,
       ) {
-        Text("知道了")
+        Text(stringResource(R.string.msg_got_it))
       }
     }
   }

@@ -85,6 +85,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.formatDateText
 import com.tailg.plus.util.formatDateMinuteText
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 private enum class ReplicaPage { NFC, FENCE, SHARE, RIDE }
 
@@ -111,6 +113,13 @@ fun OfficialReplicaScreen(
   val store = remember(context) { ReplicaFeatureStore(context) }
   val bleNfc = remember(connectionManager) { BleNfcService(connectionManager) }
 
+  val strKeyDeleted = stringResource(R.string.replica_key_deleted)
+  val strKeyDeleteFailed = stringResource(R.string.replica_key_delete_failed)
+  val strKeyTypeCard = stringResource(R.string.replica_key_type_card)
+  val strKeyTypeWatch = stringResource(R.string.replica_key_type_watch)
+  val strKeyWritten = stringResource(R.string.replica_key_written)
+  val strKeyWriteFailed = stringResource(R.string.replica_key_write_failed)
+  val strNotLoggedInLocal = stringResource(R.string.replica_not_logged_in_local)
   var page by remember { mutableStateOf(ReplicaPage.NFC) }
 
   Scaffold(
@@ -125,10 +134,10 @@ fun OfficialReplicaScreen(
     ) {
       ReplicaPageHeader(
         title = when (page) {
-          ReplicaPage.NFC -> "NFC钥匙"
-          ReplicaPage.FENCE -> "本地草稿围栏"
-          ReplicaPage.SHARE -> "分享用车"
-          ReplicaPage.RIDE -> "今日骑行记录"
+          ReplicaPage.NFC -> stringResource(R.string.replica_nfc_keys)
+          ReplicaPage.FENCE -> stringResource(R.string.replica_local_fence)
+          ReplicaPage.SHARE -> stringResource(R.string.replica_share_car)
+          ReplicaPage.RIDE -> stringResource(R.string.replica_today_rides)
         },
         actionIcon = when (page) {
           ReplicaPage.NFC -> Lucide.plus
@@ -137,9 +146,9 @@ fun OfficialReplicaScreen(
           ReplicaPage.RIDE -> null
         },
         actionLabel = when (page) {
-          ReplicaPage.NFC -> "添加钥匙"
-          ReplicaPage.FENCE -> "使用最后位置"
-          ReplicaPage.SHARE -> "添加成员"
+          ReplicaPage.NFC -> stringResource(R.string.replica_add_key)
+          ReplicaPage.FENCE -> stringResource(R.string.replica_use_last_location)
+          ReplicaPage.SHARE -> stringResource(R.string.replica_add_member)
           ReplicaPage.RIDE -> null
         },
         onAction = when (page) {
@@ -175,9 +184,9 @@ fun OfficialReplicaScreen(
               Text(
                 text = when (p) {
                   ReplicaPage.NFC -> "NFC"
-                  ReplicaPage.FENCE -> "围栏"
-                  ReplicaPage.SHARE -> "分享"
-                  ReplicaPage.RIDE -> "骑行"
+                  ReplicaPage.FENCE -> stringResource(R.string.replica_tab_fence)
+                  ReplicaPage.SHARE -> stringResource(R.string.replica_tab_share)
+                  ReplicaPage.RIDE -> stringResource(R.string.replica_tab_ride)
                 },
                 style = androidx.compose.ui.text.TextStyle(
                   fontSize = 13.sp,
@@ -235,7 +244,7 @@ private fun ReplicaPageHeader(
       background = CyberHomeColors.card,
       shadowElevation = 4.dp,
       shadowColor = CyberHomeColors.actionShadow,
-      semanticsLabel = "返回",
+      semanticsLabel = stringResource(R.string.common_back),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.arrowLeft, size = 20.dp, color = CyberHomeColors.inkSecondary)
@@ -274,6 +283,13 @@ private fun NfcKeyTab(
   var loading by remember { mutableStateOf(true) }
   var showEditDialog by remember { mutableStateOf<NfcKeyRecord?>(null) }
   var showAddDialog by remember { mutableStateOf(false) }
+  val strKeyDeleted = stringResource(R.string.replica_key_deleted)
+  val strKeyDeleteFailed = stringResource(R.string.replica_key_delete_failed)
+  val strKeyTypeCard = stringResource(R.string.replica_key_type_card)
+  val strKeyTypeWatch = stringResource(R.string.replica_key_type_watch)
+  val strKeyWritten = stringResource(R.string.replica_key_written)
+  val strKeyWriteFailed = stringResource(R.string.replica_key_write_failed)
+  val strNotLoggedInLocal = stringResource(R.string.replica_not_logged_in_local)
 
   LaunchedEffect(Unit) {
     records = store.loadNfcKeys()
@@ -288,7 +304,7 @@ private fun NfcKeyTab(
   ) {
     item {
       Text(
-        text = "官方 / 本地",
+        text = stringResource(R.string.replica_official_local),
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
       )
     }
@@ -296,11 +312,11 @@ private fun NfcKeyTab(
     item {
       ReplicaNotice(
         icon = Lucide.nfc,
-        title = if (canBle) "官方 BLE NFC 可用" else "官方 NFC 待 LOGIN",
+        title = if (canBle) stringResource(R.string.replica_nfc_available) else stringResource(R.string.replica_nfc_pending_login),
         subtitle = if (canBle) {
-          "当前 standard 协议已 LOGIN：添加/删除将下发官方 writeData 帧（TailgBleConfig NFC 头），并同步本地列表。"
+          stringResource(R.string.replica_nfc_logged_in_desc)
         } else {
-          "未 standard LOGIN 时仅维护本地列表，不会写车。请先 BLE 连接并完成协议登录。"
+          stringResource(R.string.replica_nfc_not_logged_in_desc)
         },
       )
     }
@@ -313,7 +329,7 @@ private fun NfcKeyTab(
       }
     } else if (records.isEmpty()) {
       item {
-        EmptyReplicaCard(icon = Lucide.keyOff, title = "暂无钥匙", subtitle = "添加后可在这里查看钥匙名称和类型。")
+        EmptyReplicaCard(icon = Lucide.keyOff, title = stringResource(R.string.replica_no_keys), subtitle = stringResource(R.string.replica_no_keys_hint))
       }
     } else {
       item {
@@ -332,7 +348,7 @@ private fun NfcKeyTab(
                 scope.launch {
                   if (bleNfc.canWriteOfficialNfc) {
                     val ok = bleNfc.delNfc("01")
-                    AppSnack.info(snackbarHostState, if (ok) "已发送官方删钥匙指令" else "官方删钥匙失败，仅移除本地列表")
+                    AppSnack.info(snackbarHostState, if (ok) strKeyDeleted else strKeyDeleteFailed)
                   }
                   records = records.filter { it.id != record.id }
                   store.saveNfcKeys(records)
@@ -356,18 +372,18 @@ private fun NfcKeyTab(
         scope.launch {
           val newRecord = store.createNfcKey(name = name, type = type)
           if (bleNfc.canWriteOfficialNfc) {
-            val ok = if (type == "卡片") {
+            val ok = if (type == strKeyTypeCard) {
               bleNfc.addCard("01")
             } else {
-              bleNfc.addUserKey(keyType = if (type == "手表") 2 else 1, type = "1")
+              bleNfc.addUserKey(keyType = if (type == strKeyTypeWatch) 2 else 1, type = "1")
             }
             if (ok) {
-              AppSnack.success(snackbarHostState, "已向车辆发送官方 NFC 写钥匙指令")
+              AppSnack.success(snackbarHostState, strKeyWritten)
             } else {
-              AppSnack.info(snackbarHostState, "官方 NFC 写入失败，仅保存本地列表")
+              AppSnack.info(snackbarHostState, strKeyWriteFailed)
             }
           } else {
-            AppSnack.info(snackbarHostState, "未 standard LOGIN：仅本地列表（不会写车）")
+            AppSnack.info(snackbarHostState, strNotLoggedInLocal)
           }
           val next = records + newRecord
           records = next
@@ -400,8 +416,9 @@ private fun NfcKeyEditDialog(
   onDismiss: () -> Unit,
   onSave: (String, String) -> Unit,
 ) {
+  val strKeyTypePhone = stringResource(R.string.replica_key_type_phone)
   var name by remember { mutableStateOf(record?.name ?: "") }
-  var type by remember { mutableStateOf(record?.type ?: "手机") }
+  var type by remember { mutableStateOf(record?.type ?: strKeyTypePhone) }
   var expanded by remember { mutableStateOf(false) }
 
   AlertDialog(
@@ -410,7 +427,7 @@ private fun NfcKeyEditDialog(
     shape = RoundedCornerShape(AppRadii.tile),
     title = {
       Text(
-        text = if (record == null) "添加钥匙" else "编辑钥匙",
+        text = if (record == null) stringResource(R.string.replica_add_key) else stringResource(R.string.replica_edit_key),
         style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
     },
@@ -420,7 +437,7 @@ private fun NfcKeyEditDialog(
           value = name,
           onValueChange = { name = it },
           singleLine = true,
-          placeholder = { Text("钥匙名称") },
+          placeholder = { Text(stringResource(R.string.replica_key_name)) },
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
           modifier = Modifier.fillMaxWidth(),
@@ -434,7 +451,7 @@ private fun NfcKeyEditDialog(
             value = type,
             onValueChange = {},
             readOnly = true,
-            label = { Text("钥匙类型") },
+            label = { Text(stringResource(R.string.replica_key_type)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             colors = cyberTextFieldColors(),
             shape = cyberTextFieldShape,
@@ -446,7 +463,7 @@ private fun NfcKeyEditDialog(
             expanded = expanded,
             onDismissRequest = { expanded = false },
           ) {
-            listOf("手机", "手表", "卡片").forEach { item ->
+            listOf(stringResource(R.string.replica_key_type_phone), stringResource(R.string.replica_key_type_watch), stringResource(R.string.replica_key_type_card)).forEach { item ->
               DropdownMenuItem(
                 text = { Text(item) },
                 onClick = { type = item; expanded = false },
@@ -465,12 +482,12 @@ private fun NfcKeyEditDialog(
         shape = cyberButtonShape,
         colors = cyberFilledButtonColors(),
       ) {
-        Text("保存")
+        Text(stringResource(R.string.common_save))
       }
     },
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("取消", color = CyberHomeColors.inkMuted)
+        Text(stringResource(R.string.common_cancel), color = CyberHomeColors.inkMuted)
       }
     },
   )
@@ -492,8 +509,8 @@ private fun NfcKeyTile(
   ) {
     CircleIcon(
       icon = when (record.type) {
-        "卡片" -> Lucide.creditCard
-        "手表" -> Lucide.watch
+        stringResource(R.string.replica_key_type_card) -> Lucide.creditCard
+        stringResource(R.string.replica_key_type_watch) -> Lucide.watch
         else -> Lucide.smartphone
       },
     )
@@ -511,7 +528,7 @@ private fun NfcKeyTile(
     AppPressable(
       onClick = { showMenu = true },
       shape = CircleShape,
-      semanticsLabel = "钥匙操作",
+      semanticsLabel = stringResource(R.string.replica_key_actions),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.more, color = CyberHomeColors.inkMuted)
@@ -522,11 +539,11 @@ private fun NfcKeyTile(
       onDismissRequest = { showMenu = false },
     ) {
       androidx.compose.material3.DropdownMenuItem(
-        text = { Text("重命名") },
+        text = { Text(stringResource(R.string.replica_rename)) },
         onClick = { showMenu = false; onEdit() },
       )
       androidx.compose.material3.DropdownMenuItem(
-        text = { Text("删除") },
+        text = { Text(stringResource(R.string.common_delete)) },
         onClick = { showMenu = false; onDelete() },
       )
     }
@@ -547,6 +564,10 @@ private fun ElectricFenceTab(
   var loading by remember { mutableStateOf(true) }
   var lastLocation by remember { mutableStateOf<VehicleLocation?>(null) }
   val context = androidx.compose.ui.platform.LocalContext.current
+  val strInvalidCoords = stringResource(R.string.replica_invalid_coords)
+  val strNoMapApp = stringResource(R.string.replica_no_map_app)
+  val strRadiusHint = stringResource(R.string.replica_radius_hint)
+  val strFenceSavedDraft = stringResource(R.string.replica_fence_saved_draft)
 
   LaunchedEffect(Unit) {
     vehicleStore.init()
@@ -568,15 +589,15 @@ private fun ElectricFenceTab(
       .padding(bottom = 24.dp),
   ) {
     Text(
-      text = "本地草稿（非官方）",
+      text = stringResource(R.string.replica_local_draft),
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
       modifier = Modifier.padding(horizontal = AppSpacing.screenX),
     )
     Spacer(Modifier.height(8.dp))
     ReplicaNotice(
       icon = Lucide.locationSearching,
-      title = "非官方云围栏",
-      subtitle = "此页只写本地草稿，不会同步官方电子围栏。正式围栏请用定位页「电子围栏」云端能力。",
+      title = stringResource(R.string.replica_unofficial_fence),
+      subtitle = stringResource(R.string.replica_local_fence_desc),
     )
     Spacer(Modifier.height(14.dp))
     if (loading) {
@@ -606,11 +627,11 @@ private fun ElectricFenceTab(
           Spacer(Modifier.width(12.dp))
           Column(modifier = Modifier.weight(1f)) {
             Text(
-              text = "启用围栏",
+              text = stringResource(R.string.replica_enable_fence),
               style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             )
             Text(
-              text = "开启后保存当前围栏设置",
+              text = stringResource(R.string.replica_save_fence_settings),
               style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
             )
           }
@@ -620,7 +641,7 @@ private fun ElectricFenceTab(
           value = latText,
           onValueChange = { latText = it },
           singleLine = true,
-          label = { Text("中心纬度") },
+          label = { Text(stringResource(R.string.replica_center_lat)) },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
@@ -631,7 +652,7 @@ private fun ElectricFenceTab(
           value = lngText,
           onValueChange = { lngText = it },
           singleLine = true,
-          label = { Text("中心经度") },
+          label = { Text(stringResource(R.string.replica_center_lng)) },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
@@ -642,7 +663,7 @@ private fun ElectricFenceTab(
           value = radiusText,
           onValueChange = { radiusText = it.filter { c -> c.isDigit() } },
           singleLine = true,
-          label = { Text("半径（米）") },
+          label = { Text(stringResource(R.string.replica_radius_m)) },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
@@ -667,21 +688,21 @@ private fun ElectricFenceTab(
           ) {
             LucideIcon(icon = Lucide.locate, size = 18.dp)
             Spacer(Modifier.width(6.dp))
-            Text("使用最后位置")
+            Text(stringResource(R.string.replica_use_last_location))
           }
           OutlinedButton(
             onClick = {
               val lat = latText.trim().toDoubleOrNull()
               val lng = lngText.trim().toDoubleOrNull()
               if (lat == null || lng == null) {
-                scope.launch { AppSnack.info(snackbarHostState, "请输入有效坐标") }
+                scope.launch { AppSnack.info(snackbarHostState, strInvalidCoords) }
               } else {
                 val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
                 try {
                   context.startActivity(intent)
                 } catch (e: android.content.ActivityNotFoundException) {
-                  scope.launch { AppSnack.info(snackbarHostState, "未找到地图应用") }
+                  scope.launch { AppSnack.info(snackbarHostState, strNoMapApp) }
                 }
               }
             },
@@ -694,7 +715,7 @@ private fun ElectricFenceTab(
           ) {
             LucideIcon(icon = Lucide.map, size = 18.dp)
             Spacer(Modifier.width(6.dp))
-            Text("打开地图")
+            Text(stringResource(R.string.replica_open_map))
           }
         }
         Spacer(Modifier.height(10.dp))
@@ -704,16 +725,16 @@ private fun ElectricFenceTab(
             val longitude = lngText.trim().toDoubleOrNull()
             val radius = radiusText.trim().toIntOrNull() ?: 500
             if (latitude == null || longitude == null) {
-              scope.launch { AppSnack.info(snackbarHostState, "请输入有效坐标") }
+              scope.launch { AppSnack.info(snackbarHostState, strInvalidCoords) }
               return@Button
             }
             if (radius < 100 || radius > 10000) {
-              scope.launch { AppSnack.info(snackbarHostState, "半径建议设置在 100-10000 米") }
+              scope.launch { AppSnack.info(snackbarHostState, strRadiusHint) }
               return@Button
             }
             scope.launch {
               store.saveFenceConfig(store.createFenceConfig(enabled = enabled, latitude = latitude, longitude = longitude, radiusMeters = radius))
-              AppSnack.info(snackbarHostState, "已保存为本地草稿（未同步官方围栏）")
+              AppSnack.info(snackbarHostState, strFenceSavedDraft)
             }
           },
           shape = cyberButtonShape,
@@ -724,7 +745,7 @@ private fun ElectricFenceTab(
         ) {
           LucideIcon(icon = Lucide.save, size = 18.dp, color = CyberHomeColors.white)
           Spacer(Modifier.width(6.dp))
-          Text("保存围栏", style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
+          Text(stringResource(R.string.replica_save_fence), style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700))
         }
       }
     }
@@ -753,7 +774,7 @@ private fun ShareBikeTab(
   ) {
     item {
       Text(
-        text = "家庭共享（本地演示）",
+        text = stringResource(R.string.replica_family_share),
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
       )
     }
@@ -761,8 +782,8 @@ private fun ShareBikeTab(
     item {
       ReplicaNotice(
         icon = Lucide.share,
-        title = "本地演示 · 非官方家庭共享",
-        subtitle = "仅本机记录联系人草稿，不会调用官方家庭共享 API。正式分享请使用官方 App 授权流程。",
+        title = stringResource(R.string.replica_local_demo),
+        subtitle = stringResource(R.string.replica_family_share_desc),
       )
     }
     item { Spacer(Modifier.height(14.dp)) }
@@ -774,7 +795,7 @@ private fun ShareBikeTab(
       }
     } else if (members.isEmpty()) {
       item {
-        EmptyReplicaCard(icon = Lucide.groupOff, title = "暂无共享成员", subtitle = "添加成员后可在这里查看共享联系人。")
+        EmptyReplicaCard(icon = Lucide.groupOff, title = stringResource(R.string.replica_no_members), subtitle = stringResource(R.string.replica_no_members_hint))
       }
     } else {
       item {
@@ -851,7 +872,7 @@ private fun ShareMemberEditDialog(
     shape = RoundedCornerShape(AppRadii.tile),
     title = {
       Text(
-        text = if (member == null) "添加成员" else "编辑成员",
+        text = if (member == null) stringResource(R.string.replica_add_member) else stringResource(R.string.replica_edit_member),
         style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
       )
     },
@@ -861,7 +882,7 @@ private fun ShareMemberEditDialog(
           value = name,
           onValueChange = { name = it },
           singleLine = true,
-          label = { Text("成员名称") },
+          label = { Text(stringResource(R.string.replica_member_name)) },
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
           modifier = Modifier.fillMaxWidth(),
@@ -871,7 +892,7 @@ private fun ShareMemberEditDialog(
           value = phone,
           onValueChange = { phone = it },
           singleLine = true,
-          label = { Text("手机号/备注") },
+          label = { Text(stringResource(R.string.replica_member_phone)) },
           keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
           colors = cyberTextFieldColors(),
           shape = cyberTextFieldShape,
@@ -888,12 +909,12 @@ private fun ShareMemberEditDialog(
         shape = cyberButtonShape,
         colors = cyberFilledButtonColors(),
       ) {
-        Text("保存")
+        Text(stringResource(R.string.common_save))
       }
     },
     dismissButton = {
       TextButton(onClick = onDismiss) {
-        Text("取消", color = CyberHomeColors.inkMuted)
+        Text(stringResource(R.string.common_cancel), color = CyberHomeColors.inkMuted)
       }
     },
   )
@@ -922,9 +943,9 @@ private fun ShareMemberTile(
       )
       Text(
         text = if (member.phone.isEmpty()) {
-          "待邀请 · ${formatDateText(java.time.LocalDateTime.ofInstant(member.createdAt, java.time.ZoneId.systemDefault()))}"
+          stringResource(R.string.replica_member_pending_format, formatDateText(java.time.LocalDateTime.ofInstant(member.createdAt, java.time.ZoneId.systemDefault())))
         } else {
-          "${member.phone} · 待邀请"
+          stringResource(R.string.replica_member_pending_phone_format, member.phone)
         },
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
@@ -932,7 +953,7 @@ private fun ShareMemberTile(
     AppPressable(
       onClick = { showMenu = true },
       shape = CircleShape,
-      semanticsLabel = "成员操作",
+      semanticsLabel = stringResource(R.string.replica_member_actions),
     ) {
       Box(modifier = Modifier.size(AppTouchTargets.min), contentAlignment = Alignment.Center) {
         LucideIcon(icon = Lucide.more, color = CyberHomeColors.inkMuted)
@@ -943,11 +964,11 @@ private fun ShareMemberTile(
       onDismissRequest = { showMenu = false },
     ) {
       androidx.compose.material3.DropdownMenuItem(
-        text = { Text("编辑") },
+        text = { Text(stringResource(R.string.common_edit)) },
         onClick = { showMenu = false; onEdit() },
       )
       androidx.compose.material3.DropdownMenuItem(
-        text = { Text("移除") },
+        text = { Text(stringResource(R.string.replica_remove)) },
         onClick = { showMenu = false; onDelete() },
       )
     }
@@ -965,7 +986,7 @@ private fun RideRecordTab(
   val vehicle = vehicleStore.defaultVehicle
   val location = vehicle?.lastLocation
   val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
-  val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: "未绑定"
+  val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: stringResource(R.string.replica_unbound)
   val logs = remember(log) {
     log.byCategory(LogCategory.OPERATION).takeLast(12).reversed()
   }
@@ -976,7 +997,7 @@ private fun RideRecordTab(
   ) {
     item {
       Text(
-        text = "今日概览",
+        text = stringResource(R.string.replica_today_overview),
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
         modifier = Modifier.padding(horizontal = AppSpacing.screenX),
       )
@@ -990,8 +1011,8 @@ private fun RideRecordTab(
           .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
           .padding(16.dp),
       ) {
-        MetricBlock(label = "默认车辆", value = displayName, modifier = Modifier.weight(1f))
-        MetricBlock(label = "本次日志", value = logs.size.toString(), modifier = Modifier.weight(1f))
+        MetricBlock(label = stringResource(R.string.replica_default_vehicle), value = displayName, modifier = Modifier.weight(1f))
+        MetricBlock(label = stringResource(R.string.replica_current_log), value = logs.size.toString(), modifier = Modifier.weight(1f))
       }
     }
     item {
@@ -1008,7 +1029,7 @@ private fun RideRecordTab(
         Spacer(Modifier.width(12.dp))
         Text(
           text = if (location == null) {
-            "暂无最后位置记录"
+            stringResource(R.string.replica_no_last_location)
           } else {
             "${location.coordinateText} · ${formatDateMinuteText(java.time.LocalDateTime.ofInstant(location.recordedAt, java.time.ZoneId.systemDefault()))}"
           },
@@ -1019,7 +1040,7 @@ private fun RideRecordTab(
     }
     item {
       Text(
-        text = "最近操作",
+        text = stringResource(R.string.replica_recent_actions),
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
         modifier = Modifier.padding(horizontal = AppSpacing.screenX),
       )
@@ -1028,8 +1049,8 @@ private fun RideRecordTab(
       item {
         EmptyReplicaCard(
           icon = Lucide.route,
-          title = "暂无骑行记录",
-          subtitle = "控车、定位、诊断等本地事件会出现在这里。",
+          title = stringResource(R.string.replica_no_rides),
+          subtitle = stringResource(R.string.replica_no_rides_hint),
         )
       }
     } else {

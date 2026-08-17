@@ -54,6 +54,8 @@ import com.tailg.plus.ui.components.cyberTextFieldShape
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/bind_imei_page.dart` — manual IMEI bind
@@ -76,6 +78,8 @@ fun BindImeiScreen(
 
   var imei by remember { mutableStateOf("") }
   var busy by remember { mutableStateOf(false) }
+  val strBindSuccess = stringResource(R.string.bind_imei_success)
+  val strBindFailed = stringResource(R.string.bind_imei_failed)
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -90,7 +94,7 @@ fun BindImeiScreen(
         .padding(horizontal = 20.dp),
     ) {
       CyberPageHeader(
-        title = "IMEI 绑车",
+        title = stringResource(R.string.bind_imei_title),
         onBack = { onBack(false) },
       )
       Spacer(Modifier.height(12.dp))
@@ -108,11 +112,11 @@ fun BindImeiScreen(
           scope.launch {
             try {
               cloudService.bindVehicleByImei(imei)
-              AppSnack.success(snackbarHostState, "绑车成功，已刷新车辆列表")
+              AppSnack.success(snackbarHostState, strBindSuccess)
               onBack(true)
             } catch (e: Exception) {
               log.operation(
-                "IMEI 绑车失败",
+                strBindFailed,
                 detail = e.toString(),
                 level = LogLevel.WARNING,
               )
@@ -144,7 +148,7 @@ private fun BindImeiCard(
   ) {
     Column {
       Text(
-        text = "对照官方手写 IMEI 绑定（bindCar1 / app/car/bikeBind）。坐垫二维码可扫出同一 IMEI 后粘贴至此。",
+        text = stringResource(R.string.bind_imei_desc),
         style = TextStyle(
           fontSize = 13.sp,
           lineHeight = 13.sp * 1.45f,
@@ -157,8 +161,8 @@ private fun BindImeiCard(
         onValueChange = onImeiChange,
         enabled = !busy,
         singleLine = true,
-        label = { Text("设备 IMEI") },
-        placeholder = { Text("请输入 15 位左右 IMEI") },
+        label = { Text(stringResource(R.string.bind_imei_label)) },
+        placeholder = { Text(stringResource(R.string.bind_imei_hint)) },
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
         leadingIcon = {
           LucideIcon(icon = Lucide.pin, color = CyberHomeColors.primary)
@@ -185,7 +189,7 @@ private fun BindImeiCard(
           )
         } else {
           Text(
-            text = "确认绑定",
+            text = stringResource(R.string.bind_imei_confirm),
             style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,

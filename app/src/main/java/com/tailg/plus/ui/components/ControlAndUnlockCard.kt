@@ -36,6 +36,8 @@ import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppColorsLight
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/control_and_unlock_card.dart` — home card for the
@@ -80,7 +82,7 @@ fun ControlAndUnlockCard(
         LucideIcon(icon = Lucide.channel, size = 16.dp, color = AppColorsDark.textSecondary)
         Spacer(Modifier.width(8.dp))
         Text(
-          text = "控车渠道",
+          text = stringResource(R.string.control_card_channel),
           style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = AppColorsDark.textPrimary),
         )
         Spacer(Modifier.width(8.dp))
@@ -125,7 +127,7 @@ fun ControlAndUnlockCard(
             onClick = if (channelBusy) null else onOpenInductionSettings,
             enabled = !channelBusy,
             shape = RoundedCornerShape(AppRadii.sm),
-            semanticsLabel = "感应解锁设置",
+            semanticsLabel = stringResource(R.string.control_card_induction),
           ) {
             Box(
               modifier = Modifier.size(AppTouchTargets.min),
@@ -157,7 +159,7 @@ fun ControlAndUnlockCard(
         )
         Segment(
           value = OfficialControlChannel.AUTOMATIC,
-          label = "智能",
+          label = stringResource(R.string.control_card_auto),
           selected = channelSelected,
           enabled = !channelBusy,
           shape = segmentShape(0),
@@ -166,7 +168,7 @@ fun ControlAndUnlockCard(
         )
         Segment(
           value = OfficialControlChannel.BLE,
-          label = "仅蓝牙",
+          label = stringResource(R.string.control_card_ble_only),
           selected = channelSelected,
           enabled = !channelBusy,
           shape = segmentShape(1),
@@ -175,7 +177,7 @@ fun ControlAndUnlockCard(
         )
         Segment(
           value = OfficialControlChannel.OFFICIAL_CLOUD,
-          label = "仅云端",
+          label = stringResource(R.string.control_card_cloud_only),
           selected = channelSelected,
           enabled = !channelBusy,
           shape = segmentShape(2),
@@ -240,12 +242,13 @@ private fun channelDotColor(busy: Boolean, kind: ControlTopBarChannelKind): Colo
   }
 
 /** Dart `_channelStatusLabel`. */
+@Composable
 private fun channelStatusLabel(
   busy: Boolean,
   enabled: Boolean,
   status: ControlTopBarChannel,
 ): String {
-  if (busy) return "指令执行中"
+  if (busy) return stringResource(R.string.control_card_busy)
   if (enabled ||
     status.kind == ControlTopBarChannelKind.BLE_CONNECTING ||
     status.kind == ControlTopBarChannelKind.MQTT_CONNECTING ||
@@ -253,16 +256,17 @@ private fun channelStatusLabel(
   ) {
     return status.label
   }
-  return "当前不可用"
+  return stringResource(R.string.control_card_unavailable)
 }
 
 /** Dart `_channelDescription`. */
+@Composable
 private fun channelDescription(
   busy: Boolean,
   availability: ControlChannelAvailability,
   selected: OfficialControlChannel,
 ): String {
-  if (busy) return "指令执行中，暂不能切换渠道"
+  if (busy) return stringResource(R.string.control_card_channel_switching)
   if (!availability.enabled) {
     val reason = when (selected) {
       OfficialControlChannel.AUTOMATIC -> availability.disabledReason
@@ -272,8 +276,8 @@ private fun channelDescription(
     if (reason.trim().isNotEmpty()) return reason.trim()
   }
   return when (selected) {
-    OfficialControlChannel.AUTOMATIC -> "按车辆能力自动选择蓝牙或云端"
-    OfficialControlChannel.BLE -> "仅附近蓝牙直连"
-    OfficialControlChannel.OFFICIAL_CLOUD -> "仅官方账号远程"
+    OfficialControlChannel.AUTOMATIC -> stringResource(R.string.control_card_auto_desc)
+    OfficialControlChannel.BLE -> stringResource(R.string.control_card_ble_desc)
+    OfficialControlChannel.OFFICIAL_CLOUD -> stringResource(R.string.control_card_cloud_desc)
   }
 }

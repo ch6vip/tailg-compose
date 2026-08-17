@@ -1,0 +1,11 @@
+GarageCodeScannerScreen: replaced 7
+MapTileConfig: replaced 2
+CyberMapView: replaced 2
+QrImage: replaced 1
+  MISS [CloudVehicleGate]: "\u6682\u65e0\u8f66\u8f86,\u8bf7\u5148\u540c\u6b65\u5b98\u65b9\u8f66\u8f86"
+CloudVehicleGate: replaced 0
+  CloudVehicleGate remaining: 1
+CloudTokenScreen: replaced 11
+  CloudTokenScreen: paste hint fixed
+CloudTokenViewModel: replaced 6
+ALL DONE

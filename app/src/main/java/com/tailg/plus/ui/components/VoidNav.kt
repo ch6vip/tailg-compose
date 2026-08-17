@@ -34,9 +34,11 @@ import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.R
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 
@@ -98,7 +100,7 @@ fun VoidOrbitalNav(
       },
   ) {
     NavItem(
-      label = "服务",
+      label = stringResource(R.string.nav_service),
       icon = Lucide.service,
       selected = currentIndex == 0,
       onTap = {
@@ -108,7 +110,7 @@ fun VoidOrbitalNav(
       modifier = Modifier.weight(1f),
     )
     NavItem(
-      label = "控车",
+      label = stringResource(R.string.nav_control),
       icon = Lucide.vehicle,
       selected = currentIndex == 1,
       onTap = {
@@ -118,7 +120,7 @@ fun VoidOrbitalNav(
       modifier = Modifier.weight(1f),
     )
     NavItem(
-      label = "我的",
+      label = stringResource(R.string.nav_mine),
       icon = Lucide.mine,
       selected = currentIndex == 2,
       onTap = {

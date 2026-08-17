@@ -59,6 +59,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/induction_settings_page.dart` — unified induction /
@@ -96,8 +98,26 @@ fun InductionSettingsScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
+  val strInductionSyncing = stringResource(R.string.induction_syncing)
+  val strInductionNotLoggedIn = stringResource(R.string.induction_not_logged_in)
+  val strInductionManualConfirm = stringResource(R.string.induction_manual_confirm)
+  val strPairingHint = stringResource(R.string.induction_pairing_hint)
+  val strNotifPerm = stringResource(R.string.induction_notification_perm)
+  val strEnabledPairing = stringResource(R.string.induction_enabled_pairing)
+  val strInductionStatusRefreshed = stringResource(R.string.induction_status_refreshed)
+  val strInductionDistanceFailed = stringResource(R.string.induction_distance_failed)
+  val strInductionDistanceUpdated = stringResource(R.string.induction_distance_updated)
+  val strInductionNeedBleRead = stringResource(R.string.induction_need_ble_read)
+  val strInductionDisableFailed = stringResource(R.string.induction_disable_failed)
+  val strManualSwitched = stringResource(R.string.induction_manual_switched)
+  val strUnsupported = stringResource(R.string.induction_unsupported)
+  val strIdentifyAfterBle = stringResource(R.string.induction_identify_after_ble)
+  val strEnableBleFirst = stringResource(R.string.induction_enable_ble_first)
+  val strEnableFailed = stringResource(R.string.induction_enable_failed)
+  val strInductionEnabled = stringResource(R.string.induction_enabled)
+
   // Shared Hilt singleton when injected; a private instance would always be
-  // DISCONNECTED and permanently report "请先连接车辆蓝牙".
+  // DISCONNECTED and permanently report stringResource(R.string.induction_ble_required).
   val connectionManager = connectionManager ?: remember { ConnectionManager(context) }
   val prefs = remember { DataStoreInductionPrefs(context) }
   val manualModeService = remember { ManualModeService(prefs) }
@@ -190,7 +210,7 @@ fun InductionSettingsScreen(
             if (err != null) {
               AppSnack.error(snackbarHostState, err)
             } else {
-              AppSnack.success(snackbarHostState, "状态已刷新")
+              AppSnack.success(snackbarHostState, strInductionStatusRefreshed)
             }
           }
         },
@@ -205,7 +225,7 @@ fun InductionSettingsScreen(
         ),
       ) {
         item {
-          SectionLabel("当前能力")
+          SectionLabel(stringResource(R.string.induction_current_capability))
         }
         item {
           CapabilityCard(
@@ -225,7 +245,7 @@ fun InductionSettingsScreen(
         }
         item {
           Spacer(Modifier.height(22.dp))
-          SectionLabel("解锁模式")
+          SectionLabel(stringResource(R.string.induction_unlock_mode))
         }
         item {
           UnlockModeCard(
@@ -250,6 +270,18 @@ fun InductionSettingsScreen(
                   hostActivity = context as? androidx.activity.ComponentActivity,
                   snackbarHostState = snackbarHostState,
                   setBusy = { busy = it },
+                  strNeedBleRead = strInductionNeedBleRead,
+                  strManualConfirm = strInductionManualConfirm,
+                  strDisableFailed = strInductionDisableFailed,
+                  strManualSwitched = strManualSwitched,
+                  strUnsupported = strUnsupported,
+                  strIdentifyAfterBle = strIdentifyAfterBle,
+                  strEnableBleFirst = strEnableBleFirst,
+                  strEnableFailed = strEnableFailed,
+                  strInductionEnabled = strInductionEnabled,
+                  strPairingHint = strPairingHint,
+                  strNotifPerm = strNotifPerm,
+                  strEnabledPairing = strEnabledPairing,
                 )
               }
             },
@@ -261,9 +293,9 @@ fun InductionSettingsScreen(
                 val ok = inductionService.setDistance(level)
                 busy = false
                 if (!ok) {
-                  AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: "距离设置失败")
+                  AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: strInductionDistanceFailed)
                 } else {
-                  AppSnack.success(snackbarHostState, "感应距离已更新")
+                  AppSnack.success(snackbarHostState, strInductionDistanceUpdated)
                 }
               }
             },
@@ -295,7 +327,7 @@ private fun InductionHeader(
       background = CyberHomeColors.card,
       shadowElevation = 4.dp,
       shadowColor = CyberHomeColors.actionShadow,
-      semanticsLabel = "返回",
+      semanticsLabel = stringResource(R.string.common_back),
     ) {
       Box(
         modifier = Modifier.size(AppTouchTargets.min),
@@ -306,7 +338,7 @@ private fun InductionHeader(
     }
     Spacer(Modifier.width(12.dp))
     Text(
-      text = "感应解锁",
+      text = stringResource(R.string.induction_title),
       modifier = Modifier.weight(1f),
       maxLines = 1,
       overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
@@ -320,7 +352,7 @@ private fun InductionHeader(
       onClick = if (busy) null else onRefresh,
       enabled = !busy,
       shape = CircleShape,
-      semanticsLabel = "刷新状态",
+      semanticsLabel = stringResource(R.string.induction_refresh),
     ) {
       Box(
         modifier = Modifier.size(AppTouchTargets.min),
@@ -371,9 +403,9 @@ private fun CapabilityCard(
   bondIncomplete: Boolean,
 ) {
   val title = when (stack) {
-    InductionStack.QGJ, InductionStack.TLINK -> "车辆感应"
-    InductionStack.RSSI -> "蓝牙信号感应"
-    InductionStack.NONE -> "手动控车"
+    InductionStack.QGJ, InductionStack.TLINK -> stringResource(R.string.induction_vehicle_mode)
+    InductionStack.RSSI -> stringResource(R.string.induction_ble_signal_mode)
+    InductionStack.NONE -> stringResource(R.string.induction_manual_mode)
   }
   val icon = when (stack) {
     InductionStack.QGJ, InductionStack.TLINK -> Lucide.sensors
@@ -440,6 +472,8 @@ private fun CapabilityCard(
 /** Dart `_ConnectionNotice`. */
 @Composable
 private fun ConnectionNotice(protocolLoggedIn: Boolean) {
+  val strInductionSyncing = stringResource(R.string.induction_syncing)
+  val strInductionNotLoggedIn = stringResource(R.string.induction_not_logged_in)
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -452,8 +486,8 @@ private fun ConnectionNotice(protocolLoggedIn: Boolean) {
     LucideIcon(icon = Lucide.alertCircle, size = 18.dp, color = CyberHomeColors.warning)
     Spacer(Modifier.width(9.dp))
     Text(
-      text = if (protocolLoggedIn) "蓝牙已连接，正在同步状态…"
-        else "当前未完成蓝牙协议登录，请返回爱车页连接车辆。",
+      text = if (protocolLoggedIn) strInductionSyncing
+        else strInductionNotLoggedIn,
       modifier = Modifier.weight(1f),
       style = TextStyle(
         fontSize = 12.sp,
@@ -492,7 +526,7 @@ private fun UnlockModeCard(
   ) {
     Row(modifier = Modifier.fillMaxWidth()) {
       SegmentButton(
-        label = "感应",
+        label = stringResource(R.string.induction_sensor),
         icon = Lucide.sensors,
         selected = selection == true,
         enabled = supportsInduction && !anyBusy,
@@ -501,7 +535,7 @@ private fun UnlockModeCard(
       )
       Spacer(Modifier.width(8.dp))
       SegmentButton(
-        label = "手动",
+        label = stringResource(R.string.induction_manual),
         icon = Lucide.pointer,
         selected = selection == false || (selection == null && !supportsInduction),
         enabled = !anyBusy,
@@ -515,7 +549,7 @@ private fun UnlockModeCard(
       Spacer(Modifier.height(16.dp))
       Row(verticalAlignment = Alignment.CenterVertically) {
         Text(
-          text = "感应距离",
+          text = stringResource(R.string.induction_distance),
           modifier = Modifier.weight(1f),
           style = TextStyle(
             fontSize = 14.sp,
@@ -527,7 +561,7 @@ private fun UnlockModeCard(
       }
       Spacer(Modifier.height(4.dp))
       Text(
-        text = "档位越高，越远就能触发解锁",
+        text = stringResource(R.string.induction_distance_desc),
         style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
       Spacer(Modifier.height(6.dp))
@@ -556,11 +590,11 @@ private fun UnlockModeCard(
         horizontalArrangement = Arrangement.SpaceBetween,
       ) {
         Text(
-          text = "近",
+          text = stringResource(R.string.induction_near),
           style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
         Text(
-          text = "远",
+          text = stringResource(R.string.induction_far),
           style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -624,7 +658,7 @@ private fun DistanceBadge(level: Int) {
     contentAlignment = Alignment.Center,
   ) {
     Text(
-      text = "档位 $level",
+      text = stringResource(R.string.induction_level_format, level),
       style = TextStyle(
         fontSize = 11.sp,
         fontWeight = FontWeight.W700,
@@ -657,6 +691,18 @@ private suspend fun selectUnlockMode(
   hostActivity: androidx.activity.ComponentActivity?,
   snackbarHostState: SnackbarHostState,
   setBusy: (Boolean) -> Unit,
+  strNeedBleRead: String,
+  strManualConfirm: String,
+  strDisableFailed: String,
+  strManualSwitched: String,
+  strUnsupported: String,
+  strIdentifyAfterBle: String,
+  strEnableBleFirst: String,
+  strEnableFailed: String,
+  strInductionEnabled: String,
+  strPairingHint: String,
+  strNotifPerm: String,
+  strEnabledPairing: String,
 ) {
   if (busy || snapshot.busy) return
 
@@ -666,11 +712,11 @@ private suspend fun selectUnlockMode(
     val vehicleManaged =
       snapshot.stack == InductionStack.QGJ || snapshot.stack == InductionStack.TLINK
     if (vehicleManaged && snapshot.enabled == null) {
-      AppSnack.info(snackbarHostState, "请先连接车辆蓝牙并读取感应状态")
+      AppSnack.info(snackbarHostState, strNeedBleRead)
       return
     }
     if (vehicleManaged && snapshot.enabled == true && !snapshot.bleReady) {
-      AppSnack.info(snackbarHostState, "请先连接车辆蓝牙，确认关闭感应后再切换手动模式")
+      AppSnack.info(snackbarHostState, strManualConfirm)
       return
     }
     setBusy(true)
@@ -678,7 +724,7 @@ private suspend fun selectUnlockMode(
       val closed = inductionService.setEnabled(false)
       if (!closed) {
         setBusy(false)
-        AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: "关闭感应失败")
+        AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: strDisableFailed)
         return
       }
     }
@@ -688,7 +734,7 @@ private suspend fun selectUnlockMode(
     if (err != null) {
       AppSnack.info(snackbarHostState, err)
     } else {
-      AppSnack.success(snackbarHostState, "已切换为手动模式")
+      AppSnack.success(snackbarHostState, strManualSwitched)
     }
     return
   }
@@ -697,17 +743,17 @@ private suspend fun selectUnlockMode(
   if (!supportsInduction) {
     AppSnack.info(
       snackbarHostState,
-      if (snapshot.bleReady) "当前车型不支持感应解锁" else "连接蓝牙后识别车型",
+      if (snapshot.bleReady) strUnsupported else strIdentifyAfterBle,
     )
     return
   }
   if (!snapshot.bleReady) {
-    AppSnack.info(snackbarHostState, "请先连接车辆蓝牙后再开启感应")
+    AppSnack.info(snackbarHostState, strEnableBleFirst)
     return
   }
   if (snapshot.enabled == true && !manualEnabled) {
     if (snapshot.bondIncomplete) {
-      AppSnack.info(snackbarHostState, "请在系统弹窗中允许蓝牙配对，否则靠近解锁可能无效")
+      AppSnack.info(snackbarHostState, strPairingHint)
     }
     return
   }
@@ -721,7 +767,7 @@ private suspend fun selectUnlockMode(
       if (!notif.granted) {
         AppSnack.info(
           snackbarHostState,
-          notif.message ?: "未授予通知权限，后台感应状态将不可见",
+          notif.message ?: strNotifPerm,
         )
       }
     }
@@ -731,33 +777,35 @@ private suspend fun selectUnlockMode(
   val ok = inductionService.setEnabled(true, clearManualMode = true)
   setBusy(false)
   if (!ok) {
-    AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: "开启感应失败")
+    AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: strEnableFailed)
     return
   }
   val err = inductionService.snapshot.lastError
   when {
     err != null -> AppSnack.info(snackbarHostState, err)
     inductionService.snapshot.bondIncomplete ->
-      AppSnack.info(snackbarHostState, inductionService.snapshot.lastError ?: "感应已开启，请允许系统蓝牙配对")
-    else -> AppSnack.success(snackbarHostState, "感应解锁已开启")
+      AppSnack.info(snackbarHostState, inductionService.snapshot.lastError ?: strEnabledPairing)
+    else -> AppSnack.success(snackbarHostState, strInductionEnabled)
   }
 }
 
 /** Dart `_helpText` getter. */
+@Composable
 private fun helpTextFor(stack: InductionStack): String = when (stack) {
   InductionStack.QGJ, InductionStack.TLINK ->
-    "开启后，手机靠近车辆会自动解锁，离开后自动上锁。" +
-      "首次开启可能弹出系统蓝牙配对请求，请点允许。" +
-      "距离档越大，越容易触发感应。"
+    stringResource(R.string.induction_desc_1) +
+      stringResource(R.string.induction_desc_2) +
+      stringResource(R.string.induction_desc_3)
   InductionStack.RSSI ->
-    "开启后，App 会根据蓝牙信号强弱自动解防或上锁。" +
-      "请保持手机蓝牙已连接车辆；Android 后台运行时会显示常驻通知。" +
-      "手动模式开启时不会自动控车。"
+    stringResource(R.string.induction_desc_4) +
+      stringResource(R.string.induction_desc_5) +
+      stringResource(R.string.induction_desc_6)
   InductionStack.NONE ->
-    "当前车辆暂不支持本地感应解锁，请使用手动控车。"
+    stringResource(R.string.induction_unsupported_desc)
 }
 
 /** Dart `_unlockStatusLine` getter. */
+@Composable
 private fun unlockStatusLine(
   snapshot: InductionModeSnapshot,
   supportsInduction: Boolean,
@@ -765,18 +813,18 @@ private fun unlockStatusLine(
   unlockSelection: Boolean?,
 ): String {
   if (!supportsInduction) {
-    return if (snapshot.bleReady) "当前车型仅支持手动控车" else "连接蓝牙后识别车型"
+    return if (snapshot.bleReady) stringResource(R.string.induction_manual_only) else stringResource(R.string.induction_identify_after_ble)
   }
   if (unlockSelection == null) {
-    return if (snapshot.bleReady) "正在读取解锁模式…" else "连接蓝牙后可开启感应"
+    return if (snapshot.bleReady) stringResource(R.string.induction_reading_mode) else stringResource(R.string.induction_connect_ble_hint)
   }
   if (unlockSelection == false) {
-    return "手动控车 · 已关闭自动连接与感应"
+    return stringResource(R.string.induction_manual_on_desc)
   }
-  if (!snapshot.bleReady) return "开启感应前请先连接车辆蓝牙"
+  if (!snapshot.bleReady) return stringResource(R.string.induction_enable_ble_hint)
   if (snapshot.bondIncomplete) {
-    return "感应已开 · 请允许系统蓝牙配对"
+    return stringResource(R.string.induction_on_pairing_hint)
   }
-  val dist = snapshot.distance?.let { " · 距离档 $it" } ?: ""
-  return "靠近自动解防，离开自动上锁$dist"
+  val dist = snapshot.distance?.let { stringResource(R.string.induction_distance_suffix, it) } ?: ""
+  return stringResource(R.string.induction_on_desc, dist)
 }

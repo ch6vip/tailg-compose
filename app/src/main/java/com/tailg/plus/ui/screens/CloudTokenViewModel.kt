@@ -1,5 +1,4 @@
 package com.tailg.plus.ui.screens
-
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
@@ -13,9 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+
 import kotlinx.coroutines.launch
 import javax.inject.Inject
-
 /**
  * ViewModel for [CloudTokenScreen].
  *
@@ -30,22 +29,17 @@ class CloudTokenViewModel @Inject constructor(
   private val log: LogService,
   private val clipboard: ClipboardText,
 ) : ViewModel() {
-
   data class UiState(
     val cloudState: OfficialCloudState = OfficialCloudState.initial(),
     val tokenText: String = "",
     val busy: Boolean = false,
   )
-
   private val _uiState = MutableStateFlow(UiState())
   val uiState: StateFlow<UiState> = _uiState.asStateFlow()
-
   /** Snackbar one-shot events (message + severity) — the UI collects them. */
   private val _messages = MutableStateFlow<List<UiMessage>>(emptyList())
   val messages: StateFlow<List<UiMessage>> = _messages.asStateFlow()
-
   data class UiMessage(val text: String, val isError: Boolean = false)
-
   init {
     // Mirror the cloud session state into the UI state.
     viewModelScope.launch {
@@ -54,15 +48,12 @@ class CloudTokenViewModel @Inject constructor(
       }
     }
   }
-
   fun onTokenTextChange(value: String) {
     _uiState.update { it.copy(tokenText = value) }
   }
-
   fun consumeMessage() {
     _messages.update { emptyList() }
   }
-
   /** Seed the field with the current token once, on first access. */
   fun seedTokenIfEmpty() {
     val s = _uiState.value
@@ -70,7 +61,6 @@ class CloudTokenViewModel @Inject constructor(
       _uiState.update { it.copy(tokenText = s.cloudState.token) }
     }
   }
-
   fun copyCurrentToken() {
     viewModelScope.launch {
       val token = _uiState.value.cloudState.token.trim()
@@ -82,7 +72,6 @@ class CloudTokenViewModel @Inject constructor(
       pushMessage("Token 已复制到剪贴板")
     }
   }
-
   fun pasteFromClipboard() {
     val text = clipboard.readClipboardText()
     if (text == null) {
@@ -92,7 +81,6 @@ class CloudTokenViewModel @Inject constructor(
       pushMessage("已从剪贴板粘贴")
     }
   }
-
   fun loginWithToken() {
     val s = _uiState.value
     if (s.busy) return
@@ -114,7 +102,6 @@ class CloudTokenViewModel @Inject constructor(
       }
     }
   }
-
   private fun pushMessage(text: String, isError: Boolean = false) {
     _messages.update { it + UiMessage(text = text, isError = isError) }
   }

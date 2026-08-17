@@ -1,0 +1,17 @@
+CyberChannelStrip: replaced 7
+SlidePowerButton: replaced 7
+StatusBadge: replaced 3
+CyberRecentCommands: replaced 4
+AppSnack: replaced 0
+VehicleSwitchSheet: replaced 2
+CyberChannelStrip.kt: CLEAN
+SlidePowerButton.kt: CLEAN
+StatusBadge.kt: CLEAN
+CyberRecentCommands.kt remaining: 1
+   "${commands.size} \u6761"
+AppSnack.kt remaining: 3
+   "${label}\u6682\u672a\u5f00\u653e\uff0c\u53ef\u5148\u4f7f\u7528\u5b98\u65b9\u4e91\u7aef\u63a7\u8f66"
+   "${label}\u4e0d\u5728\u590d\u523b\u8303\u56f4\u5185"
+   "${label}\u6682\u672a\u5f00\u653e"
+VehicleSwitchSheet.kt: CLEAN
+DONE

@@ -33,6 +33,8 @@ import org.osmdroid.views.overlay.TilesOverlay
 import kotlin.math.PI
 import kotlin.math.cos
 import kotlin.math.sin
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * osmdroid adapter for [MapTileConfig] templates (Dart
@@ -142,6 +144,7 @@ fun CyberMapView(
   val baseTemplate = remember { MapTileConfig.baseUrlTemplate() }
   val subdomains = remember { MapTileConfig.subdomains() }
   val labelTemplate = remember { MapTileConfig.annotationUrlTemplate() }
+  val strVehicleLocation = stringResource(R.string.map_view_vehicle_location)
 
   // Tiles providers own thread pools: create once, detach once. Rebuilding
   // them per recomposition would leak threads/bitmats.
@@ -180,7 +183,7 @@ fun CyberMapView(
       },
       pin = Marker(mapView).apply {
         setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-        title = "车辆位置"
+        title = strVehicleLocation
       },
     )
   }
@@ -279,7 +282,7 @@ fun CyberMapView(
           LucideIcon(icon = Lucide.map, size = 40.dp, color = CyberHomeColors.inkFaint)
           Spacer(Modifier.height(6.dp))
           androidx.compose.material3.Text(
-            text = "暂无位置数据",
+            text = stringResource(R.string.map_view_no_location),
             style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
           )
         }

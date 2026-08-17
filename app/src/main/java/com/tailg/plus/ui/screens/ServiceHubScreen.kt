@@ -41,6 +41,8 @@ import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/service_hub_page.dart` → `ServiceHubScreen.kt`.
@@ -59,6 +61,12 @@ fun ServiceHubScreen(
   vehicleRouteId: String,
   onNavigate: (String) -> Unit,
 ) {
+  val strLocation = stringResource(R.string.service_location)
+  val strTravel = stringResource(R.string.service_travel)
+  val strFence = stringResource(R.string.service_fence)
+  val strVehicleSettings = stringResource(R.string.service_vehicle_settings)
+  val strBattery = stringResource(R.string.service_battery)
+  val strRideStats = stringResource(R.string.service_ride_stats)
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
     contentWindowInsets = WindowInsets.statusBars,
@@ -75,12 +83,12 @@ fun ServiceHubScreen(
         modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
       ) {
         Text(
-          text = "服务中心",
+          text = stringResource(R.string.service_title),
           style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         )
         Spacer(Modifier.height(6.dp))
         Text(
-          text = "定位 · 轨迹 · 车辆 · 能耗",
+          text = stringResource(R.string.service_subtitle),
           style = TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.4f, color = CyberHomeColors.inkMuted),
         )
       }
@@ -89,31 +97,31 @@ fun ServiceHubScreen(
       // (fresh lists would defeat GlyphSection skipping).
       val locationItems = remember(vehicleRouteId, onNavigate) {
         listOf(
-          GlyphItem(Lucide.mapPin, "车辆定位") { onNavigate(Routes.location(vehicleRouteId)) },
-          GlyphItem(Lucide.route, "历史轨迹") { onNavigate(Routes.location(vehicleRouteId, "travel")) },
-          GlyphItem(Lucide.fence, "电子围栏") { onNavigate(Routes.location(vehicleRouteId, "fence")) },
+          GlyphItem(Lucide.mapPin, strLocation) { onNavigate(Routes.location(vehicleRouteId)) },
+          GlyphItem(Lucide.route, strTravel) { onNavigate(Routes.location(vehicleRouteId, "travel")) },
+          GlyphItem(Lucide.fence, strFence) { onNavigate(Routes.location(vehicleRouteId, "fence")) },
         )
       }
       val vehicleItems = remember(vehicleRouteId, onNavigate) {
         listOf(
-          GlyphItem(Lucide.tune, "车辆设置") { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
-          GlyphItem(Lucide.battery, "电池服务") { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
-          GlyphItem(Lucide.chart, "骑行统计") { onNavigate(Routes.rideStats(vehicleRouteId)) },
+          GlyphItem(Lucide.tune, strVehicleSettings) { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
+          GlyphItem(Lucide.battery, strBattery) { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
+          GlyphItem(Lucide.chart, strRideStats) { onNavigate(Routes.rideStats(vehicleRouteId)) },
         )
       }
 
-      ServiceSectionLabel("定位服务")
+      ServiceSectionLabel(stringResource(R.string.service_location_section))
       GlyphSection(items = locationItems)
 
-      ServiceSectionLabel("车辆与能耗")
+      ServiceSectionLabel(stringResource(R.string.service_vehicle_energy))
       GlyphSection(items = vehicleItems)
 
-      ServiceSectionLabel("更多")
+      ServiceSectionLabel(stringResource(R.string.service_more))
       ServiceListCard {
         ServiceListTile(
           icon = Lucide.stethoscope,
-          title = "故障诊断",
-          subtitle = "车辆健康与异常排查",
+          title = stringResource(R.string.service_fault_diag),
+          subtitle = stringResource(R.string.service_fault_diag_desc),
           onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
         )
         HorizontalDivider(
@@ -123,8 +131,8 @@ fun ServiceHubScreen(
         )
         ServiceListTile(
           icon = Lucide.cloud,
-          title = "官方账号",
-          subtitle = "云端登录与账号同步",
+          title = stringResource(R.string.service_official_account),
+          subtitle = stringResource(R.string.service_official_account_desc),
           onClick = { onNavigate(Routes.OFFICIAL_CLOUD) },
         )
       }
@@ -206,7 +214,7 @@ private fun GlyphTile(item: GlyphItem) {
   }
 }
 
-/** Dart `_serviceCardDecoration` wrapper for the "更多" list. */
+/** Dart `_serviceCardDecoration` wrapper for the stringResource(R.string.service_more) list. */
 @Composable
 private fun ServiceListCard(content: @Composable () -> Unit) {
   Column(

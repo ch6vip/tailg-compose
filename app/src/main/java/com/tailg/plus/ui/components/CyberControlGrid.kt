@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/cyber_control_grid.dart` — six-key control grid
@@ -59,7 +61,7 @@ fun CyberControlGrid(
   onSeat: () -> Unit,
   onNfc: () -> Unit,
 ) {
-  val armLabel = if (armed == null) "设防/解防" else if (armed) "解防" else "设防"
+  val armLabel = if (armed == null) stringResource(R.string.control_grid_arm_title) else if (armed) stringResource(R.string.control_grid_disarm) else stringResource(R.string.control_grid_arm)
   fun active(command: CommandCode) = activeCommand == command
   fun subdued(command: CommandCode) = busy && activeCommand != null && !active(command)
   val armActive = active(CommandCode.lock) || active(CommandCode.unlock)
@@ -73,7 +75,7 @@ fun CyberControlGrid(
     ) {
       CircleKey(
         icon = Lucide.find,
-        label = "寻车",
+        label = stringResource(R.string.control_card_find),
         available = findAvailability.enabled,
         unavailableReason = findAvailability.disabledReason,
         busy = active(CommandCode.find),
@@ -108,7 +110,7 @@ fun CyberControlGrid(
     ) {
       CircleKey(
         icon = Lucide.settings,
-        label = "设置",
+        label = stringResource(R.string.control_grid_settings),
         available = true,
         unavailableReason = "",
         busy = false,
@@ -117,7 +119,7 @@ fun CyberControlGrid(
       )
       CircleKey(
         icon = Lucide.seat,
-        label = "坐垫",
+        label = stringResource(R.string.control_card_seat),
         available = seatAvailability.enabled,
         unavailableReason = seatAvailability.disabledReason,
         busy = active(CommandCode.openSeat),
@@ -166,9 +168,9 @@ private fun CircleKey(
       semanticsLabel = if (available) {
         label
       } else if (unavailableReason.isEmpty()) {
-        "$label,不可用"
+        stringResource(R.string.control_grid_unavailable_format, label)
       } else {
-        "$label,不可用:$unavailableReason"
+        stringResource(R.string.control_grid_unavailable_reason_format, label, unavailableReason)
       },
     ) {
       Box(
@@ -192,7 +194,7 @@ private fun CircleKey(
     }
     Spacer(Modifier.height(8.dp))
     Text(
-      text = if (busy) "${label}中" else label,
+      text = if (busy) stringResource(R.string.control_grid_in_progress_format, label) else label,
       textAlign = TextAlign.Center,
       style = androidx.compose.ui.text.TextStyle(
         fontSize = 12.sp,
@@ -203,7 +205,7 @@ private fun CircleKey(
     Box(Modifier.height(16.dp)) {
       if (!available && !busy) {
         Text(
-          text = "不可用",
+          text = stringResource(R.string.control_grid_unavailable),
           style = androidx.compose.ui.text.TextStyle(
             fontSize = 10.sp,
             color = CyberHomeColors.inkFaint,

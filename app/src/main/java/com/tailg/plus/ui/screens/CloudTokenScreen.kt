@@ -47,6 +47,8 @@ import com.tailg.plus.ui.components.cyberTextFieldShape
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.SensitiveValueMasker
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/cloud_token_page.dart` → `CloudTokenScreen.kt`.
@@ -98,24 +100,24 @@ fun CloudTokenScreen(
         .padding(padding)
         .padding(bottom = 32.dp),
     ) {
-      CyberPageHeader(title = "云端 Token", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.token_cloud_title), onBack = onBack)
       Spacer(Modifier.height(12.dp))
 
       CyberCard {
         Column {
           Text(
-            text = "当前会话",
+            text = stringResource(R.string.token_current_session),
             style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
           )
           Spacer(Modifier.height(8.dp))
           Text(
-            text = if (signedIn) "已登录 · ${maskToken(state.token)}" else "未登录 · 可粘贴 Token 直接进入官方会话",
+            text = if (signedIn) stringResource(R.string.token_masked_format, maskToken(state.token)) else stringResource(R.string.token_not_logged_in),
             style = cyberBodyStyle,
           )
           if (state.phone.isNotEmpty()) {
             Spacer(Modifier.height(4.dp))
             Text(
-              text = "手机号 ${SensitiveValueMasker.phone(state.phone)}",
+              text = stringResource(R.string.token_phone_format, SensitiveValueMasker.phone(state.phone)),
               style = cyberCaptionStyle,
             )
           }
@@ -130,7 +132,7 @@ fun CloudTokenScreen(
             ) {
               LucideIcon(icon = Lucide.copy, size = AppIconSizes.sm)
               Spacer(Modifier.width(6.dp))
-              Text("复制 Token")
+              Text(stringResource(R.string.token_copy))
             }
             OutlinedButton(
               onClick = { viewModel.pasteFromClipboard() },
@@ -141,7 +143,7 @@ fun CloudTokenScreen(
             ) {
               LucideIcon(icon = Lucide.clipboardPaste, size = AppIconSizes.sm)
               Spacer(Modifier.width(6.dp))
-              Text("粘贴")
+              Text(stringResource(R.string.token_paste))
             }
           }
         }
@@ -152,13 +154,13 @@ fun CloudTokenScreen(
       CyberCard {
         Column {
           Text(
-            text = "粘贴 Token 登录",
+            text = stringResource(R.string.token_paste_login),
             style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
           )
           Spacer(Modifier.height(4.dp))
           Text(
-            text = "支持直接粘贴 Authorization 值,或带 Bearer 前缀 / Authorization 头整行。" +
-              "登录后会写入安全存储并同步车辆。",
+            text = stringResource(R.string.token_paste_hint) +
+              stringResource(R.string.token_relogin_desc),
             style = cyberBodyStyle,
           )
           Spacer(Modifier.height(12.dp))
@@ -173,7 +175,7 @@ fun CloudTokenScreen(
               lineHeight = 13.sp * 1.35f,
               color = CyberHomeColors.ink,
             ),
-            placeholder = { Text("粘贴 Token 或 Authorization: Bearer ...") },
+            placeholder = { Text(stringResource(R.string.token_paste_hint)) },
             shape = cyberTextFieldShape,
             colors = cyberTextFieldColors(),
             modifier = Modifier.fillMaxWidth(),
@@ -198,7 +200,7 @@ fun CloudTokenScreen(
               LucideIcon(icon = Lucide.login)
             }
             Spacer(Modifier.width(8.dp))
-            Text(if (signedIn) "用此 Token 重新登录" else "用 Token 登录")
+            Text(if (signedIn) stringResource(R.string.token_relogin) else stringResource(R.string.token_paste_login))
           }
         }
       }
@@ -207,8 +209,8 @@ fun CloudTokenScreen(
 
       CyberCard(contentPadding = PaddingValues(14.dp)) {
         Text(
-          text = "Token 等同于账号登录凭证,请勿分享给不可信的人或页面。" +
-            "复制仅用于你自己的多设备调试与迁移。",
+          text = stringResource(R.string.token_copy_desc) +
+            stringResource(R.string.token_copy_desc),
           style = TextStyle(fontSize = 12.sp, lineHeight = 12.sp * 1.45f, color = CyberHomeColors.inkMuted),
         )
       }
@@ -216,5 +218,6 @@ fun CloudTokenScreen(
   }
 }
 
+@Composable
 private fun maskToken(token: String): String =
-  SensitiveValueMasker.compact(token, emptyValue = "未登录")
+  SensitiveValueMasker.compact(token, emptyValue = stringResource(R.string.token_not_logged_in_short))

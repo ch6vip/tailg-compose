@@ -60,6 +60,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 private const val APP_VERSION = "0.1.0"
 private val BUILD_COMMIT: String = "local"
@@ -109,14 +111,14 @@ fun LanguageSettingsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "语言设置", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.prefs_language_setting), onBack = onBack)
       Column(
         modifier = Modifier
           .weight(1f)
           .verticalScroll(rememberScrollState())
           .padding(bottom = 24.dp),
       ) {
-        CyberSectionLabel("语言")
+        CyberSectionLabel(stringResource(R.string.prefs_language))
         CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
           Column {
             AppLanguagePreference.entries.forEachIndexed { index, preference ->
@@ -144,7 +146,7 @@ fun LanguageSettingsScreen(
             .fillMaxWidth()
             .height(48.dp),
         ) {
-          Text(if (saving) "保存中..." else "确认")
+          Text(if (saving) stringResource(R.string.prefs_saving) else stringResource(R.string.prefs_confirm))
         }
       }
     }
@@ -180,14 +182,14 @@ fun UnitSettingsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "单位设置", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.prefs_unit_setting), onBack = onBack)
       Column(
         modifier = Modifier
           .weight(1f)
           .verticalScroll(rememberScrollState())
           .padding(bottom = 24.dp),
       ) {
-        CyberSectionLabel("距离单位")
+        CyberSectionLabel(stringResource(R.string.prefs_distance_unit))
         CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
           Column {
             DistanceUnitPreference.entries.forEachIndexed { index, preference ->
@@ -218,6 +220,9 @@ fun AboutAppScreen(
   val clipboard = remember { ClipboardText(context) }
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
+  val strCopiedReport = stringResource(R.string.prefs_copied_report)
+  val strTerms = stringResource(R.string.prefs_terms)
+  val strPrivacy = stringResource(R.string.prefs_privacy)
 
   val cloud = cloudService ?: rememberOfficialCloudService()
   val vehicleStore = remember { VehicleStore(context) }
@@ -233,7 +238,7 @@ fun AboutAppScreen(
     scope.launch {
       val report = exportService.buildReport(log.all)
       clipboard.writeClipboardText(report)
-      AppSnack.success(snackbarHostState, "已复制诊断报告")
+      AppSnack.success(snackbarHostState, strCopiedReport)
     }
   }
 
@@ -245,7 +250,7 @@ fun AboutAppScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "关于台铃智能", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.prefs_about), onBack = onBack)
       Column(
         modifier = Modifier
           .weight(1f)
@@ -269,43 +274,43 @@ fun AboutAppScreen(
             }
             Spacer(Modifier.height(14.dp))
             Text(
-              text = "台铃智能",
+              text = stringResource(R.string.prefs_app_name),
               style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             )
             Spacer(Modifier.height(4.dp))
-            Text(text = "智慧用车服务", style = cyberCaptionStyle)
+            Text(text = stringResource(R.string.prefs_app_desc), style = cyberCaptionStyle)
           }
         }
-        CyberSectionLabel("版本")
+        CyberSectionLabel(stringResource(R.string.prefs_version))
         CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
           Column {
-            InfoRow(label = "应用版本", value = APP_VERSION)
+            InfoRow(label = stringResource(R.string.prefs_app_version), value = APP_VERSION)
             InsetDivider()
-            InfoRow(label = "Git 提交", value = BUILD_COMMIT)
+            InfoRow(label = stringResource(R.string.prefs_git_commit), value = BUILD_COMMIT)
           }
         }
-        CyberSectionLabel("服务支持")
+        CyberSectionLabel(stringResource(R.string.prefs_service_support))
         CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
           Column {
             ActionRow(
               icon = Lucide.support,
-              title = "服务诊断",
-              subtitle = "复制信息用于客服排查问题",
+              title = stringResource(R.string.prefs_service_diag),
+              subtitle = stringResource(R.string.prefs_service_diag_desc),
               onClick = copyDiagnosticReport,
             )
             InsetDivider()
             ActionRow(
               icon = Lucide.fileText,
-              title = "用户协议",
-              subtitle = "查看服务使用条款",
-              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, "用户协议") },
+              title = stringResource(R.string.prefs_terms),
+              subtitle = stringResource(R.string.prefs_terms_desc),
+              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, strTerms) },
             )
             InsetDivider()
             ActionRow(
               icon = Lucide.privacy,
-              title = "隐私政策",
-              subtitle = "了解个人信息保护规则",
-              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, "隐私政策") },
+              title = stringResource(R.string.prefs_privacy),
+              subtitle = stringResource(R.string.prefs_privacy_desc),
+              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, strPrivacy) },
             )
           }
         }

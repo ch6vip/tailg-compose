@@ -41,6 +41,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -51,6 +52,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
@@ -102,6 +104,18 @@ fun LoginScreen(
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsState()
   val cloudState by cloudService.stateFlow.collectAsState()
+
+  // String resources resolved once in the composition so they can be used
+  // from coroutine lambdas below (stringResource is @Composable-only).
+  val strAgreeRequired = stringResource(R.string.login_agree_required)
+  val strSmsSent = stringResource(R.string.login_sms_sent)
+  val strPhoneError = stringResource(R.string.login_phone_error)
+  val strSmsError = stringResource(R.string.login_sms_error)
+  val strClipboardEmpty = stringResource(R.string.login_clipboard_empty)
+  val strClipboardPasted = stringResource(R.string.login_clipboard_pasted)
+  val strPasteToken = stringResource(R.string.token_paste_placeholder)
+  val strLoginSuccess = stringResource(R.string.login_success)
+  val strTokenLoginSuccess = stringResource(R.string.login_token_success)
 
   var phone by remember {
     mutableStateOf(cloudService.currentState.phone)
@@ -159,14 +173,14 @@ fun LoginScreen(
           onRequestCode = {
             if (smsCountdown.isActive || !validPhone) return@SmsLoginForm
             if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, "请先阅读并同意用户协议与隐私政策") }
+              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
               return@SmsLoginForm
             }
             scope.launch {
               try {
                 cloudService.requestSmsCode(normalizedPhone)
                 smsCountdown.start()
-                AppSnack.success(snackbarHostState, "验证码已发送")
+                AppSnack.success(snackbarHostState, strSmsSent)
               } catch (e: Exception) {
                 log.operation(
                   "官云验证码发送失败",
@@ -180,15 +194,15 @@ fun LoginScreen(
           onLogin = {
             if (busy) return@SmsLoginForm
             if (!validPhone) {
-              scope.launch { AppSnack.info(snackbarHostState, "请输入 11 位手机号") }
+              scope.launch { AppSnack.info(snackbarHostState, strPhoneError) }
               return@SmsLoginForm
             }
             if (!validSms) {
-              scope.launch { AppSnack.info(snackbarHostState, "请输入短信验证码") }
+              scope.launch { AppSnack.info(snackbarHostState, strSmsError) }
               return@SmsLoginForm
             }
             if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, "请先阅读并同意用户协议与隐私政策") }
+              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
               return@SmsLoginForm
             }
             busy = true
@@ -199,7 +213,7 @@ fun LoginScreen(
                 // M3 showSnackbar suspends ~4s and would block navigation). The
                 // success toast is shown by the host on the destination screen.
                 navigated = true
-                onSignedIn("登录成功")
+                onSignedIn(strLoginSuccess)
               } catch (e: Exception) {
                 log.operation(
                   "官云登录失败",
@@ -221,21 +235,21 @@ fun LoginScreen(
           onPaste = {
             val text = clipboard.readClipboardText()
             if (text == null) {
-              scope.launch { AppSnack.info(snackbarHostState, "剪贴板为空") }
+              scope.launch { AppSnack.info(snackbarHostState, strClipboardEmpty) }
               return@TokenLoginForm
             }
             token = text
-            scope.launch { AppSnack.success(snackbarHostState, "已从剪贴板粘贴") }
+            scope.launch { AppSnack.success(snackbarHostState, strClipboardPasted) }
           },
           onLogin = {
             if (busy) return@TokenLoginForm
             val raw = token.trim()
             if (raw.isEmpty()) {
-              scope.launch { AppSnack.info(snackbarHostState, "请先粘贴 Token") }
+              scope.launch { AppSnack.info(snackbarHostState, strPasteToken) }
               return@TokenLoginForm
             }
             if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, "请先阅读并同意用户协议与隐私政策") }
+              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
               return@TokenLoginForm
             }
             busy = true
@@ -248,7 +262,7 @@ fun LoginScreen(
                 )
                 // Navigate immediately; success toast shown by the host.
                 navigated = true
-                onSignedIn("Token 登录成功")
+                onSignedIn(strTokenLoginSuccess)
               } catch (e: Exception) {
                 log.operation(
                   "Token 登录失败",
@@ -277,7 +291,11 @@ fun LoginScreen(
         )
         Spacer(Modifier.width(6.dp))
         Text(
-          text = if (mode == LoginMode.SMS) "使用 Token 登录" else "返回手机号登录",
+          text = if (mode == LoginMode.SMS) {
+            stringResource(R.string.login_use_token)
+          } else {
+            stringResource(R.string.login_use_sms)
+          },
           color = CyberHomeColors.primary,
         )
       }
@@ -317,17 +335,17 @@ private fun BrandHeader() {
     }
     Spacer(Modifier.height(18.dp))
     Text(
-      text = "TAILG",
+      text = stringResource(R.string.login_brand),
       style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
     )
     Spacer(Modifier.height(6.dp))
     Text(
-      text = "台铃智能 · VOID COCKPIT",
+      text = stringResource(R.string.login_subtitle),
       style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkFaint),
     )
     Spacer(Modifier.height(10.dp))
     Text(
-      text = "登录后同步车辆，享受控车、定位、电池等服务",
+      text = stringResource(R.string.login_hint),
       textAlign = TextAlign.Center,
       style = TextStyle(
         fontSize = 13.sp,
@@ -357,7 +375,7 @@ private fun SmsLoginForm(
   val canLogin = !loading && validPhone && validSms
 
   Column(modifier = Modifier.fillMaxWidth()) {
-    FieldLabel("手机号")
+    FieldLabel(stringResource(R.string.login_phone_label))
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
       value = phone,
@@ -365,16 +383,16 @@ private fun SmsLoginForm(
       singleLine = true,
       isError = showPhoneError,
       supportingText = if (showPhoneError) {
-        { Text("请输入 11 位手机号") }
+        { Text(stringResource(R.string.login_phone_error)) }
       } else null,
       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-      placeholder = { Text("请输入手机号") },
+      placeholder = { Text(stringResource(R.string.login_phone_hint)) },
       colors = cyberTextFieldColors(),
       shape = cyberTextFieldShape,
       modifier = Modifier.fillMaxWidth(),
     )
     Spacer(Modifier.height(16.dp))
-    FieldLabel("验证码")
+    FieldLabel(stringResource(R.string.login_sms_label))
     Spacer(Modifier.height(8.dp))
     Row(verticalAlignment = Alignment.Top) {
       OutlinedTextField(
@@ -383,10 +401,10 @@ private fun SmsLoginForm(
         singleLine = true,
         isError = showSmsError,
         supportingText = if (showSmsError) {
-          { Text("请输入短信验证码") }
+          { Text(stringResource(R.string.login_sms_error)) }
         } else null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-        placeholder = { Text("请输入验证码") },
+        placeholder = { Text(stringResource(R.string.login_sms_hint)) },
         colors = cyberTextFieldColors(),
         shape = cyberTextFieldShape,
         modifier = Modifier.weight(1f),
@@ -400,7 +418,7 @@ private fun SmsLoginForm(
         border = cyberOutlinedButtonBorder,
         modifier = Modifier.height(48.dp),
       ) {
-        Text(text = if (countdown > 0) "${countdown}s" else "获取验证码")
+        Text(text = if (countdown > 0) "${countdown}s" else stringResource(R.string.login_get_code))
       }
     }
     Spacer(Modifier.height(24.dp))
@@ -421,7 +439,7 @@ private fun SmsLoginForm(
         )
       } else {
         Text(
-          text = "登录",
+          text = stringResource(R.string.login_button),
           style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700),
         )
       }
@@ -438,7 +456,7 @@ private fun TokenLoginForm(
   onLogin: () -> Unit,
 ) {
   Column(modifier = Modifier.fillMaxWidth()) {
-    FieldLabel("粘贴 Token")
+    FieldLabel(stringResource(R.string.login_token_field))
     Spacer(Modifier.height(8.dp))
     OutlinedTextField(
       value = token,
@@ -450,7 +468,7 @@ private fun TokenLoginForm(
         lineHeight = 13.sp * 1.35f,
         color = CyberHomeColors.ink,
       ),
-      placeholder = { Text("粘贴 Token 或 Authorization: Bearer ...") },
+      placeholder = { Text(stringResource(R.string.login_token_hint)) },
       trailingIcon = {
         AppPressable(
           onClick = onPaste,
@@ -471,7 +489,7 @@ private fun TokenLoginForm(
     )
     Spacer(Modifier.height(10.dp))
     Text(
-      text = "支持直接粘贴 Authorization 值，或带 Bearer 前缀 / Authorization 头整行。登录后写入安全存储并同步车辆。",
+      text = stringResource(R.string.login_token_desc),
       style = TextStyle(
         fontSize = 12.sp,
         lineHeight = 12.sp * 1.45f,
@@ -496,7 +514,7 @@ private fun TokenLoginForm(
         )
       } else {
         Text(
-          text = "用 Token 登录",
+          text = stringResource(R.string.login_token_button),
           style = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700),
         )
       }
@@ -509,6 +527,11 @@ private fun AgreementRow(
   agreed: Boolean,
   onChanged: (Boolean) -> Unit,
 ) {
+  val strAgreePrefix = stringResource(R.string.login_agree_prefix)
+  val strAgreement = stringResource(R.string.login_agreement)
+  val strAgreeAnd = stringResource(R.string.login_agree_and)
+  val strPrivacy = stringResource(R.string.login_privacy)
+
   // Dart `_AgreementRow`: whole row is tappable (GestureDetector with opaque
   // hit test) and the terms names are rendered in primary via RichText.
   Row(
@@ -537,16 +560,16 @@ private fun AgreementRow(
     Text(
       text = buildAnnotatedString {
         withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
-          append("我已阅读并同意")
+          append(strAgreePrefix)
         }
         withStyle(SpanStyle(color = CyberHomeColors.primary)) {
-          append("《用户协议》")
+          append("《${strAgreement}》")
         }
         withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
-          append("和")
+          append(strAgreeAnd)
         }
         withStyle(SpanStyle(color = CyberHomeColors.primary)) {
-          append("《隐私政策》")
+          append("《${strPrivacy}》")
         }
       },
       style = TextStyle(
@@ -573,7 +596,7 @@ private fun TokenSafetyNote() {
     LucideIcon(icon = Lucide.shield, size = 18.dp, color = CyberHomeColors.warning)
     Spacer(Modifier.width(10.dp))
     Text(
-      text = "Token 等同于账号登录凭证，请勿分享给不可信的人或页面。复制仅用于你自己的多设备调试与迁移。",
+      text = stringResource(R.string.login_token_warning),
       style = TextStyle(
         fontSize = 12.sp,
         lineHeight = 12.sp * 1.45f,

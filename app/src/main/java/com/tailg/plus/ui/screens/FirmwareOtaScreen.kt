@@ -52,6 +52,8 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/firmware_ota_page.dart` → `FirmwareOtaScreen.kt`.
@@ -73,15 +75,18 @@ fun FirmwareOtaScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
+  val strOtaStandby = stringResource(R.string.ota_standby)
+  val strOtaStarting = stringResource(R.string.ota_starting)
+
   var progress by remember {
-    mutableStateOf(FirmwareOtaProgress(FirmwareOtaPhase.IDLE, 0.0, "待命"))
+    mutableStateOf(FirmwareOtaProgress(FirmwareOtaPhase.IDLE, 0.0, strOtaStandby))
   }
   var running by remember { mutableStateOf(false) }
 
   val start: () -> Unit = {
     if (!running) {
     running = true
-    progress = FirmwareOtaProgress(FirmwareOtaPhase.QUERYING, 0.0, "启动…")
+    progress = FirmwareOtaProgress(FirmwareOtaPhase.QUERYING, 0.0, strOtaStarting)
     scope.launch {
       try {
         ota.run().collectLatest { p ->
@@ -114,7 +119,7 @@ fun FirmwareOtaScreen(
         .padding(padding)
         .padding(bottom = 24.dp),
     ) {
-      CyberPageHeader(title = "固件升级 OTA", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.ota_title), onBack = onBack)
       Spacer(Modifier.height(8.dp))
       CyberCard {
         Column {
@@ -129,11 +134,11 @@ fun FirmwareOtaScreen(
               LucideIcon(icon = Lucide.download, size = 20.dp, color = CyberHomeColors.primary)
             }
             Spacer(Modifier.width(12.dp))
-            Text(text = "车辆固件", style = cyberItemTitleStyle)
+            Text(text = stringResource(R.string.ota_vehicle_firmware), style = cyberItemTitleStyle)
           }
           Spacer(Modifier.height(14.dp))
           Text(
-            text = "检查官方固件版本并通过蓝牙更新车辆中控。升级期间请保持车辆通电和手机靠近车辆。",
+            text = stringResource(R.string.ota_description),
             style = cyberBodyStyle,
           )
           Spacer(Modifier.height(18.dp))
@@ -159,7 +164,7 @@ fun FirmwareOtaScreen(
             colors = cyberFilledButtonColors(),
             modifier = Modifier.fillMaxWidth(),
           ) {
-            Text(if (running) "进行中…" else "检查并升级")
+            Text(if (running) stringResource(R.string.ota_in_progress) else stringResource(R.string.ota_check_upgrade))
           }
         }
       }

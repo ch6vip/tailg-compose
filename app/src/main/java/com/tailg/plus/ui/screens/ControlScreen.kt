@@ -34,6 +34,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
+import com.tailg.plus.data.cloud.ResolvedVehicleLocation
 import com.tailg.plus.data.ble.BikeState
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.ble.platform.ConnectionState
@@ -130,6 +133,52 @@ fun ControlScreen(
   var lastCommandAtMs by remember { mutableStateOf(0L) }
   val commandLog = remember { ControlCommandActivityLog() }
   var commandVersion by remember { mutableStateOf(0) }
+
+  // String resources cached for coroutine-lambda use.
+  val strBusyHint = stringResource(R.string.control_busy_hint)
+  val strTooFrequent = stringResource(R.string.control_too_frequent)
+  val strUnavailableHint = stringResource(R.string.control_unavailable_hint)
+  val strVehicleChanged = stringResource(R.string.control_vehicle_changed)
+  val strChannelChanged = stringResource(R.string.control_channel_changed)
+  val strVehicleOrChannelChanged = stringResource(R.string.control_vehicle_or_channel_changed)
+  val strSeatUnsupported = stringResource(R.string.control_seat_unsupported)
+  val strVehicleUnknown = stringResource(R.string.control_vehicle_unknown)
+  val strBleConnected = stringResource(R.string.control_ble_connected)
+  val strBleNoAddress = stringResource(R.string.control_ble_no_address)
+  val strBleConnecting = stringResource(R.string.control_ble_connecting)
+  val strBleUnavailable = stringResource(R.string.control_ble_unavailable)
+  val strBlePermission = stringResource(R.string.control_ble_permission)
+  val strBleConnectError = stringResource(R.string.control_ble_connect_error)
+  val strBleRetry = stringResource(R.string.control_ble_retry)
+  val strRetry = stringResource(R.string.control_retry)
+
+  val strSuccessFormat = stringResource(R.string.control_success_format)
+  val strFailureFormat = stringResource(R.string.control_failure_format)
+  val strFailureDetailFormat = stringResource(R.string.control_failure_detail_format)
+  val strUnconfirmedFormat = stringResource(R.string.control_unconfirmed_format)
+  val strDisabledFormat = stringResource(R.string.control_disabled_format)
+  val strSuccessTitles = mapOf(
+    CommandCode.POWER_ON to stringResource(R.string.control_success_on),
+    CommandCode.POWER_OFF to stringResource(R.string.control_success_off),
+    CommandCode.LOCK to stringResource(R.string.control_success_lock),
+    CommandCode.UNLOCK to stringResource(R.string.control_success_unlock),
+    CommandCode.FIND to stringResource(R.string.control_success_find),
+    CommandCode.OPEN_SEAT to stringResource(R.string.control_success_seat),
+  )
+  val strSuccessSubtitles = mapOf(
+    CommandCode.POWER_ON to stringResource(R.string.control_subtitle_on),
+    CommandCode.POWER_OFF to stringResource(R.string.control_subtitle_off),
+    CommandCode.LOCK to stringResource(R.string.control_subtitle_lock),
+    CommandCode.UNLOCK to stringResource(R.string.control_subtitle_unlock),
+    CommandCode.FIND to stringResource(R.string.control_subtitle_find),
+    CommandCode.OPEN_SEAT to stringResource(R.string.control_subtitle_seat),
+  )
+  val strUnconfirmedTitles = mapOf(
+    CommandCode.POWER_ON to stringResource(R.string.control_unconfirmed_on),
+    CommandCode.POWER_OFF to stringResource(R.string.control_unconfirmed_off),
+    CommandCode.LOCK to stringResource(R.string.control_unconfirmed_lock),
+    CommandCode.UNLOCK to stringResource(R.string.control_unconfirmed_unlock),
+  )
 
   // Dart subscribes to networkAvailabilityService.changes; BLE must keep
   // working offline, so the flow fails open (NetworkAvailabilityService).
@@ -428,7 +477,7 @@ fun ControlScreen(
    */
   suspend fun ensureNearFieldLink(auto: Boolean = false) {
     if (connectionManager.isProtocolLoggedIn) {
-      AppSnack.info(snackbarHostState, "蓝牙已连接")
+      AppSnack.info(snackbarHostState, strBleConnected)
       return
     }
     val state = cloudService.currentState
@@ -436,17 +485,17 @@ fun ControlScreen(
     val mac = vehicle?.normalizedDeviceMac
     if (vehicle == null || mac.isNullOrEmpty()) {
       if (!auto) {
-        AppSnack.info(snackbarHostState, "未获取车辆蓝牙地址,请在扫码页手动连接")
+        AppSnack.info(snackbarHostState, strBleNoAddress)
         onNavigate(Routes.SCAN)
       }
       return
     }
-    AppSnack.info(snackbarHostState, "正在连接车辆蓝牙...")
+    AppSnack.info(snackbarHostState, strBleConnecting)
     try {
       val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
       val device = adapter?.getRemoteDevice(mac)
       if (device == null) {
-        AppSnack.error(snackbarHostState, "蓝牙不可用,请检查蓝牙开关")
+        AppSnack.error(snackbarHostState, strBleUnavailable)
         return
       }
       connectionManager.connect(
@@ -456,9 +505,9 @@ fun ControlScreen(
           state.userId,
         ),
       )
-      AppSnack.success(snackbarHostState, "蓝牙已连接")
+      AppSnack.success(snackbarHostState, strBleConnected)
     } catch (e: SecurityException) {
-      AppSnack.error(snackbarHostState, "缺少蓝牙权限,请到系统设置开启")
+      AppSnack.error(snackbarHostState, strBlePermission)
     } catch (e: Exception) {
       log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
       AppSnack.error(snackbarHostState, "蓝牙连接失败,请靠近车辆重试")
@@ -477,7 +526,7 @@ fun ControlScreen(
     }
     val policy = ControlCommandPolicy.evaluate(command = cmd, isPowerOn = isPowerOn == true)
     if (!policy.allowed) {
-      scope.launch { AppSnack.error(snackbarHostState, policy.disabledReason ?: "${cmd.label}不可用") }
+      scope.launch { AppSnack.error(snackbarHostState, policy.disabledReason ?: strDisabledFormat.format(cmd.label)) }
       return
     }
     val availability = ControlCommandRoute.resolve(
@@ -589,7 +638,7 @@ fun ControlScreen(
           if (!confirmed) {
             refreshStateForConfirmation()
             val commandError = mqttService.pendingCommandError
-            AppSnack.error(snackbarHostState, commandError ?: unconfirmedMessage(cmd))
+            AppSnack.error(snackbarHostState, commandError ?: unconfirmedMessage(cmd, strUnconfirmedTitles, strUnconfirmedFormat))
             commandLog.finish(
               activityId,
               if (commandError == null) "${cmd.label}未确认" else "${cmd.label}失败",
@@ -598,19 +647,19 @@ fun ControlScreen(
             )
           } else {
             AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}成功")
-            commandLog.finish(activityId, successTitle(cmd), successSubtitle(cmd), ControlCommandActivityStatus.SUCCEEDED)
+            commandLog.finish(activityId, successTitle(cmd, strSuccessTitles, strSuccessFormat), successSubtitle(cmd, strSuccessSubtitles), ControlCommandActivityStatus.SUCCEEDED)
           }
         } else {
           log.operation("Cyber 控车失败: ${cmd.label}", detail = "渠道=${result.transport} 原因=${result.failureMessage}", level = LogLevel.ERROR)
           refreshStateForConfirmation()
-          AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage))
+          AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage, strFailureFormat, strFailureDetailFormat))
           commandLog.finish(activityId, "${cmd.label}失败", result.failureMessage?.trim()?.ifEmpty { null } ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
         }
       } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
       } catch (e: Exception) {
         log.operation("Cyber 控车异常: ${cmd.label}", detail = e.toString(), level = LogLevel.ERROR)
-        AppSnack.error(snackbarHostState, failureMessage(cmd, e.message))
+        AppSnack.error(snackbarHostState, failureMessage(cmd, e.message, strFailureFormat, strFailureDetailFormat))
         commandLog.finish(activityId, "${cmd.label}失败", e.message ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
       } finally {
         busy = false
@@ -668,14 +717,14 @@ fun ControlScreen(
         Column {
           when (gateKind) {
             VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
-              title = "请先登录官方账号",
-              actionLabel = "去登录",
+              title = stringResource(R.string.control_need_login),
+              actionLabel = stringResource(R.string.control_login_action),
               onAction = { onNavigate(Routes.LOGIN) },
             )
             VehicleControlHomeGateKind.Loading -> {
               VehicleControlGateBanner(
                 title = "正在同步官方车辆…",
-                actionLabel = "刷新中",
+                actionLabel = stringResource(R.string.control_syncing_action),
                 busy = true,
                 onAction = {},
               )
@@ -684,12 +733,12 @@ fun ControlScreen(
             }
             VehicleControlHomeGateKind.Error -> VehicleControlGateBanner(
               title = cloudState.error?.trim()?.ifEmpty { null } ?: "车辆同步失败，请重试",
-              actionLabel = "重试",
+              actionLabel = stringResource(R.string.control_retry_action),
               onAction = { handleRefresh() },
             )
             VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
               title = "暂无车辆，请先同步官方车辆",
-              actionLabel = "添加车辆",
+              actionLabel = stringResource(R.string.control_add_vehicle_action),
               onAction = { onNavigate(Routes.ADD_VEHICLE) },
             )
             VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
@@ -700,7 +749,7 @@ fun ControlScreen(
       item {
         CyberVehicleHeader(
           collapseFraction = collapseFraction,
-          vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: "我的车辆",
+          vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
           rangeText = rangeLabel(battery).replace(" ", ""),
           carPhoto = cloudVehicle?.carPhoto ?: "",
           batteryPercent = percent,
@@ -715,7 +764,7 @@ fun ControlScreen(
             // Dart `_openVehicleHeader`: switch sheet when multiple vehicles,
             // else the official cloud page.
             if (busy) {
-              scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令,请稍候") }
+              scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
             } else if (cloudState.vehicles.size > 1) {
               showVehicleSwitchSheet = true
             } else {
@@ -797,13 +846,13 @@ fun ControlScreen(
       containerColor = CyberHomeColors.card,
     ) {
       Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, bottom = 24.dp)) {
-        // Dart CyberChannelStrip header: title + status + "感应" link.
+        // Dart CyberChannelStrip header: title + status + stringResource(R.string.control_induction) link.
         Row(
           modifier = Modifier.fillMaxWidth(),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           androidx.compose.material3.Text(
-            text = "控车渠道",
+            text = stringResource(R.string.control_channel),
             style = androidx.compose.ui.text.TextStyle(
               fontSize = 16.sp,
               fontWeight = androidx.compose.ui.text.font.FontWeight.W700,
@@ -827,7 +876,7 @@ fun ControlScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp),
           ) {
             androidx.compose.material3.Text(
-              text = "感应",
+              text = stringResource(R.string.control_induction),
               style = androidx.compose.ui.text.TextStyle(
                 fontSize = 12.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.W600,
@@ -837,7 +886,7 @@ fun ControlScreen(
           }
         }
         Spacer(Modifier.height(12.dp))
-        CHANNEL_SHEET_OPTIONS.forEach { (channel, label, subtitle) ->
+        channelSheetOptions().forEach { (channel, label, subtitle) ->
           val active = controlChannel == channel
           com.tailg.plus.ui.components.AppPressable(
             onClick = {
@@ -845,7 +894,7 @@ fun ControlScreen(
               // trigger channel-specific side effects (BLE auto-link,
               // official-cloud MQTT preconnect).
               if (busy) {
-                scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令,请稍候") }
+                scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
                 return@AppPressable
               }
               if (controlChannel == channel) {
@@ -926,10 +975,11 @@ private fun officialBleChipState(
 private val NON_DIGIT_PATTERN = Regex("[^\\d.]")
 
 /** Channel bottom-sheet options (constant; avoids rebuilding per recomposition). */
-private val CHANNEL_SHEET_OPTIONS = listOf(
-  Triple(OfficialControlChannel.AUTOMATIC, "自动", "按官方车型与蓝牙状态自动分流"),
-  Triple(OfficialControlChannel.BLE, "近场蓝牙", "仅车辆蓝牙直连时可控"),
-  Triple(OfficialControlChannel.OFFICIAL_CLOUD, "云端", "仅 MQTT 远程通道"),
+@Composable
+private fun channelSheetOptions() = listOf(
+  Triple(OfficialControlChannel.AUTOMATIC, stringResource(R.string.control_channel_auto), stringResource(R.string.control_channel_auto_desc)),
+  Triple(OfficialControlChannel.BLE, stringResource(R.string.control_channel_ble), stringResource(R.string.control_channel_ble_desc)),
+  Triple(OfficialControlChannel.OFFICIAL_CLOUD, stringResource(R.string.control_channel_cloud), stringResource(R.string.control_channel_cloud_desc)),
 )
 
 private fun rangeLabel(battery: BatterySnapshot): String {
@@ -945,12 +995,13 @@ private fun rangeLabel(battery: BatterySnapshot): String {
   return "--"
 }
 
-private fun locationTitle(location: com.tailg.plus.data.cloud.ResolvedVehicleLocation?): String {
+@Composable
+private fun locationTitle(location: ResolvedVehicleLocation?): String {
   val address = location?.address?.trim() ?: ""
   if (address.isNotEmpty()) return address
   val coords = location?.coordinateText ?: ""
   if (coords.isNotEmpty()) return coords
-  return "暂无位置"
+  return stringResource(R.string.control_no_location)
 }
 
 private fun todayRideLabel(cloudState: OfficialCloudState): String {
@@ -987,41 +1038,45 @@ private fun lastRideVisuals(cloudState: OfficialCloudState): Pair<String, String
   return dist to dur
 }
 
-private fun successTitle(command: CommandCode): String = when (command) {
-  CommandCode.POWER_ON -> "通电成功"
-  CommandCode.POWER_OFF -> "断电完成"
-  CommandCode.LOCK -> "设防完成"
-  CommandCode.UNLOCK -> "解防成功"
-  CommandCode.FIND -> "寻车完成"
-  CommandCode.OPEN_SEAT -> "开坐垫"
-  else -> "${command.label}完成"
-}
 
-private fun successSubtitle(command: CommandCode): String = when (command) {
-  CommandCode.POWER_ON -> "控制系统已就绪"
-  CommandCode.POWER_OFF -> "动力输出已切断"
-  CommandCode.LOCK -> "车锁与报警器已激活"
-  CommandCode.UNLOCK -> "车锁已打开"
-  CommandCode.FIND -> "车辆已响应"
-  CommandCode.OPEN_SEAT -> "坐垫锁已释放"
-  else -> command.label
-}
+private fun successTitle(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =
+  titles[command] ?: format.format(command.label)
 
-private fun failureMessage(command: CommandCode, detail: String?): String {
+
+
+
+
+
+
+
+
+private fun successSubtitle(command: CommandCode, subtitles: Map<CommandCode, String>): String =
+  subtitles[command] ?: command.label
+
+
+
+
+
+
+
+
+
+private fun failureMessage(command: CommandCode, detail: String?, format: String, detailFormat: String): String {
   val text = detail?.trim() ?: ""
-  if (text.isEmpty()) return "${command.label}失败，请稍后重试"
+  if (text.isEmpty()) return format.format(command.label)
   if (text.contains(command.label)) return text
-  return "${command.label}失败：$text"
+  return detailFormat.format(command.label, text)
 }
+
 
 /** Dart `_unconfirmedMessage` — cloud publish landed but the vehicle never confirmed. */
-private fun unconfirmedMessage(command: CommandCode): String = when (command) {
-  CommandCode.POWER_ON -> "上电未确认，请稍后重试"
-  CommandCode.POWER_OFF -> "断电未确认，请稍后重试"
-  CommandCode.LOCK -> "设防未确认，请稍后重试"
-  CommandCode.UNLOCK -> "解防未确认，请稍后重试"
-  else -> "${command.label}未确认，请稍后重试"
-}
+private fun unconfirmedMessage(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =
+  titles[command] ?: format.format(command.label)
+
+
+
+
+
 
 @Composable
 private fun CyberHomeSkeleton() {

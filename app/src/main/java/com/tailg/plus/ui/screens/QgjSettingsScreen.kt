@@ -18,6 +18,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.theme.CyberHomeColors
+import androidx.compose.ui.res.stringResource
+import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/qgj_settings_page.dart`.
@@ -46,7 +48,7 @@ fun QgjSettingsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      CyberPageHeader(title = "感应设置", onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.qgj_induction_title), onBack = onBack)
       Column(
         modifier = Modifier
           .fillMaxSize()
@@ -55,7 +57,7 @@ fun QgjSettingsScreen(
         verticalArrangement = Arrangement.Center,
       ) {
         Text(
-          text = "QGJ 感应设置",
+          text = stringResource(R.string.qgj_induction_full_title),
           textAlign = TextAlign.Center,
           style = TextStyle(
             fontSize = 18.sp,
@@ -65,7 +67,7 @@ fun QgjSettingsScreen(
         )
         Spacer(Modifier.height(7.dp))
         Text(
-          text = "该入口已合并至感应解锁设置页，请返回后进入「感应解锁」。",
+          text = stringResource(R.string.qgj_merged_hint),
           textAlign = TextAlign.Center,
           style = TextStyle(
             fontSize = 13.sp,

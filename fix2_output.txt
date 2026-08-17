@@ -1,3 +1,0 @@
-OK: not_logged_in_local
-OK: member_pending_format
-Remaining: 0

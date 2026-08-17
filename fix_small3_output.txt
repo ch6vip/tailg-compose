@@ -1,5 +1,0 @@
-OK: log_copied_format
-OK: bind_imei_desc
-LogScreen.kt: CLEAN
-BindImeiScreen.kt: CLEAN
-DONE

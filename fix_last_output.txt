@@ -1,7 +1,0 @@
-OK: use_cloud
-OK: not_replica
-OK: not_open
-AppSnack remaining: 0
-OK: count format
-CyberRecentCommands remaining: 0
-DONE

@@ -1,2 +1,0 @@
-OK: no_vehicle
-Remaining: 0

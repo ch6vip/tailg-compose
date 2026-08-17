@@ -1,5 +1,0 @@
-OK: syncing
-OK: desc_5
-OK: reading_mode
-OK: on_desc
-Remaining: 0

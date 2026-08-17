@@ -230,10 +230,11 @@ fun cyberTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
   unfocusedContainerColor = CyberHomeColors.card,
   disabledContainerColor = CyberHomeColors.cardMuted,
   // Dart `_inputDecoration`: hintStyle = inkFaint, errorText = danger.
-  focusedPlaceholderColor = CyberHomeColors.inkFaint,
-  unfocusedPlaceholderColor = CyberHomeColors.inkFaint,
-  disabledPlaceholderColor = CyberHomeColors.inkFaint,
-  errorPlaceholderColor = CyberHomeColors.inkFaint,
+  // Placeholder raised to inkMuted for readable contrast on white fields.
+  focusedPlaceholderColor = CyberHomeColors.inkMuted,
+  unfocusedPlaceholderColor = CyberHomeColors.inkMuted,
+  disabledPlaceholderColor = CyberHomeColors.inkMuted,
+  errorPlaceholderColor = CyberHomeColors.inkMuted,
   focusedSupportingTextColor = CyberHomeColors.inkMuted,
   unfocusedSupportingTextColor = CyberHomeColors.inkMuted,
   disabledSupportingTextColor = CyberHomeColors.inkFaint,

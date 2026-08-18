@@ -88,48 +88,7 @@ fun VoidOrbitalNav(
     }
   }
 
-  val surface = Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(VoidOrbitalNav.barHeightDp.dp)
-      .clip(RoundedCornerShape(AppRadii.pill))
-      .background(CyberHomeColors.navSurface)
-      .border(1.dp, CyberHomeColors.white, RoundedCornerShape(AppRadii.pill))
-      .graphicsLayer {
-        renderEffect = if (!reduceMotion) navBlur else null
-      },
-  ) {
-    NavItem(
-      label = stringResource(R.string.nav_service),
-      icon = Lucide.service,
-      selected = currentIndex == 0,
-      onTap = {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
-        onService()
-      },
-      modifier = Modifier.weight(1f),
-    )
-    NavItem(
-      label = stringResource(R.string.nav_control),
-      icon = Lucide.vehicle,
-      selected = currentIndex == 1,
-      onTap = {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
-        onVehicle()
-      },
-      modifier = Modifier.weight(1f),
-    )
-    NavItem(
-      label = stringResource(R.string.nav_mine),
-      icon = Lucide.mine,
-      selected = currentIndex == 2,
-      onTap = {
-        haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
-        onMine()
-      },
-      modifier = Modifier.weight(1f),
-    )
-  }
+  val shape = RoundedCornerShape(AppRadii.pill)
 
   // Dart: EdgeInsets.fromLTRB(24, 0, 24, 8 + bottomInset * 0.45).
   val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -143,12 +102,75 @@ fun VoidOrbitalNav(
         .fillMaxWidth()
         .shadow(
           elevation = 12.dp,
-          shape = RoundedCornerShape(AppRadii.pill),
+          shape = shape,
           clip = false,
           ambientColor = Color.Transparent,
           spotColor = CyberHomeColors.actionShadow, // AppShadows.cyberNavShadow
         ),
-    ) { surface }
+    ) {
+      // Backdrop layer: the blur must apply to what is BEHIND the bar
+      // (Dart BackdropFilter), never to the bar's own icons/labels. So the
+      // renderEffect lives on a dedicated empty background layer; the content
+      // Row below it has no effect and stays crisp. alpha < 1 makes Compose
+      // capture (and blur) the backdrop instead of the layer's own content.
+      Box(
+        modifier = Modifier
+          .matchParentSize()
+          .clip(shape)
+          .background(CyberHomeColors.navSurface)
+          .graphicsLayer {
+            if (!reduceMotion) {
+              renderEffect = navBlur
+              alpha = 0.99f
+            }
+          },
+      )
+      // Border layer drawn on its own Box so the 1dp white stroke is not
+      // clipped by the rounded clip (Dart BoxDecoration border + borderRadius).
+      Box(
+        modifier = Modifier
+          .matchParentSize()
+          .border(1.dp, CyberHomeColors.white, shape),
+      )
+      // Content layer: crisp icons + labels, clipped to the pill.
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .height(VoidOrbitalNav.barHeightDp.dp)
+          .clip(shape),
+      ) {
+        NavItem(
+          label = stringResource(R.string.nav_service),
+          icon = Lucide.service,
+          selected = currentIndex == 0,
+          onTap = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
+            onService()
+          },
+          modifier = Modifier.weight(1f),
+        )
+        NavItem(
+          label = stringResource(R.string.nav_control),
+          icon = Lucide.vehicle,
+          selected = currentIndex == 1,
+          onTap = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
+            onVehicle()
+          },
+          modifier = Modifier.weight(1f),
+        )
+        NavItem(
+          label = stringResource(R.string.nav_mine),
+          icon = Lucide.mine,
+          selected = currentIndex == 2,
+          onTap = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
+            onMine()
+          },
+          modifier = Modifier.weight(1f),
+        )
+      }
+    }
   }
 }
 

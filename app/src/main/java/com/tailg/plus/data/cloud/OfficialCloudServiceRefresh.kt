@@ -424,7 +424,7 @@ internal class OfficialCloudRefreshLogic(
             )
             // Some vehicles without an intelligent battery answer code=100 —
             // treat that as "no BMS" rather than an error.
-            val code = response.body["code"]?.toString()
+            val code = OfficialCloudResponseCode.normalizeCode(response.body["code"])
             if (code == "100") {
                 service.state = service.state.copyWith(
                     bmsInfo = null,

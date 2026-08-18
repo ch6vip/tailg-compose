@@ -183,4 +183,5 @@
     <string name="token_vm_paste_first">Please paste a Token first</string>
     <string name="token_vm_login_success">Token sign-in successful, vehicles synced</string>
     <string name="settings_general">General</string>
+    <string name="vehicle_header_messages">Vehicle messages</string>
 </resources>

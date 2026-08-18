@@ -49,9 +49,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
@@ -78,6 +75,7 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.SmsCountdown
 import kotlinx.coroutines.launch
+import timber.log.Timber
 
 private enum class LoginMode { SMS, TOKEN }
 
@@ -110,7 +108,6 @@ fun LoginScreen(
 
   // String resources resolved once in the composition so they can be used
   // from coroutine lambdas below (stringResource is @Composable-only).
-  val strAgreeRequired = stringResource(R.string.login_agree_required)
   val strSmsSent = stringResource(R.string.login_sms_sent)
   val strPhoneError = stringResource(R.string.login_phone_error)
   val strSmsError = stringResource(R.string.login_sms_error)
@@ -127,7 +124,6 @@ fun LoginScreen(
   var token by remember {
     mutableStateOf(cloudService.currentState.token)
   }
-  var agreed by remember { mutableStateOf(false) }
   var busy by remember { mutableStateOf(false) }
   var navigated by remember { mutableStateOf(false) }
   var mode by remember { mutableStateOf(LoginMode.SMS) }
@@ -175,10 +171,6 @@ fun LoginScreen(
           validSms = validSms,
           onRequestCode = {
             if (smsCountdown.isActive || !validPhone) return@SmsLoginForm
-            if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
-              return@SmsLoginForm
-            }
             scope.launch {
               try {
                 cloudService.requestSmsCode(normalizedPhone)
@@ -202,10 +194,6 @@ fun LoginScreen(
             }
             if (!validSms) {
               scope.launch { AppSnack.info(snackbarHostState, strSmsError) }
-              return@SmsLoginForm
-            }
-            if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
               return@SmsLoginForm
             }
             busy = true
@@ -247,26 +235,26 @@ fun LoginScreen(
           onLogin = {
             if (busy) return@TokenLoginForm
             val raw = token.trim()
+            Timber.tag("TokenLogin").d("onLogin clicked, token.len=${raw.length}")
             if (raw.isEmpty()) {
               scope.launch { AppSnack.info(snackbarHostState, strPasteToken) }
-              return@TokenLoginForm
-            }
-            if (!agreed) {
-              scope.launch { AppSnack.info(snackbarHostState, strAgreeRequired) }
               return@TokenLoginForm
             }
             busy = true
             scope.launch {
               try {
+                Timber.tag("TokenLogin").d("calling cloudService.loginWithToken")
                 cloudService.loginWithToken(
                   raw,
                   phone = cloudService.currentState.phone,
                   userId = cloudService.currentState.userId,
                 )
+                Timber.tag("TokenLogin").d("loginWithToken succeeded, navigating")
                 // Navigate immediately; success toast shown by the host.
                 navigated = true
                 onSignedIn(strTokenLoginSuccess)
               } catch (e: Exception) {
+                Timber.tag("TokenLogin").e(e, "loginWithToken failed: ${e::class.simpleName}: ${e.message}")
                 log.operation(
                   "Token 登录失败",
                   detail = e.toString(),
@@ -302,11 +290,6 @@ fun LoginScreen(
           color = CyberHomeColors.primary,
         )
       }
-      Spacer(Modifier.height(12.dp))
-      AgreementRow(
-        agreed = agreed,
-        onChanged = { agreed = it },
-      )
       Spacer(Modifier.height(20.dp))
       if (mode == LoginMode.TOKEN) {
         TokenSafetyNote()
@@ -533,66 +516,6 @@ private fun TokenLoginForm(
         )
       }
     }
-  }
-}
-
-@Composable
-private fun AgreementRow(
-  agreed: Boolean,
-  onChanged: (Boolean) -> Unit,
-) {
-  val strAgreePrefix = stringResource(R.string.login_agree_prefix)
-  val strAgreement = stringResource(R.string.login_agreement)
-  val strAgreeAnd = stringResource(R.string.login_agree_and)
-  val strPrivacy = stringResource(R.string.login_privacy)
-
-  // Dart `_AgreementRow`: whole row is tappable (GestureDetector with opaque
-  // hit test) and the terms names are rendered in primary via RichText.
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(AppTouchTargets.min)
-      .clickable(onClick = { onChanged(!agreed) }),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    // Dart Checkbox(shape: RoundedRectangleBorder(AppRadii.xs=6dp),
-    // side: BorderSide(lineStrong)). M3 Checkbox has no shape param, so we
-    // draw the 6dp rounded-square box + check mark ourselves.
-    Box(
-      modifier = Modifier
-        .size(AppTouchTargets.min)
-        .clip(RoundedCornerShape(AppRadii.xs))
-        .background(if (agreed) CyberHomeColors.primary else Color.Transparent)
-        .border(1.dp, if (agreed) CyberHomeColors.primary else CyberHomeColors.lineStrong, RoundedCornerShape(AppRadii.xs)),
-      contentAlignment = Alignment.Center,
-    ) {
-      if (agreed) {
-        LucideIcon(icon = Lucide.check, size = 18.dp, color = CyberHomeColors.white)
-      }
-    }
-    Spacer(Modifier.width(4.dp))
-    Text(
-      text = buildAnnotatedString {
-        withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
-          append(strAgreePrefix)
-        }
-        withStyle(SpanStyle(color = CyberHomeColors.primary)) {
-          append("《${strAgreement}》")
-        }
-        withStyle(SpanStyle(color = CyberHomeColors.inkMuted)) {
-          append(strAgreeAnd)
-        }
-        withStyle(SpanStyle(color = CyberHomeColors.primary)) {
-          append("《${strPrivacy}》")
-        }
-      },
-      style = TextStyle(
-        fontSize = 12.sp,
-        lineHeight = 12.sp * 1.5f,
-      ),
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-    )
   }
 }
 

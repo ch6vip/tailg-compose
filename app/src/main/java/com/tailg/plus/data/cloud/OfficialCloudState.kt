@@ -20,8 +20,17 @@ enum class OfficialCloudResponseCode(val wireCode: String) {
     LEGACY_SUCCESS("0");
 
     companion object {
+        /**
+         * Normalize a wire `code` value for string comparison. Moshi's `Any`
+         * adapter decodes every JSON number as a `Double`, so the server's
+         * integer `0`/`200` arrive as `0.0`/`200.0`; stripping the `.0` keeps
+         * the wire-code match working.
+         */
+        fun normalizeCode(code: Any?): String? =
+            code?.toString()?.trim()?.removeSuffix(".0")
+
         fun parse(code: Any?): OfficialCloudResponseCode? {
-            val normalized = code?.toString()?.trim()
+            val normalized = normalizeCode(code)
             return entries.firstOrNull { it.wireCode == normalized }
         }
 

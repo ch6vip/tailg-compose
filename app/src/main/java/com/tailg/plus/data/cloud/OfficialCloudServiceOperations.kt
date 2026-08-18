@@ -10,6 +10,7 @@ import com.tailg.plus.data.model.OfficialVehicleSelfCheck
 import com.tailg.plus.data.model.parsePersistedMap
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.util.SensitiveValueMasker
+import timber.log.Timber
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.async
@@ -112,14 +113,21 @@ internal class OfficialCloudOperationLogic(
     }
 
     suspend fun loginWithToken(rawToken: String, phone: String, userId: String) {
+        Timber.tag("TokenLogin").d("loginWithToken called, rawToken.len=${rawToken.length}, phone=$phone, userId=$userId")
         val token = normalizeAuthorizationToken(rawToken)
+        Timber.tag("TokenLogin").d("normalized token.len=${token.length}")
         if (token.isEmpty()) {
+            Timber.tag("TokenLogin").w("token empty after normalize, throwing")
             throw OfficialCloudApiException("请粘贴有效的官方 Token")
         }
         service.setLoading(true)
         try {
             hydrateOfficialSession(token = token, seedPhone = phone, seedUserId = userId)
+            Timber.tag("TokenLogin").d("hydrateOfficialSession succeeded")
             service.log.operation("官方云 Token 登录成功")
+        } catch (e: Exception) {
+            Timber.tag("TokenLogin").e(e, "hydrateOfficialSession failed: ${e::class.simpleName}: ${e.message}")
+            throw e
         } finally {
             service.setLoading(false)
         }
@@ -879,8 +887,11 @@ internal class OfficialCloudOperationLogic(
         val verifiedUserId: String
         val verifiedPhone = seedPhone.trim()
         try {
+            Timber.tag("TokenLogin").d("hydrate: calling refreshVehicles to verify token")
             refresh.refreshVehicles(silent = false, refreshReplicaDetails = true, force = false, preferredVehicleKey = null)
+            Timber.tag("TokenLogin").d("hydrate: refreshVehicles succeeded, vehicles=${service.state.vehicles.size}")
             refresh.refreshUserProfile(silent = true, force = false)
+            Timber.tag("TokenLogin").d("hydrate: refreshUserProfile succeeded")
             // userId first from profile, then from current state, then the seed.
             val profileUserId = service.state.userProfile?.id?.trim() ?: ""
             val stateUserId = service.state.userId.trim()
@@ -891,8 +902,10 @@ internal class OfficialCloudOperationLogic(
             } else {
                 seedUserId.trim()
             }
+            Timber.tag("TokenLogin").d("hydrate: verifiedUserId=$verifiedUserId")
         } catch (e: Exception) {
             // Verification failed: the token is not a usable session.
+            Timber.tag("TokenLogin").e(e, "hydrate: verification FAILED: ${e::class.simpleName}: ${e.message}")
             abortCandidateSession()
             throw e
         }

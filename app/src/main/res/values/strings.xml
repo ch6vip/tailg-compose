@@ -1004,6 +1004,7 @@
     <string name="vehicle_header_unknown">未知</string>
     <string name="vehicle_header_unbound">未绑定</string>
     <string name="vehicle_header_default">默认车辆</string>
+    <string name="vehicle_header_messages">车辆消息</string>
     <string name="status_online">在线</string>
     <string name="status_offline">离线</string>
     <string name="vehicle_switch_title">切换车辆</string>

@@ -52,7 +52,7 @@ import com.tailg.plus.ui.screens.SettingsScreen
 import com.tailg.plus.ui.screens.UnitSettingsScreen
 import com.tailg.plus.ui.screens.VehicleMessageScreen
 import com.tailg.plus.ui.screens.VehicleSettingsScreen
-import com.tailg.plus.ui.theme.AppColors
+import com.tailg.plus.ui.theme.CyberHomeColors
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import com.tailg.plus.di.rememberTailgEntryPoint
@@ -96,7 +96,9 @@ fun TailgNavHost() {
     bootstrapped = true
   }
   if (!bootstrapped) {
-    Box(modifier = Modifier.fillMaxSize().background(AppColors.pageBg))
+    // Same light container as the Cyber shell so the first frame does not
+    // flash a dark page before the session is restored.
+    Box(modifier = Modifier.fillMaxSize().background(CyberHomeColors.pageBg))
     return
   }
   // Capture the restored session only after bootstrap. Subsequent auth
@@ -128,7 +130,12 @@ fun TailgNavHost() {
   }
 
   Scaffold(
-    containerColor = AppColors.pageBg,
+    // The Cyber pages (服务/控车/我的) all paint CyberHomeColors.pageBg
+    // (light #F4F5F7). The floating nav bar does not cover the screen edges
+    // and the navigation bar is transparent (edge-to-edge), so the scaffold
+    // container behind the bottom strip must match the pages — otherwise the
+    // dark AppColors.pageBg shows through as a black strip around the bar.
+    containerColor = CyberHomeColors.pageBg,
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
     bottomBar = {
@@ -157,7 +164,10 @@ fun TailgNavHost() {
     NavHost(
       navController = navController,
       startDestination = startDestination,
-      modifier = Modifier.fillMaxSize().padding(innerPadding),
+      modifier = Modifier
+        .fillMaxSize()
+        .padding(innerPadding)
+        .background(CyberHomeColors.pageBg),
     ) {
       // ---- Auth ----
       composable(Routes.LOGIN) {

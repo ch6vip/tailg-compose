@@ -27,6 +27,10 @@ class MainActivity : ComponentActivity() {
             ),
         )
         super.onCreate(savedInstanceState)
+        // Paint the navigation bar background to match the Cyber page background
+        // (#F4F5F7) so the floating nav bar does not expose a dark translucent
+        // scrim behind it. The navigation bar icons stay dark (light theme).
+        window.navigationBarColor = 0xFFF4F5F7.toInt()
         setContent {
             TailgTheme {
                 TailgNavHost()

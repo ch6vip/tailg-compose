@@ -29,6 +29,19 @@ CI 使用 Temurin 17；本机若默认是更新的 JDK，请设置 `JAVA_HOME` �
 ./gradlew assembleDebug testDebugUnitTest lintDebug
 ```
 
+如确需兼容证书异常的测试 MQTT Broker，可仅在 Debug 构建中显式启用：
+
+```bash
+./gradlew assembleDebug -PallowInsecureMqttTls=true
+```
+
+该开关会跳过 MQTT 服务端证书校验，不应在日常构建或不可信网络中使用。
+
+注意：官方 KKS/YJ 车型协议固定使用 `tcp://www.tailgdd.com:1883`，当前客户端
+无法仅靠本地改动把它升级为 TLS；连接日志和诊断报告会明确标记为
+`plaintext-tcp`。只有服务端提供兼容 TLS 端点并确认车型协议支持后，才能切换，
+不要直接替换端口以免破坏远程控车兼容性。
+
 ## 进度
 
 | 阶段 | 状态 |
@@ -37,10 +50,10 @@ CI 使用 Temurin 17；本机若默认是更新的 JDK，请设置 `JAVA_HOME` �
 | 模型 / 平台层（BLE/MQTT/云） | ✅ |
 | 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
 | UI 30 页 + 导航图 | ✅ |
-| 测试移植 | ✅ (19 个测试文件,162 测试,全部通过) |
+| 测试移植 | ✅ (28 个测试文件,203 个测试,全部通过) |
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
 | Hilt DI 图 | ✅ (单例图 + EntryPoint；屏幕共用同一 graph，无双实例 factory) |
 | Control ViewModel | ✅ 控车页会话状态迁入 Hilt ViewModel |
-| MQTT TLS | ✅ Release 使用系统信任库；trust-all 仅 Debug 兼容 |
+| MQTT TLS | ✅ 默认使用系统信任库；trust-all 仅 Debug 显式 opt-in |
 | 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |
 | 地图 SDK | ✅ osmdroid（高德瓦片默认 / 天地图 token 可选）——位置/轨迹/围栏三 tab + ControlScreen 迷你图 |

@@ -7,8 +7,9 @@
     Android Keystore, which never migrates, so restoring those files would
     produce undecryptable blobs and a broken session.
   - osmdroid tile cache under filesDir is excluded (re-downloadable, bulky).
-  - Vehicle JSON stores and DataStore preferences are kept so a device
-    transfer restores the user's vehicle list without a re-login + re-sync.
+  - Local vehicle JSON and non-sensitive DataStore preferences remain eligible
+    for transfer. Official `carControlInfo` and its BLE/MQTT credentials stay
+    only in the excluded encrypted shared preferences.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="." />

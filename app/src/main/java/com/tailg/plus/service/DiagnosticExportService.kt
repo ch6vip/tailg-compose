@@ -79,6 +79,12 @@ class DiagnosticExportService(
     val mqtt = officialMqttService
     val vehicle = officialCloudService.currentState.selectedVehicle
     val broker = if (vehicle == null) "none" else OfficialMqttConfig.brokerUriFor(vehicle)
+    val configuredTransport = if (vehicle == null) {
+      "none"
+    } else {
+      runCatching { OfficialMqttConfig.parseBrokerUri(broker).diagnosticLabel }
+        .getOrElse { "invalid" }
+    }
     val mqUser = if (vehicle == null) {
       "none"
     } else if (vehicle.mqUsername.trim().isEmpty()) {
@@ -100,6 +106,8 @@ class DiagnosticExportService(
       "Connected: ${mqtt.isConnected}",
       "Preconnect in flight: ${mqtt.preconnectInFlight}",
       "Broker: $broker",
+      "Configured transport: $configuredTransport",
+      "Connected transport: ${mqtt.connectedTransportSecurity?.diagnosticLabel ?: "none"}",
       "Vehicle mqUsername: $mqUser",
       "Vehicle mqPassword: $mqPass",
       "Last user error: ${mqtt.lastPreconnectError ?: "none"}",

@@ -2,8 +2,17 @@ package com.tailg.plus.data.mqtt
 
 import com.tailg.plus.data.cloud.OfficialCloudApiException
 import com.tailg.plus.data.model.OfficialVehicle
+import java.net.URI
 import java.security.SecureRandom
 import kotlin.random.Random
+
+enum class MqttTransportSecurity(
+    val diagnosticLabel: String,
+    val userLabel: String,
+) {
+    PLAINTEXT("plaintext-tcp", "明文 TCP"),
+    TLS("tls", "TLS 加密"),
+}
 
 /**
  * Port of `lib/services/official_mqtt_config.dart`.
@@ -11,7 +20,7 @@ import kotlin.random.Random
  * `TailgHost` + `TailgMqttUtil` + `ControlFragment.mqttPublish`.
  */
 object OfficialMqttConfig {
-    /** Production KKS/YJ broker (`TailgHost.MQTT_HOST_URL_LINE_KKS_YJ`). */
+    /** Production KKS/YJ broker; the official protocol currently uses plaintext TCP. */
     const val KKS_YJ_HOST_URI = "tcp://www.tailgdd.com:1883"
 
     /** Production C18/QGJ/GPS broker (`TailgHost.MQTT_HOST_URL_LINE_C18`). */
@@ -34,7 +43,7 @@ object OfficialMqttConfig {
     val PRECONNECT_RETRY_BASE_DELAY: kotlin.time.Duration =
         kotlin.time.Duration.parse("600ms")
 
-    /** Whether this model uses the plain TCP KKS/YJ broker (no SSL). */
+    /** Whether this model uses the plain TCP KKS/YJ broker (no TLS). */
     fun usesKksYjBroker(modelType: Int?): Boolean = modelType == 1 || modelType == 2
 
     /**
@@ -132,22 +141,80 @@ object OfficialMqttConfig {
     private fun kksImei(vehicle: OfficialVehicle): String =
         if (vehicle.imei.isNotEmpty()) vehicle.imei else vehicle.commandImei
 
-    data class BrokerUri(val secure: Boolean, val host: String, val port: Int)
+    data class BrokerUri(
+        val security: MqttTransportSecurity,
+        val host: String,
+        val port: Int,
+    ) {
+        val secure: Boolean
+            get() = security == MqttTransportSecurity.TLS
 
-    /** Parse `tcp://host:port` / `ssl://host:port` into parts. */
+        val diagnosticLabel: String
+            get() = security.diagnosticLabel
+    }
+
+    /**
+     * Parse a Paho broker URI and reject malformed or unsupported endpoints.
+     * Missing ports retain Paho's standard defaults; an explicitly malformed
+     * port is never silently replaced with a default.
+     */
     fun parseBrokerUri(uri: String): BrokerUri {
         val raw = uri.trim()
-        val secure = raw.startsWith("ssl://") || raw.startsWith("wss://")
-        val withoutScheme = raw
-            .replace(Regex("^(tcp|ssl|ws|wss)://"), "")
-            .trim()
-        val parts = withoutScheme.split(":")
-        val host = parts.first()
-        val port = if (parts.size > 1) {
-            parts[1].toIntOrNull() ?: if (secure) 8883 else 1883
-        } else {
-            if (secure) 8883 else 1883
+        require(raw.isNotEmpty()) { "broker URI 不能为空" }
+        val parsed = try {
+            URI(raw)
+        } catch (e: IllegalArgumentException) {
+            throw IllegalArgumentException("broker URI 格式无效", e)
         }
-        return BrokerUri(secure = secure, host = host, port = port)
+        val scheme = parsed.scheme?.lowercase()
+            ?: throw IllegalArgumentException("broker URI 缺少 scheme")
+        val security = when (scheme) {
+            "tcp", "ws" -> MqttTransportSecurity.PLAINTEXT
+            "ssl", "wss" -> MqttTransportSecurity.TLS
+            else -> throw IllegalArgumentException("不支持的 MQTT scheme: $scheme")
+        }
+        require(parsed.userInfo == null) { "broker URI 不允许 user-info" }
+        require(parsed.rawPath.isNullOrEmpty()) { "broker URI 不允许 path" }
+        require(parsed.rawQuery == null && parsed.rawFragment == null) {
+            "broker URI 不允许 query 或 fragment"
+        }
+
+        val authority = parsed.rawAuthority?.trim().orEmpty()
+        require(authority.isNotEmpty()) { "broker URI 缺少 host" }
+        val host: String
+        val explicitPort: String?
+        if (authority.startsWith("[")) {
+            val closingBracket = authority.indexOf(']')
+            require(closingBracket > 1) { "IPv6 broker host 格式无效" }
+            host = authority.substring(1, closingBracket)
+            val suffix = authority.substring(closingBracket + 1)
+            require(suffix.isEmpty() || suffix.startsWith(":")) {
+                "broker URI host/port 格式无效"
+            }
+            explicitPort = suffix.drop(1).takeIf { suffix.isNotEmpty() }
+        } else {
+            val firstColon = authority.indexOf(':')
+            val lastColon = authority.lastIndexOf(':')
+            require(firstColon == lastColon) { "IPv6 broker host 必须使用方括号" }
+            if (firstColon >= 0) {
+                host = authority.substring(0, firstColon)
+                explicitPort = authority.substring(firstColon + 1)
+            } else {
+                host = authority
+                explicitPort = null
+            }
+        }
+        require(host.isNotBlank()) { "broker URI 缺少 host" }
+
+        val defaultPort = if (security == MqttTransportSecurity.TLS) 8883 else 1883
+        val port = if (explicitPort == null) {
+            defaultPort
+        } else {
+            require(explicitPort.isNotEmpty()) { "broker URI 缺少 port" }
+            explicitPort.toIntOrNull()?.also {
+                require(it in 1..65535) { "broker URI port 超出范围" }
+            } ?: throw IllegalArgumentException("broker URI port 必须是数字")
+        }
+        return BrokerUri(security = security, host = host, port = port)
     }
 }

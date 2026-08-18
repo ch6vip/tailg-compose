@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -81,6 +80,15 @@ import com.tailg.plus.R
 /** BLE chip visual state (drives label + spinner in the header). */
 enum class OfficialBleChipState { Hidden, NoBle, ClickToConnect, Connecting, Disconnecting, Connected }
 
+internal val CyberHeaderExpandedHeight = 376.dp
+internal val CyberHeaderCollapsedHeight = 152.dp
+
+internal fun cyberHeaderHeight(collapseFraction: Float): Dp {
+  val progress = collapseFraction.coerceIn(0f, 1f)
+  return CyberHeaderExpandedHeight -
+    (CyberHeaderExpandedHeight - CyberHeaderCollapsedHeight) * progress
+}
+
 @Composable
 fun CyberVehicleHeader(
   collapseFraction: Float,
@@ -105,9 +113,12 @@ fun CyberVehicleHeader(
   val progress = collapseFraction.coerceIn(0f, 1f)
   val expandedOpacity = (1f - progress * 1.8f).coerceIn(0f, 1f)
   val compactOpacity = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
+  val headerHeight = cyberHeaderHeight(progress)
 
   Box(
     modifier = modifier
+      .fillMaxWidth()
+      .height(headerHeight)
       .background(CyberHomeColors.pageBg)
       .then(
         if (progress > 0.95f) {
@@ -127,7 +138,9 @@ fun CyberVehicleHeader(
     // Dart `IgnorePointer(ignoring: expandedOpacity < 0.5)`: Compose alpha()
     // does not block hit testing, so gate the layer's clickable subtree with
     // the `interactive` parameter. Both layers stay composed so their
-    // matchParentSize keeps the outer Box sized correctly.
+    // The explicit parent height above mirrors SliverPersistentHeader's
+    // min/max extents; matchParentSize children do not participate in Box
+    // measurement on their own.
     Box(
       modifier = Modifier
         .matchParentSize()
@@ -628,7 +641,6 @@ private fun channelDotColor(kind: ControlTopBarChannelKind): Color = when (kind)
 }
 
 /** Dart `_VehicleThumb` — 112×70 clipped image or fallback painter. */
-@Suppress("UNUSED_PARAMETER")
 @Composable
 private fun VehicleThumb(
   carPhoto: String,
@@ -644,11 +656,11 @@ private fun VehicleThumb(
       .clip(RoundedCornerShape(AppRadii.card))
       .background(CyberHomeColors.mapPlaceholder),
   ) {
-    // TODO: load carPhoto via Coil AsyncImage once the dependency lands;
-    // for now always draw the painter fallback (same as VehicleStage).
-    Canvas(modifier = Modifier.fillMaxSize()) {
-      drawVehicleStage(level)
-    }
+    VehicleImageOrFallback(
+      imageUrl = carPhoto,
+      batteryLevel = level,
+      modifier = Modifier.fillMaxSize(),
+    )
   }
 }
 

@@ -9,7 +9,7 @@ import okio.Buffer
  *
  * JSON parsing uses Moshi's lenient `JsonReader.readJsonValue()` instead of
  * Dart's `jsonDecode`, so numbers arrive as `Double`/`Long` rather than
- * Dart's `int`/`double` split. [asString] normalizes integral doubles to
+ * Dart's `int`/`double` split. [normalizeMqttStatusString] normalizes integral doubles to
  * Dart's int rendering (`{"ACC":1}` → `"1"`), matching the official
  * string-typed fields in practice; a genuine double literal such as `1.0`
  * would render `"1"` here vs `"1.0"` in Dart (documented, accepted divergence
@@ -115,11 +115,11 @@ data class OfficialMqttStatusPayload(
                 } else {
                     val map = decoded.entries.associate { it.key.toString() to it.value }
                     OfficialMqttStatusPayload(
-                        acc = asString(map["ACC"] ?: map["acc"]),
-                        defenceStatus = asString(
+                        acc = normalizeMqttStatusString(map["ACC"] ?: map["acc"]),
+                        defenceStatus = normalizeMqttStatusString(
                             map["defenceStatus"] ?: map["DefenseStatus"] ?: map["defenseStatus"],
                         ),
-                        imei = asString(map["imei"]),
+                        imei = normalizeMqttStatusString(map["imei"]),
                         muteStatus = asInt(map["muteStatus"]),
                         accErrorStatus = asInt(map["accErrorStatus"]),
                         defenceErrorStatus = asInt(map["defenceErrorStatus"]),
@@ -132,24 +132,6 @@ data class OfficialMqttStatusPayload(
             }
         }
 
-        private fun asString(value: Any?): String? {
-            if (value == null) return null
-            val text = when (value) {
-                is Double -> if (value == Math.floor(value) && !value.isInfinite()) {
-                    value.toLong().toString()
-                } else {
-                    value.toString()
-                }
-                is Float -> if (value == Math.floor(value.toDouble()) && !value.isInfinite()) {
-                    value.toLong().toString()
-                } else {
-                    value.toString()
-                }
-                else -> value.toString()
-            }.trim()
-            return text.takeIf { it.isNotEmpty() }
-        }
-
         private fun asInt(value: Any?): Int? = when (value) {
             is Int -> value
             is Number -> value.toInt()
@@ -158,4 +140,24 @@ data class OfficialMqttStatusPayload(
 
         private fun Int?.inSet(values: Set<Int>): Boolean = this != null && this in values
     }
+}
+
+internal fun normalizeMqttStatusString(value: Any?): String? {
+    if (value == null) return null
+    val text = when (value) {
+        is Double -> if (value == Math.floor(value) && !value.isInfinite()) {
+            value.toLong().toString()
+        } else {
+            value.toString()
+        }
+        is Float -> value.toDouble().let { number ->
+            if (number == Math.floor(number) && !number.isInfinite()) {
+                number.toLong().toString()
+            } else {
+                value.toString()
+            }
+        }
+        else -> value.toString()
+    }.trim()
+    return text.takeIf { it.isNotEmpty() }
 }

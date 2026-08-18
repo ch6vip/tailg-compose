@@ -921,7 +921,7 @@
     <string name="control_card_auto_desc">按车辆能力自动选择蓝牙或云端</string>
     <string name="control_card_ble_desc">仅附近蓝牙直连</string>
     <string name="control_card_cloud_desc">仅官方账号远程</string>
-    <string name="control_grid_settings">设置</string>
+    <string name="control_grid_settings">车辆设置</string>
     <string name="control_grid_unavailable">不可用</string>
     <string name="control_grid_arm_title">设防/解防</string>
     <string name="control_grid_arm">设防</string>
@@ -997,7 +997,7 @@
     <string name="location_service_desc">优先显示官方停车位置;无坐标时显示</string>
     <string name="location_refresh_hint">。可点刷新重新同步。</string>
     <string name="control_card_find">寻车</string>
-    <string name="control_card_seat">坐垫</string>
+    <string name="control_card_seat">打开坐垫</string>
     <string name="vehicle_header_online">在线</string>
     <string name="vehicle_header_offline">离线</string>
     <string name="vehicle_header_connected">已连接</string>

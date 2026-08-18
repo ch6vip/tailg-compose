@@ -28,6 +28,13 @@ class OfficialMqttStatusPayloadTest {
   }
 
   @Test
+  fun normalizesIntegralFloatStatusValues() {
+    assertEquals("1", normalizeMqttStatusString(1.0f))
+    assertEquals("1.5", normalizeMqttStatusString(1.5f))
+    assertEquals("2", normalizeMqttStatusString(2.0))
+  }
+
+  @Test
   fun confirmsPendingCommandsLikeControlFragment() {
     val startOk = OfficialMqttStatusPayload(acc = "1", defenceStatus = "0")
     val lockOk = OfficialMqttStatusPayload(acc = "0", defenceStatus = "1")

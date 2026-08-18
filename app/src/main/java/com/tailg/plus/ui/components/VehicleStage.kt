@@ -1,12 +1,17 @@
 package com.tailg.plus.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -22,10 +27,17 @@ import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.ui.theme.AppColors
 import com.tailg.plus.ui.theme.AppColorsLight
+import java.util.concurrent.TimeUnit
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import kotlin.math.min
 
 /**
@@ -44,11 +56,8 @@ import kotlin.math.min
  * - dashboard screen `AppColors.energyGreen` → [AppColors.energyGreen]
  * - wheel hub `AppColors.pageBgBot` → [AppColors.pageBgBot]
  *
- * **Deferred**: the official asset `assets/official_tailg/iv_control_evbike.png`
- * (Dart `VehicleStage.fallbackAsset`) is not copied into this project (task
- * scope copied only `lottie/`); the painter draws instead. Remote `carPhoto`
- * loading needs an image loader (Coil) that is not yet a dependency — the
- * `imageUrl` parameter is accepted for API parity and ignored for now.
+ * Remote `carPhoto` values are loaded through the existing OkHttp dependency;
+ * failed or unsupported URLs fall back to the local painter.
  */
 
 // Painter palette (mirror of Dart `_vehicleFrameColor` etc.).
@@ -62,6 +71,16 @@ private val VehicleHubStroke = Color(0xFF9AA3B0)
 private val VehicleSpoke = Color(0xFFB6BEC9)
 private val VehicleHeadlight = Color(0xFFFCE7B8)
 private val VehicleBatteryBorder = Color(0xFF04231A).copy(alpha = 0.08f)
+
+private val vehicleImageClient by lazy {
+  OkHttpClient.Builder()
+    .connectTimeout(5, TimeUnit.SECONDS)
+    .readTimeout(5, TimeUnit.SECONDS)
+    .callTimeout(7, TimeUnit.SECONDS)
+    .build()
+}
+
+private const val MAX_VEHICLE_IMAGE_BYTES = 5L * 1024L * 1024L
 
 // Static draw resources — geometry/brushes are fixed viewBox coordinates, so
 // they are built once and shared read-only by every draw pass (the garage
@@ -343,8 +362,57 @@ fun VehicleStage(
       .height(height)
       .padding(horizontal = 20.dp),
   ) {
-    Canvas(modifier = Modifier.fillMaxSize()) {
+    VehicleImageOrFallback(
+      imageUrl = imageUrl,
+      batteryLevel = batteryLevel,
+      modifier = Modifier.fillMaxSize(),
+    )
+  }
+}
+
+@Composable
+internal fun VehicleImageOrFallback(
+  imageUrl: String?,
+  batteryLevel: Float,
+  modifier: Modifier = Modifier,
+) {
+  val normalizedUrl = imageUrl?.trim().orEmpty()
+  val bitmap by produceState<Bitmap?>(initialValue = null, key1 = normalizedUrl) {
+    value = loadVehicleImage(normalizedUrl)
+  }
+  val imageBitmap = bitmap?.asImageBitmap()
+  if (imageBitmap != null) {
+    Image(
+      bitmap = imageBitmap,
+      contentDescription = null,
+      contentScale = ContentScale.Fit,
+      modifier = modifier,
+    )
+  } else {
+    Canvas(modifier = modifier) {
       drawVehicleStage(batteryLevel)
     }
+  }
+}
+
+private suspend fun loadVehicleImage(url: String): Bitmap? {
+  if (!url.startsWith("https://", ignoreCase = true) &&
+    !url.startsWith("http://", ignoreCase = true)
+  ) {
+    return null
+  }
+  return withContext(Dispatchers.IO) {
+    runCatching {
+      val request = Request.Builder().url(url).get().build()
+      vehicleImageClient.newCall(request).execute().use { response ->
+        val body = response.body ?: return@use null
+        if (!response.isSuccessful ||
+          (body.contentLength() >= 0 && body.contentLength() > MAX_VEHICLE_IMAGE_BYTES)
+        ) {
+          return@use null
+        }
+        body.byteStream().use(BitmapFactory::decodeStream)
+      }
+    }.getOrNull()
   }
 }

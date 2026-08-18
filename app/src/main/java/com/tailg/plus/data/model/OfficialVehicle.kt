@@ -285,7 +285,6 @@ data class OfficialVehicle(
     companion object {
         private val GPS_MODEL_TYPES = setOf(3, 8, 1501, 1601, 1701)
         private val BTMAC_SEPARATOR_PATTERN = Regex("[^0-9a-fA-F]")
-
         fun fromJson(json: Map<String, Any?>): OfficialVehicle {
             // Official ControlFragment reads both `mac` (identity) and `btmac`.
             // Some payloads only fill one of them; keep both usable for BLE near-field.

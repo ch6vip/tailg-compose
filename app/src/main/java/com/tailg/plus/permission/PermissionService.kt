@@ -10,6 +10,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
+import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import kotlinx.coroutines.suspendCancellableCoroutine
@@ -178,36 +179,12 @@ class AppPermissionService(private val context: Context) {
     private suspend fun requestPermissions(
         activity: ComponentActivity,
         permissions: Array<String>,
-    ): Map<String, Boolean> {
-        // Register through the registry (not ComponentActivity.registerFor-
-        // ActivityResult, which throws when the lifecycle is already STARTED).
-        // Per-request keys allow concurrent prompts and get unregistered on
-        // completion or cancellation, so nothing leaks the activity.
-        return suspendCancellableCoroutine { cont ->
-            val key = "tailg_permission_${requestCounter.incrementAndGet()}"
-            val registry = activity.activityResultRegistry
-            val launcher = registry.register(key, ActivityResultContracts.RequestMultiplePermissions()) { result ->
-                if (cont.isActive) cont.resume(result)
-            }
-            val unregister: () -> Unit = { launcher.unregister() }
-            cont.invokeOnCancellation {
-                try {
-                    unregister()
-                } catch (e: Exception) {
-                    Timber.w(e, "permission launcher unregister failed")
-                }
-            }
-            try {
-                launcher.launch(permissions)
-            } catch (e: Exception) {
-                Timber.w(e, "permission launcher launch failed")
-                unregister()
-                if (cont.isActive) {
-                    cont.resume(permissions.associateWith { isGranted(it) })
-                }
-            }
-        }
-    }
+    ): Map<String, Boolean> = requestPermissionsWithRegistry(
+        key = "tailg_permission_${requestCounter.incrementAndGet()}",
+        registry = activity.activityResultRegistry,
+        permissions = permissions,
+        fallbackGranted = ::isGranted,
+    )
 
     companion object {
         private val LOCATION_PERMISSIONS = arrayOf(
@@ -215,5 +192,40 @@ class AppPermissionService(private val context: Context) {
             Manifest.permission.ACCESS_COARSE_LOCATION,
         )
         private val requestCounter = java.util.concurrent.atomic.AtomicInteger()
+    }
+}
+
+internal suspend fun requestPermissionsWithRegistry(
+    key: String,
+    registry: ActivityResultRegistry,
+    permissions: Array<String>,
+    fallbackGranted: (String) -> Boolean,
+): Map<String, Boolean> = suspendCancellableCoroutine { cont ->
+    var launcher: ActivityResultLauncher<Array<String>>? = null
+    val unregister: () -> Unit = {
+        try {
+            launcher?.unregister()
+        } catch (e: Exception) {
+            Timber.w(e, "permission launcher unregister failed")
+        }
+        launcher = null
+    }
+    val registeredLauncher = registry.register(
+        key,
+        ActivityResultContracts.RequestMultiplePermissions(),
+    ) { result ->
+        unregister()
+        if (cont.isActive) cont.resume(result)
+    }
+    launcher = registeredLauncher
+    cont.invokeOnCancellation { unregister() }
+    try {
+        registeredLauncher.launch(permissions)
+    } catch (e: Exception) {
+        Timber.w(e, "permission launcher launch failed")
+        unregister()
+        if (cont.isActive) {
+            cont.resume(permissions.associateWith(fallbackGranted))
+        }
     }
 }

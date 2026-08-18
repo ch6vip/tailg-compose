@@ -71,46 +71,50 @@ fun CyberMapStatsRow(
     modifier = modifier.padding(horizontal = 20.dp),
   ) {
     val stacked = maxWidth < 420.dp
-    val mapCard = AppPressable(
-      onClick = onMapTap,
-      shape = RoundedCornerShape(AppRadii.sheet),
-      semanticsLabel = stringResource(R.string.map_stats_vehicle_location, address),
-      shadowElevation = 6.dp,
-      shadowColor = CyberHomeColors.actionShadow,
-    ) {
-      MiniMap(
-        location = location,
-        address = address,
-        height = if (stacked) 210.dp else 260.dp,
-        onMapTap = onMapTap,
-      )
+    val mapCard: @Composable () -> Unit = {
+      AppPressable(
+        onClick = onMapTap,
+        shape = RoundedCornerShape(AppRadii.sheet),
+        semanticsLabel = stringResource(R.string.map_stats_vehicle_location, address),
+        shadowElevation = 6.dp,
+        shadowColor = CyberHomeColors.actionShadow,
+      ) {
+        MiniMap(
+          location = location,
+          address = address,
+          height = if (stacked) 210.dp else 260.dp,
+          onMapTap = onMapTap,
+        )
+      }
     }
-    val rideCard = AppPressable(
-      onClick = onRideStatsTap,
-      shape = RoundedCornerShape(AppRadii.sheet),
-      semanticsLabel = stringResource(R.string.map_stats_view_ride),
-      shadowElevation = 6.dp,
-      shadowColor = CyberHomeColors.actionShadow,
-    ) {
-      RideCard(
-        height = if (stacked) 216.dp else 260.dp,
-        todayKm = todayKm,
-        totalKm = totalKm,
-        lastDistance = lastDistance,
-        lastDuration = lastDuration,
-      )
+    val rideCard: @Composable () -> Unit = {
+      AppPressable(
+        onClick = onRideStatsTap,
+        shape = RoundedCornerShape(AppRadii.sheet),
+        semanticsLabel = stringResource(R.string.map_stats_view_ride),
+        shadowElevation = 6.dp,
+        shadowColor = CyberHomeColors.actionShadow,
+      ) {
+        RideCard(
+          height = if (stacked) 216.dp else 260.dp,
+          todayKm = todayKm,
+          totalKm = totalKm,
+          lastDistance = lastDistance,
+          lastDuration = lastDuration,
+        )
+      }
     }
     if (stacked) {
       Column(modifier = Modifier.fillMaxWidth()) {
-        mapCard
+        mapCard()
         Spacer(Modifier.height(12.dp))
-        rideCard
+        rideCard()
       }
     } else {
       Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.weight(1f)) { mapCard }
+        Box(modifier = Modifier.weight(1f)) { mapCard() }
         Spacer(Modifier.width(12.dp))
-        Box(modifier = Modifier.weight(1f)) { rideCard }
+        Box(modifier = Modifier.weight(1f)) { rideCard() }
       }
     }
   }

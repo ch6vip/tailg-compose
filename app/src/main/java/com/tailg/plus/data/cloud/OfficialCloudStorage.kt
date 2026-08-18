@@ -35,10 +35,10 @@ data class OfficialCloudStoredSession(
  * Port of `_OfficialCloudStorage` from `lib/services/official_cloud_storage.dart`.
  *
  * Storage split per the port conventions:
- * - credentials (token / phone / user id) → **EncryptedSharedPreferences**
- *   (androidx.security, AES256-GCM master key) — replaces FlutterSecureStorage
- * - everything else (selected vehicle, vehicle links, `carControlInfo` cache,
- *   cached user profile, legacy credential keys) → **DataStore Preferences**
+ * - credentials and the full `carControlInfo` vehicle-control cache →
+ *   **EncryptedSharedPreferences** (androidx.security, AES256-GCM master key)
+ * - selected vehicle, vehicle links, cached user profile and legacy credential
+ *   keys → **DataStore Preferences**
  *   (replaces SharedPreferences), file `official_cloud`
  *
  * All secure-prefs access runs on [Dispatchers.IO]. JSON (de)serialization uses
@@ -48,6 +48,7 @@ data class OfficialCloudStoredSession(
 class OfficialCloudStorage(
     private val context: Context,
     private val log: LogService = LogService(),
+    private val securePrefsFactory: (() -> SharedPreferences?)? = null,
 ) {
 
     /**
@@ -56,24 +57,28 @@ class OfficialCloudStorage(
      * app at startup, hence the nullable lazy + logged fallback.
      */
     private val securePrefs: SharedPreferences? by lazy {
-        try {
-            val masterKey = MasterKey.Builder(context)
-                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-                .build()
-            EncryptedSharedPreferences.create(
-                context,
-                "official_cloud_secure",
-                masterKey,
-                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-            )
-        } catch (e: Exception) {
-            log.operation(
-                "安全存储初始化失败，本次运行不持久化登录凭据",
-                detail = e.toString(),
-                level = LogLevel.WARNING,
-            )
-            null
+        if (securePrefsFactory != null) {
+            securePrefsFactory.invoke()
+        } else {
+            try {
+                val masterKey = MasterKey.Builder(context)
+                    .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                    .build()
+                EncryptedSharedPreferences.create(
+                    context,
+                    "official_cloud_secure",
+                    masterKey,
+                    EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                    EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+                )
+            } catch (e: Exception) {
+                log.operation(
+                    "安全存储初始化失败，本次运行不持久化登录凭据和车辆控制密钥",
+                    detail = e.toString(),
+                    level = LogLevel.WARNING,
+                )
+                null
+            }
         }
     }
 
@@ -81,16 +86,40 @@ class OfficialCloudStorage(
         val prefs = context.cloudDataStore.data.first()
         val credentials = withContext(Dispatchers.IO) { loadSecureCredentials(prefs) }
         val token = credentials.first
+        val dataStoreVehicleJson = prefs[KEY_CAR_CONTROL_INFO]
+        val secureVehicleJson = withContext(Dispatchers.IO) {
+            securePrefs?.getString(KEY_SECURE_CAR_CONTROL_INFO, null)
+        }
+        val secureVehicles = if (token.isEmpty()) {
+            emptyList()
+        } else {
+            decodeCarControlInfo(secureVehicleJson)
+        }
+        val cachedVehicles = if (token.isEmpty()) {
+            emptyList()
+        } else if (secureVehicles.isNotEmpty()) {
+            secureVehicles
+        } else {
+            decodeCarControlInfo(dataStoreVehicleJson)
+        }
+
+        // Previous versions persisted the complete response in DataStore. Move
+        // it into encrypted storage, then remove the backup-visible legacy key.
+        if (!dataStoreVehicleJson.isNullOrBlank()) {
+            val vehicleToMigrate = cachedVehicles.firstOrNull().takeIf { token.isNotEmpty() }
+            if (vehicleToMigrate != null) {
+                saveCarControlInfo(vehicleToMigrate)
+                log.operation("官方车辆控制缓存已迁移到安全存储")
+            } else {
+                context.cloudDataStore.edit { it.remove(KEY_CAR_CONTROL_INFO) }
+            }
+        }
         return OfficialCloudStoredSession(
             token = token,
             phone = credentials.second,
             userId = credentials.third,
             selectedVehicleKey = prefs[KEY_SELECTED_VEHICLE],
-            cachedVehicles = if (token.isEmpty()) {
-                emptyList()
-            } else {
-                decodeCarControlInfo(prefs[KEY_CAR_CONTROL_INFO])
-            },
+            cachedVehicles = cachedVehicles,
             localVehicleLinks = decodeLinks(prefs[KEY_VEHICLE_LINKS]),
             cachedUserProfile = if (token.isEmpty()) {
                 null
@@ -103,13 +132,16 @@ class OfficialCloudStorage(
     suspend fun saveCredentials(token: String, phone: String, userId: String) {
         withContext(Dispatchers.IO) {
             val secure = securePrefs ?: return@withContext
-            secure.edit().putString(KEY_SECURE_TOKEN, token).apply()
-            secure.edit().putString(KEY_SECURE_PHONE, phone).apply()
+            val editor = secure.edit()
+                .putString(KEY_SECURE_TOKEN, token)
+                .putString(KEY_SECURE_PHONE, phone)
+                .remove(KEY_SECURE_CAR_CONTROL_INFO)
             if (userId.isEmpty()) {
-                secure.edit().remove(KEY_SECURE_USER_ID).apply()
+                editor.remove(KEY_SECURE_USER_ID)
             } else {
-                secure.edit().putString(KEY_SECURE_USER_ID, userId).apply()
+                editor.putString(KEY_SECURE_USER_ID, userId)
             }
+            editor.commit()
         }
         context.cloudDataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
@@ -123,9 +155,12 @@ class OfficialCloudStorage(
 
     suspend fun clearCredentialsAndSelection() {
         withContext(Dispatchers.IO) {
-            securePrefs?.edit()?.remove(KEY_SECURE_TOKEN)?.apply()
-            securePrefs?.edit()?.remove(KEY_SECURE_PHONE)?.apply()
-            securePrefs?.edit()?.remove(KEY_SECURE_USER_ID)?.apply()
+            securePrefs?.edit()
+                ?.remove(KEY_SECURE_TOKEN)
+                ?.remove(KEY_SECURE_PHONE)
+                ?.remove(KEY_SECURE_USER_ID)
+                ?.remove(KEY_SECURE_CAR_CONTROL_INFO)
+                ?.commit()
         }
         context.cloudDataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
@@ -148,12 +183,17 @@ class OfficialCloudStorage(
     }
 
     suspend fun saveCarControlInfo(vehicle: OfficialVehicle?) {
-        context.cloudDataStore.edit { prefs ->
+        withContext(Dispatchers.IO) {
+            val editor = securePrefs?.edit() ?: return@withContext
             if (vehicle == null) {
-                prefs.remove(KEY_CAR_CONTROL_INFO)
+                editor.remove(KEY_SECURE_CAR_CONTROL_INFO)
             } else {
-                prefs[KEY_CAR_CONTROL_INFO] = CloudJson.encode(vehicle.toJson())
+                editor.putString(KEY_SECURE_CAR_CONTROL_INFO, CloudJson.encode(vehicle.toJson()))
             }
+            editor.commit()
+        }
+        context.cloudDataStore.edit { prefs ->
+            prefs.remove(KEY_CAR_CONTROL_INFO)
         }
     }
 
@@ -203,11 +243,21 @@ class OfficialCloudStorage(
     private suspend fun loadSecureCredentials(
         prefs: androidx.datastore.preferences.core.Preferences,
     ): Triple<String, String, String> {
-        val secure = securePrefs ?: return Triple(
-            prefs[KEY_TOKEN] ?: "",
-            prefs[KEY_PHONE] ?: "",
-            prefs[KEY_USER_ID] ?: "",
-        )
+        val secure = securePrefs
+        if (secure == null) {
+            if (KEY_TOKEN in prefs || KEY_PHONE in prefs || KEY_USER_ID in prefs) {
+                context.cloudDataStore.edit { prefsEdit ->
+                    prefsEdit.remove(KEY_TOKEN)
+                    prefsEdit.remove(KEY_PHONE)
+                    prefsEdit.remove(KEY_USER_ID)
+                }
+                log.operation(
+                    "安全存储不可用，已清理旧版明文登录态",
+                    level = LogLevel.WARNING,
+                )
+            }
+            return Triple("", "", "")
+        }
         val secureToken = secure.getString(KEY_SECURE_TOKEN, null)
         val securePhone = secure.getString(KEY_SECURE_PHONE, null)
         val secureUserId = secure.getString(KEY_SECURE_USER_ID, null)
@@ -219,13 +269,13 @@ class OfficialCloudStorage(
         val userId = secureUserId ?: legacyUserId
         if (legacyToken.isNotEmpty() || legacyPhone.isNotEmpty() || legacyUserId.isNotEmpty()) {
             if (token.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_TOKEN, token).apply()
+                secure.edit().putString(KEY_SECURE_TOKEN, token).commit()
             }
             if (phone.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_PHONE, phone).apply()
+                secure.edit().putString(KEY_SECURE_PHONE, phone).commit()
             }
             if (userId.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_USER_ID, userId).apply()
+                secure.edit().putString(KEY_SECURE_USER_ID, userId).commit()
             }
             context.cloudDataStore.edit { prefsEdit ->
                 prefsEdit.remove(KEY_TOKEN)
@@ -295,6 +345,7 @@ class OfficialCloudStorage(
         const val KEY_SECURE_TOKEN = "official_cloud_token"
         const val KEY_SECURE_PHONE = "official_cloud_phone"
         const val KEY_SECURE_USER_ID = "official_cloud_user_id"
+        const val KEY_SECURE_CAR_CONTROL_INFO = "official_cloud_car_control_info"
 
         // DataStore keys (Dart SharedPreferences keys, kept byte-for-byte).
         val KEY_TOKEN = stringPreferencesKey("official_cloud_token")

@@ -6,6 +6,11 @@ plugins {
     alias(libs.plugins.hilt)
 }
 
+val allowInsecureMqttTls = providers.gradleProperty("allowInsecureMqttTls")
+    .orNull
+    ?.toBooleanStrictOrNull()
+    ?: false
+
 android {
     namespace = "com.tailg.plus"
     compileSdk = 35
@@ -24,6 +29,7 @@ android {
             "TIANDITU_TOKEN",
             "\"${(project.findProperty("tiandituToken") as String?)?.replace("\"", "") ?: ""}\"",
         )
+        buildConfigField("boolean", "ALLOW_INSECURE_MQTT_TLS", "false")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
@@ -42,6 +48,11 @@ android {
         }
         debug {
             isMinifyEnabled = false
+            buildConfigField(
+                "boolean",
+                "ALLOW_INSECURE_MQTT_TLS",
+                allowInsecureMqttTls.toString(),
+            )
         }
     }
 

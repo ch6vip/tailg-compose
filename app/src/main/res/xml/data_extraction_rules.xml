@@ -2,9 +2,9 @@
 <!--
   Data-extraction rules (Android 12+) for tailg-compose.
 
-  Mirrors backup_rules.xml: encrypted session prefs are excluded from both
-  device-to-cloud backup and device-to-device transfer (keystore key does not
-  migrate); the osmdroid tile cache is excluded as re-downloadable bulk.
+  Mirrors backup_rules.xml: encrypted session/control prefs are excluded from
+  both device-to-cloud backup and device-to-device transfer (the keystore key
+  does not migrate); the osmdroid tile cache is excluded as re-downloadable bulk.
 -->
 <data-extraction-rules>
     <cloud-backup>

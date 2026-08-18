@@ -656,7 +656,10 @@ fun ControlScreen(
   )
 
   val listState = rememberLazyListState()
-  val collapseFraction = rememberCyberCollapseFraction(listState, maxExtent = 376)
+  val measuredCollapseFraction = rememberCyberCollapseFraction(listState, maxExtent = 376)
+  val headerIsFirstItem = gateKind == VehicleControlHomeGateKind.None ||
+    gateKind == VehicleControlHomeGateKind.NearField
+  val collapseFraction = if (headerIsFirstItem) measuredCollapseFraction else 0f
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -670,36 +673,37 @@ fun ControlScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      // Gate banners.
-      item {
-        Column {
-          when (gateKind) {
-            VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
-              title = stringResource(R.string.control_need_login),
-              actionLabel = stringResource(R.string.control_login_action),
-              onAction = { onNavigate(Routes.LOGIN) },
-            )
-            VehicleControlHomeGateKind.Loading -> {
-              VehicleControlGateBanner(
-                title = "正在同步官方车辆…",
-                actionLabel = stringResource(R.string.control_syncing_action),
-                busy = true,
-                onAction = {},
+      if (!headerIsFirstItem) {
+        item {
+          Column {
+            when (gateKind) {
+              VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
+                title = stringResource(R.string.control_need_login),
+                actionLabel = stringResource(R.string.control_login_action),
+                onAction = { onNavigate(Routes.LOGIN) },
               )
-              Spacer(Modifier.height(18.dp))
-              CyberHomeSkeleton()
+              VehicleControlHomeGateKind.Loading -> {
+                VehicleControlGateBanner(
+                  title = "正在同步官方车辆…",
+                  actionLabel = stringResource(R.string.control_syncing_action),
+                  busy = true,
+                  onAction = {},
+                )
+                Spacer(Modifier.height(18.dp))
+                CyberHomeSkeleton()
+              }
+              VehicleControlHomeGateKind.Error -> VehicleControlGateBanner(
+                title = cloudState.error?.trim()?.ifEmpty { null } ?: "车辆同步失败，请重试",
+                actionLabel = stringResource(R.string.control_retry_action),
+                onAction = { handleRefresh() },
+              )
+              VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
+                title = "暂无车辆，请先同步官方车辆",
+                actionLabel = stringResource(R.string.control_add_vehicle_action),
+                onAction = { onNavigate(Routes.ADD_VEHICLE) },
+              )
+              VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
             }
-            VehicleControlHomeGateKind.Error -> VehicleControlGateBanner(
-              title = cloudState.error?.trim()?.ifEmpty { null } ?: "车辆同步失败，请重试",
-              actionLabel = stringResource(R.string.control_retry_action),
-              onAction = { handleRefresh() },
-            )
-            VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
-              title = "暂无车辆，请先同步官方车辆",
-              actionLabel = stringResource(R.string.control_add_vehicle_action),
-              onAction = { onNavigate(Routes.ADD_VEHICLE) },
-            )
-            VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
           }
         }
       }

@@ -136,6 +136,7 @@ class OfficialMqttService(
     @Volatile private var _client: MqttAsyncClient? = null
     @Volatile private var _connectedClientId: String? = null
     @Volatile private var _connectedBroker: String? = null
+    @Volatile private var _connectedTransportSecurity: MqttTransportSecurity? = null
     @Volatile private var _connectedImei: String? = null
     @Volatile private var _pendingCommandApiName: String? = null
     @Volatile private var _pendingCommandError: String? = null
@@ -165,6 +166,7 @@ class OfficialMqttService(
     val lastPreconnectError: String? get() = _lastPreconnectError
     val lastPreconnectRawError: String? get() = _lastPreconnectRawError
     val preconnectInFlight: Boolean get() = _preconnectInFlight
+    val connectedTransportSecurity: MqttTransportSecurity? get() = _connectedTransportSecurity
 
     // --- cloud binding ----------------------------------------------------
 
@@ -321,6 +323,7 @@ class OfficialMqttService(
         _client = null
         _connectedClientId = null
         _connectedBroker = null
+        _connectedTransportSecurity = null
         _connectedImei = null
         _pendingCommandApiName = null
         _pendingCommandError = null
@@ -362,6 +365,14 @@ class OfficialMqttService(
         val imei = OfficialMqttConfig.commandImei(vehicle)
         if (imei.isEmpty()) throw OfficialCloudApiException("当前车辆缺少 IMEI，无法 MQTT 控车")
         val broker = OfficialMqttConfig.brokerUriFor(vehicle)
+        val parsed = try {
+            OfficialMqttConfig.parseBrokerUri(broker)
+        } catch (e: IllegalArgumentException) {
+            _linkState.value = OfficialMqttLinkState.DISCONNECTED
+            throw OfficialCloudApiException(
+                "官方 MQTT 地址无效: ${e.message ?: "unknown"}",
+            )
+        }
         if (isConnected &&
             _connectedBroker == broker &&
             _connectedImei == imei &&
@@ -379,14 +390,20 @@ class OfficialMqttService(
             throw OfficialCloudApiException("官方 MQTT 连接失败: live connect disabled (test)")
         }
 
-        val parsed = OfficialMqttConfig.parseBrokerUri(broker)
         val clientId = OfficialMqttConfig.clientIdFor(vehicle, userId)
         val (mqUser, mqPass) = OfficialMqttConfig.credentialsFor(vehicle)
 
         log.operation(
             "官方 MQTT 连接中",
-            detail = "broker=$broker clientId=$clientId user=$mqUser",
+            detail = "broker=$broker transport=${parsed.diagnosticLabel} clientId=$clientId",
         )
+        if (parsed.security == MqttTransportSecurity.PLAINTEXT) {
+            log.operation(
+                "官方 MQTT 使用明文 TCP",
+                detail = "broker=$broker，账号和控制指令未加密传输",
+                level = LogLevel.WARNING,
+            )
+        }
 
         var newClient: MqttAsyncClient? = null
         try {
@@ -400,11 +417,13 @@ class OfficialMqttService(
                 keepAliveInterval = OfficialMqttConfig.KEEP_ALIVE_SECONDS
                 userName = mqUser
                 this.password = mqPass.toCharArray()
-                if (parsed.secure) {
+                if (parsed.security == MqttTransportSecurity.TLS) {
                     // Official MqttUtil installs a trust-all path for non-KKS/YJ
-                    // SSL brokers. Compatibility mode is debug-only; release uses
-                    // the platform default trust manager (system CA store).
-                    if (com.tailg.plus.BuildConfig.DEBUG) {
+                    // SSL brokers. Keep it disabled by default even in Debug;
+                    // developers must explicitly pass -PallowInsecureMqttTls=true.
+                    if (com.tailg.plus.BuildConfig.DEBUG &&
+                        com.tailg.plus.BuildConfig.ALLOW_INSECURE_MQTT_TLS
+                    ) {
                         socketFactory = trustAllSslContext.socketFactory
                     }
                 }
@@ -488,6 +507,7 @@ class OfficialMqttService(
         _client = client
         _connectedClientId = clientId
         _connectedBroker = broker
+        _connectedTransportSecurity = parsed.security
         _connectedImei = imei
         _subscribedTopics.value = topics
         _linkState.value = OfficialMqttLinkState.CONNECTED
@@ -719,8 +739,8 @@ class OfficialMqttService(
      * Trust-all SSL context for the non-KKS/YJ brokers (official MqttUtil
      * installs the same trust-all path for model types other than 1/2).
      *
-     * Debug builds only — release connect options skip this factory so the
-     * JVM default SSLSocketFactory / system trust store is used.
+     * Debug opt-in only (`-PallowInsecureMqttTls=true`). Release and normal
+     * Debug builds use the JVM default SSLSocketFactory / system trust store.
      */
     private val trustAllSslContext: SSLContext by lazy {
         val trustAll = object : X509TrustManager {

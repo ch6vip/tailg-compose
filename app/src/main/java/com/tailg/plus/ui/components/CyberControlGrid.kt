@@ -128,7 +128,7 @@ fun CyberControlGrid(
       )
       CircleKey(
         icon = Lucide.nfc,
-        label = "NFC",
+        label = stringResource(R.string.replica_nfc_keys),
         available = true,
         unavailableReason = "",
         busy = false,

@@ -23,7 +23,7 @@ class GattOperationQueueTest {
 
     val a = launch { seen.add(queue.run(GattOperationPriority.NORMAL) { "a" }) }
     val b = launch { seen.add(queue.run(GattOperationPriority.NORMAL) { "b" }) }
-    advanceUntilIdle()
+    testScheduler.advanceUntilIdle()
 
     assertEquals(listOf("a", "b"), seen)
     a.join()
@@ -38,16 +38,16 @@ class GattOperationQueueTest {
 
     // A NORMAL op that blocks on the gate keeps the queue occupied.
     launch { order.add(queue.run(GattOperationPriority.NORMAL) { gate.await(); "normal" }) }
-    runCurrent()
+    testScheduler.runCurrent()
 
     // While the NORMAL op is active (blocked), enqueue LOW then HIGH.
     launch { order.add(queue.run(GattOperationPriority.LOW) { "low" }) }
     launch { order.add(queue.run(GattOperationPriority.HIGH) { "high" }) }
-    runCurrent()
+    testScheduler.runCurrent()
 
     // Release the gate: the queue should pick HIGH (priority) before LOW.
     gate.complete(Unit)
-    advanceUntilIdle()
+    testScheduler.advanceUntilIdle()
 
     assertEquals(listOf("normal", "high", "low"), order)
   }

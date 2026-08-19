@@ -120,13 +120,15 @@ fun FirmwareOtaScreen(
             trackColor = CyberHomeColors.controlStrong,
           )
           Spacer(Modifier.height(10.dp))
+          val captionText =
+            if (progress.phase == FirmwareOtaPhase.IDLE) {
+              stringResource(R.string.ota_standby)
+            } else {
+              val phaseName = progress.phase.name.lowercase()
+              "$phaseName \u00b7 ${progress.message}"
+            }
           Text(
-            text = when (progress.phase) {
-              FirmwareOtaPhase.IDLE ->
-                stringResource(R.string.ota_standby)
-              else ->
-                "${progress.phase.name.lowercase()} · ${progress.message}",
-            },
+            text = captionText,
             style = cyberCaptionStyle,
           )
           Spacer(Modifier.height(16.dp))

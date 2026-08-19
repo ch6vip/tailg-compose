@@ -53,6 +53,7 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberControlGrid
+import com.tailg.plus.ui.components.CyberHeaderExpandedHeight
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
@@ -64,6 +65,7 @@ import com.tailg.plus.ui.components.VehicleSwitchSheet
 import com.tailg.plus.ui.components.rememberCyberCollapseFraction
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -287,7 +289,10 @@ fun ControlScreen(
     officialBleChipState(cloudVehicle, connectionManager, bleState, busy)
   }
 
-  val lastRideVisuals = remember(cloudState) { lastRideVisuals(cloudState) }
+  val distanceUnit = LocalDistanceUnitPreference.current
+  val lastRideVisuals = remember(cloudState, distanceUnit) {
+    lastRideVisuals(cloudState, distanceUnit)
+  }
   val commandActivities = remember(commandVersion) { commandLog.entries }
 
   // Silent refresh on first composition.
@@ -656,7 +661,7 @@ fun ControlScreen(
   )
 
   val listState = rememberLazyListState()
-  val measuredCollapseFraction = rememberCyberCollapseFraction(listState, maxExtent = 376)
+  val measuredCollapseFraction = rememberCyberCollapseFraction(listState, maxExtent = CyberHeaderExpandedHeight)
   val headerIsFirstItem = gateKind == VehicleControlHomeGateKind.None ||
     gateKind == VehicleControlHomeGateKind.NearField
   val collapseFraction = if (headerIsFirstItem) measuredCollapseFraction else 0f
@@ -712,7 +717,7 @@ fun ControlScreen(
         CyberVehicleHeader(
           collapseFraction = collapseFraction,
           vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
-          rangeText = rangeLabel(battery).replace(" ", ""),
+          rangeText = rangeLabel(battery, distanceUnit),
           carPhoto = cloudVehicle?.carPhoto ?: "",
           batteryPercent = percent,
           batteryKnown = battery.percent != null,
@@ -765,8 +770,8 @@ fun ControlScreen(
           CyberMapStatsRow(
             location = location,
             address = locationTitle(location),
-            todayKm = todayRideLabel(cloudState),
-            totalKm = totalMileageLabel(cloudVehicle),
+            todayKm = todayRideLabel(cloudState, distanceUnit),
+            totalKm = totalMileageLabel(cloudVehicle, distanceUnit),
             lastDistance = lastRideVisuals.first,
             lastDuration = lastRideVisuals.second,
             onMapTap = { onNavigate(Routes.location("current")) },

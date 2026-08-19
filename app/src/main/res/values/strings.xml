@@ -29,7 +29,7 @@
     <string name="login_use_token">使用 Token 登录</string>
     <string name="login_use_sms">返回手机号登录</string>
     <string name="login_token_field">粘贴 Token</string>
-    <string name="login_token_hint">粘贴 Token 或 Authorization: Bearer ...</string>
+    <string name="login_token_hint">粘贴 Token 或 Authorization: Bearer …</string>
     <string name="login_token_desc">支持直接粘贴 Authorization 值,或带 Bearer 前缀 / Authorization 头整行。登录后写入安全存储并同步车辆。</string>
     <string name="login_token_button">用 Token 登录</string>
     <string name="login_token_success">Token 登录成功</string>
@@ -115,7 +115,7 @@
     <string name="control_unavailable_reason_format">%1$s,不可用:%2$s</string>
     <string name="control_unknown">车辆状态未知</string>
     <string name="control_need_login">请先登录官方账号</string>
-    <string name="control_syncing">正在同步官方车辆...</string>
+    <string name="control_syncing">正在同步官方车辆…</string>
     <string name="control_no_vehicle">暂无车辆,请先同步官方车辆</string>
     <string name="control_recent_commands">最近命令</string>
     <string name="control_recent_none">暂无</string>
@@ -299,7 +299,7 @@
 
     <!-- Scan / BLE -->
     <string name="scan_bluetooth_off">蓝牙未开启</string>
-    <string name="scan_scanning">正在搜索附近设备...</string>
+    <string name="scan_scanning">正在搜索附近设备…</string>
 
     <!-- Induction Settings -->
     <string name="induction_title">感应设置</string>
@@ -422,7 +422,7 @@
     <string name="control_unconfirmed_format">%s未确认,请稍后重试</string>
     <string name="control_ble_connected">蓝牙已连接</string>
     <string name="control_ble_no_address">未获取车辆蓝牙地址,请在扫码页手动连接</string>
-    <string name="control_ble_connecting">正在连接车辆蓝牙...</string>
+    <string name="control_ble_connecting">正在连接车辆蓝牙…</string>
     <string name="control_ble_unavailable">蓝牙不可用,请检查蓝牙开关</string>
     <string name="control_ble_permission">缺少蓝牙权限,请到系统设置开启</string>
     <string name="control_ble_connect_error">蓝牙连接失败</string>
@@ -541,7 +541,7 @@
     <string name="location_count_unit">次</string>
     <string name="location_total_distance">总里程</string>
     <string name="location_total_duration">总时长</string>
-    <string name="location_reading">读取中...</string>
+    <string name="location_reading">读取中…</string>
     <string name="location_no_points">无轨迹点</string>
     <string name="location_tap_read">点击读取</string>
     <string name="location_fence_refresh">刷新围栏</string>
@@ -587,7 +587,7 @@
     <string name="replica_invalid_coords">请输入有效坐标</string>
     <string name="replica_no_map_app">未找到地图应用</string>
     <string name="replica_open_map">打开地图</string>
-    <string name="replica_radius_hint">半径建议设置在 100-10000 米</string>
+    <string name="replica_radius_hint">半径建议设置在 100–10000 米</string>
     <string name="replica_fence_saved_draft">已保存为本地草稿(未同步官方围栏)</string>
     <string name="replica_save_fence">保存围栏</string>
     <string name="replica_family_share">家庭共享(本地演示)</string>
@@ -620,7 +620,7 @@
     <string name="induction_vehicle_mode">车辆感应</string>
     <string name="induction_ble_signal_mode">蓝牙信号感应</string>
     <string name="induction_manual_mode">手动控车</string>
-    <string name="induction_syncing">蓝牙已连接,正在同步状态...</string>
+    <string name="induction_syncing">蓝牙已连接,正在同步状态…</string>
     <string name="induction_not_logged_in">当前未完成蓝牙协议登录,请返回爱车页连接车辆。</string>
     <string name="induction_sensor">感应</string>
     <string name="induction_distance">感应距离</string>
@@ -646,7 +646,7 @@
     <string name="induction_desc_6">手动模式开启时不会自动控车。</string>
     <string name="induction_unsupported_desc">当前车辆暂不支持本地感应解锁,请使用手动控车。</string>
     <string name="induction_manual_only">当前车型仅支持手动控车</string>
-    <string name="induction_reading_mode">正在读取解锁模式...</string>
+    <string name="induction_reading_mode">正在读取解锁模式…</string>
     <string name="induction_connect_ble_hint">连接蓝牙后可开启感应</string>
     <string name="induction_manual_on_desc">手动控车 · 已关闭自动连接与感应</string>
     <string name="induction_enable_ble_hint">开启感应前请先连接车辆蓝牙</string>
@@ -666,7 +666,7 @@
     <string name="settings_language_setting">语言设置</string>
     <string name="settings_unit_setting">单位设置</string>
     <string name="settings_follow_system_font">跟随系统字号</string>
-    <string name="settings_follow_system_font_desc">允许系统字号设置生效(限 0.9-1.3 倍)</string>
+    <string name="settings_follow_system_font_desc">允许系统字号设置生效(限 0.85–1.5 倍)</string>
     <string name="settings_ignore_system_font">关闭后忽略系统字号</string>
     <string name="settings_advanced">高级</string>
     <string name="settings_diagnostics">高级诊断</string>
@@ -704,6 +704,7 @@
     <string name="ride_stats_desc_2">系统设定单次持续移动距离小于50米时,不纳入总里程累计。</string>
     <string name="ride_stats_desc_3">这确保您仪表盘上的每一公里,都真实反映您的实际骑行足迹。</string>
     <string name="ride_stats_help">轨迹记录、统计说明</string>
+    <string name="ride_stats_help_action">统计说明</string>
     <string name="ride_stats_login_required">请先登录官方账号</string>
     <string name="ride_stats_login_action">去登录</string>
     <string name="ride_stats_no_vehicle">暂无车辆,请先同步官方车辆</string>
@@ -760,15 +761,20 @@
     <string name="cloud_sms">短信验证码</string>
     <string name="cloud_sms_get">获取</string>
     <string name="cloud_login_action">登录</string>
-    <string name="cloud_electricity_placeholder">电量 --</string>
-    <string name="cloud_voltage_placeholder">电压 --</string>
+    <string name="cloud_electricity_placeholder">电量 —</string>
+    <string name="cloud_voltage_placeholder">电压 —</string>
     <string name="cloud_electricity_format">电量 %s%%</string>
     <string name="prefs_language_setting">语言设置</string>
     <string name="prefs_language">语言</string>
-    <string name="prefs_saving">保存中...</string>
+    <string name="prefs_language_system">跟随系统</string>
+    <string name="prefs_language_zh_hans">简体中文</string>
+    <string name="prefs_language_en">English</string>
+    <string name="prefs_saving">保存中…</string>
     <string name="prefs_confirm">确认</string>
     <string name="prefs_unit_setting">单位设置</string>
     <string name="prefs_distance_unit">距离单位</string>
+    <string name="prefs_unit_metric">公制</string>
+    <string name="prefs_unit_imperial">英制</string>
     <string name="prefs_copied_report">已复制诊断报告</string>
     <string name="prefs_about">关于台铃智能</string>
     <string name="prefs_app_name">台铃智能</string>
@@ -829,7 +835,7 @@
     <string name="scan_ble_off">蓝牙未开启</string>
     <string name="scan_ble_off_hint">开启蓝牙后即可搜索附近车辆</string>
     <string name="scan_ble_waiting">等待蓝牙开启</string>
-    <string name="scan_searching">正在搜索附近设备...</string>
+    <string name="scan_searching">正在搜索附近设备…</string>
     <string name="scan_search_hint">点击下方按钮开始搜索</string>
     <string name="scan_ble_ensure">请确保蓝牙已开启且靠近车辆</string>
     <string name="scan_unknown_device">未知设备</string>
@@ -863,11 +869,11 @@
     <string name="bind_imei_hint">请输入 15 位左右 IMEI</string>
     <string name="bind_imei_confirm">确认绑定</string>
     <string name="ota_standby">待命</string>
-    <string name="ota_starting">启动...</string>
+    <string name="ota_starting">启动…</string>
     <string name="ota_title">固件升级 OTA</string>
     <string name="ota_vehicle_firmware">车辆固件</string>
     <string name="ota_description">检查官方固件版本并通过蓝牙更新车辆中控。升级期间请保持车辆通电和手机靠近车辆。</string>
-    <string name="ota_in_progress">进行中...</string>
+    <string name="ota_in_progress">进行中…</string>
     <string name="ota_check_upgrade">检查并升级</string>
     <string name="qgj_induction_title">感应设置</string>
     <string name="qgj_induction_full_title">QGJ 感应设置</string>
@@ -932,8 +938,8 @@
     <string name="map_stats_view_ride">查看骑行统计</string>
     <string name="map_stats_no_location">暂无位置信息</string>
     <string name="map_stats_ride_data">骑行数据</string>
-    <string name="map_stats_today_distance">今日里程 (km)</string>
-    <string name="map_stats_total_distance">总里程 (km)</string>
+    <string name="map_stats_today_distance">今日里程</string>
+    <string name="map_stats_total_distance">总里程</string>
     <string name="map_stats_last_ride_distance">上次骑行距离</string>
     <string name="map_stats_last_ride_duration">上次骑行时长</string>
     <string name="map_stats_vehicle_location">车辆位置 %s</string>
@@ -960,7 +966,7 @@
     <string name="token_copy_desc">复制仅用于你自己的多设备调试与迁移。</string>
     <string name="token_not_logged_in_short">未登录</string>
     <string name="token_phone_format">手机号 %s</string>
-    <string name="token_paste_hint">粘贴 Token 或 Authorization: Bearer ...</string>
+    <string name="token_paste_hint">粘贴 Token 或 Authorization: Bearer …</string>
     <string name="token_vm_no_session">当前未登录,没有可复制的 Token</string>
     <string name="token_vm_copied">Token 已复制到剪贴板</string>
     <string name="token_vm_clipboard_empty">剪贴板为空</string>
@@ -1005,6 +1011,13 @@
     <string name="vehicle_header_unbound">未绑定</string>
     <string name="vehicle_header_default">默认车辆</string>
     <string name="vehicle_header_messages">车辆消息</string>
+    <string name="control_channel_ble_direct">BLE 直连</string>
+    <string name="control_channel_ble_connecting">蓝牙连接中</string>
+    <string name="control_channel_mqtt_remote">MQTT 远程</string>
+    <string name="control_channel_mqtt_connecting">MQTT 连接中</string>
+    <string name="control_channel_mqtt_retry">MQTT 待重连</string>
+    <string name="control_channel_cloud_standby">云端待命</string>
+    <string name="control_channel_unavailable">不可用</string>
     <string name="status_online">在线</string>
     <string name="status_offline">离线</string>
     <string name="vehicle_switch_title">切换车辆</string>

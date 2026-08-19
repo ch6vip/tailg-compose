@@ -29,8 +29,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -519,7 +517,7 @@ private fun ScanHintCard(
       LucideIcon(icon = icon, color = CyberHomeColors.primary, size = AppIconSizes.md)
     }
     Spacer(Modifier.width(12.dp))
-    Column {
+    Column(modifier = Modifier.weight(1f)) {
       Text(
         text = title,
         style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
@@ -527,6 +525,8 @@ private fun ScanHintCard(
       Spacer(Modifier.height(2.dp))
       Text(
         text = subtitle,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
         style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
     }
@@ -542,13 +542,13 @@ private fun DeviceList(
   onTap: (ScanDevice) -> Unit,
 ) {
   if (results.isEmpty()) return
-  LazyColumn(
+  Column(
     modifier = Modifier
       .fillMaxWidth()
       .padding(horizontal = 20.dp),
     verticalArrangement = Arrangement.spacedBy(10.dp),
   ) {
-    items(results, key = { it.id }) { device ->
+    results.forEach { device ->
       DeviceCard(
         device = device,
         connecting = connectingRemoteId == device.id,

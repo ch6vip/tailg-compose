@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -43,6 +44,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -198,15 +200,18 @@ fun CyberVehicleHeader(
 @Composable
 fun rememberCyberCollapseFraction(
   listState: LazyListState,
-  minExtent: Int = 152,
-  maxExtent: Int,
+  minExtent: Dp = CyberHeaderCollapsedHeight,
+  maxExtent: Dp,
 ): Float {
-  val collapseRange = (maxExtent - minExtent).coerceAtLeast(1)
+  val density = LocalDensity.current
+  val collapseRangePx = with(density) {
+    (maxExtent - minExtent).toPx().coerceAtLeast(1f)
+  }
   var fraction by remember { mutableFloatStateOf(0f) }
-  LaunchedEffect(listState, collapseRange) {
+  LaunchedEffect(listState, collapseRangePx) {
     snapshotFlow {
       if (listState.firstVisibleItemIndex == 0) {
-        listState.firstVisibleItemScrollOffset.toFloat() / collapseRange
+        listState.firstVisibleItemScrollOffset.toFloat() / collapseRangePx
       } else {
         1f
       }
@@ -237,6 +242,17 @@ private fun CyberHeroHeader(
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
 ) {
+  val normalizedRange = rangeText.trim()
+  val rangeUnit = when {
+    normalizedRange.endsWith("km", ignoreCase = true) -> "km"
+    normalizedRange.endsWith("mi", ignoreCase = true) -> "mi"
+    else -> ""
+  }
+  val rangeValue = if (rangeUnit.isEmpty()) {
+    normalizedRange
+  } else {
+    normalizedRange.dropLast(rangeUnit.length).trim()
+  }
   Column(
     modifier = Modifier
       .fillMaxSize()
@@ -276,38 +292,44 @@ private fun CyberHeroHeader(
           shape = RoundedCornerShape(AppRadii.pill),
           semanticsLabel = stringResource(R.string.vehicle_header_battery),
         ) {
-          Row(
-            verticalAlignment = Alignment.Bottom,
+          ScaleToFit(
+            modifier = Modifier.fillMaxWidth().height(56.dp),
+            contentAlignment = Alignment.CenterStart,
           ) {
-            AnimatedValueText(
-              value = rangeText.replace("km", "").trim(),
-              style = androidx.compose.ui.text.TextStyle(
-                fontSize = 48.sp,
-                lineHeight = 48.sp * 0.94f,
-                fontWeight = FontWeight.W700,
-                color = CyberHomeColors.ink,
-              ),
-            )
-            Spacer(Modifier.width(4.dp))
-            Text(
-              text = "km",
-              style = androidx.compose.ui.text.TextStyle(
-                fontSize = 17.sp,
-                fontWeight = FontWeight.W600,
-                color = CyberHomeColors.ink,
-              ),
-              modifier = Modifier.padding(bottom = 3.dp),
-            )
-            Spacer(Modifier.width(10.dp))
-            Text(
-              text = if (batteryKnown) "$batteryPercent%" else "--%",
-              style = androidx.compose.ui.text.TextStyle(
-                fontSize = 18.sp,
-                fontWeight = FontWeight.W500,
-                color = CyberHomeColors.inkMuted,
-              ),
-              modifier = Modifier.padding(bottom = 3.dp),
-            )
+            Row(verticalAlignment = Alignment.Bottom) {
+              AnimatedValueText(
+                value = rangeValue,
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(
+                  fontSize = 48.sp,
+                  lineHeight = 48.sp * 0.94f,
+                  fontWeight = FontWeight.W700,
+                  color = CyberHomeColors.ink,
+                ),
+              )
+              Spacer(Modifier.width(4.dp))
+              Text(
+                text = rangeUnit,
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(
+                  fontSize = 17.sp,
+                  fontWeight = FontWeight.W600,
+                  color = CyberHomeColors.ink,
+                ),
+                modifier = Modifier.padding(bottom = 3.dp),
+              )
+              Spacer(Modifier.width(10.dp))
+              Text(
+                text = if (batteryKnown) "$batteryPercent%" else "--%",
+                maxLines = 1,
+                style = androidx.compose.ui.text.TextStyle(
+                  fontSize = 18.sp,
+                  fontWeight = FontWeight.W500,
+                  color = CyberHomeColors.inkMuted,
+                ),
+                modifier = Modifier.padding(bottom = 3.dp),
+              )
+            }
           }
         }
       }
@@ -419,84 +441,110 @@ private fun CyberTopBar(
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
 ) {
-  Row(
+  BoxWithConstraints(
     modifier = Modifier
       .fillMaxSize()
       .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 6.dp),
-    verticalAlignment = Alignment.Top,
   ) {
-    // Left: vehicle name + range + status line (Dart Column layout)
-    Column(
-      modifier = Modifier.weight(1f),
-      verticalArrangement = Arrangement.Top,
+    val actionColumnWidth = (maxWidth * 0.48f)
+      .coerceAtMost(160.dp)
+      .coerceAtLeast(112.dp)
+      .coerceAtMost(maxWidth)
+    Row(
+      modifier = Modifier.fillMaxSize(),
+      verticalAlignment = Alignment.Top,
     ) {
-      // -- vehicle name (Dart 25sp) --
-      AppPressable(
-        onClick = if (interactive) onTitleTap else null,
-        shape = RoundedCornerShape(AppRadii.sm),
-        semanticsLabel = stringResource(R.string.vehicle_header_switch),
+      // Left: vehicle name + range + status line (Dart Column layout)
+      Column(
+        modifier = Modifier.weight(1f),
+        verticalArrangement = Arrangement.Top,
       ) {
-        Text(
-          text = vehicleName,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          style = androidx.compose.ui.text.TextStyle(
-            fontSize = 25.sp,
-            fontWeight = FontWeight.W700,
-            color = CyberHomeColors.ink,
-            lineHeight = 25.sp * 1.15f,
-          ),
-        )
-      }
-      Spacer(Modifier.height(6.dp))
-      // -- range text (Dart 22sp, clickable → onBatteryTap) --
-      AppPressable(
-        onClick = if (interactive) onBatteryTap else null,
-        shape = RoundedCornerShape(AppRadii.sm),
-        semanticsLabel = stringResource(R.string.vehicle_header_battery),
-      ) {
-        AnimatedValueText(
-          value = rangeText,
-          style = androidx.compose.ui.text.TextStyle(
-            fontSize = 22.sp,
-            fontWeight = FontWeight.W600,
-            color = CyberHomeColors.inkSecondary,
-          ),
-        )
-      }
-      // -- status line (compact) --
-      CyberStatusLine(
-        online = online,
-        bluetoothConnected = bluetoothConnected,
-        isLocked = isLocked,
-        powered = powered,
-        channelStatus = channelStatus,
-        compact = true,
-        onChannelTap = if (interactive) onChannelTap else null,
-      )
-    }
-    Spacer(Modifier.width(10.dp))
-    // Right: vehicle thumb + BLE chip + messages
-    Column(horizontalAlignment = Alignment.End) {
-      // Vehicle thumbnail (Dart 112×70)
-      VehicleThumb(
-        carPhoto = carPhoto,
-        batteryPercent = batteryPercent,
-        width = 112.dp,
-        height = 70.dp,
-      )
-      Spacer(Modifier.height(5.dp))
-      Row(verticalAlignment = Alignment.CenterVertically) {
-        if (bleChip != OfficialBleChipState.Hidden) {
-          CyberBleChip(state = bleChip, onClick = if (interactive) onBleChipTap else null)
-          Spacer(Modifier.width(5.dp))
+        // -- vehicle name (Dart 25sp) --
+        AppPressable(
+          onClick = if (interactive) onTitleTap else null,
+          shape = RoundedCornerShape(AppRadii.sm),
+          semanticsLabel = stringResource(R.string.vehicle_header_switch),
+        ) {
+          Text(
+            text = vehicleName,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            style = androidx.compose.ui.text.TextStyle(
+              fontSize = 25.sp,
+              fontWeight = FontWeight.W700,
+              color = CyberHomeColors.ink,
+              lineHeight = 25.sp * 1.15f,
+            ),
+          )
         }
-        RoundIconBtn(
-          icon = Lucide.message,
-          label = stringResource(R.string.vehicle_header_messages),
-          interactive = interactive,
-          onClick = onMessages,
+        Spacer(Modifier.height(6.dp))
+        // -- range text (Dart 22sp, clickable → onBatteryTap) --
+        AppPressable(
+          onClick = if (interactive) onBatteryTap else null,
+          shape = RoundedCornerShape(AppRadii.sm),
+          semanticsLabel = stringResource(R.string.vehicle_header_battery),
+        ) {
+          ScaleToFit(
+            modifier = Modifier.fillMaxWidth().height(AppTouchTargets.min),
+            contentAlignment = Alignment.CenterStart,
+          ) {
+            AnimatedValueText(
+              value = rangeText,
+              maxLines = 1,
+              style = androidx.compose.ui.text.TextStyle(
+                fontSize = 22.sp,
+                fontWeight = FontWeight.W600,
+                color = CyberHomeColors.inkSecondary,
+              ),
+            )
+          }
+        }
+        // -- status line (compact) --
+        CyberStatusLine(
+          online = online,
+          bluetoothConnected = bluetoothConnected,
+          isLocked = isLocked,
+          powered = powered,
+          channelStatus = channelStatus,
+          compact = true,
+          onChannelTap = if (interactive) onChannelTap else null,
         )
+      }
+      Spacer(Modifier.width(10.dp))
+      // Right: vehicle thumb + BLE chip + messages. Bound the action row so
+      // long translated BLE states cannot consume the whole compact header.
+      Column(
+        modifier = Modifier.width(actionColumnWidth),
+        horizontalAlignment = Alignment.End,
+      ) {
+        // Vehicle thumbnail (Dart 112×70)
+        VehicleThumb(
+          carPhoto = carPhoto,
+          batteryPercent = batteryPercent,
+          width = 112.dp,
+          height = 70.dp,
+        )
+        Spacer(Modifier.height(5.dp))
+        Row(
+          modifier = Modifier.fillMaxWidth(),
+          horizontalArrangement = Arrangement.End,
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          if (bleChip != OfficialBleChipState.Hidden) {
+            CyberBleChip(
+              state = bleChip,
+              onClick = if (interactive) onBleChipTap else null,
+              modifier = Modifier.weight(1f),
+            )
+            Spacer(Modifier.width(5.dp))
+          }
+          RoundIconBtn(
+            icon = Lucide.message,
+            label = stringResource(R.string.vehicle_header_messages),
+            interactive = interactive,
+            onClick = onMessages,
+          )
+        }
       }
     }
   }
@@ -512,6 +560,7 @@ private fun CyberStatusLine(
   compact: Boolean = false,
   onChannelTap: (() -> Unit)?,
 ) {
+  val channelLabel = channelStatus.localizedLabel()
   val iconSize = if (compact) 15.dp else 18.dp
   val textSize = if (compact) 11.sp else 13.sp
   val gap = if (compact) 5.dp else 7.dp
@@ -565,7 +614,7 @@ private fun CyberStatusLine(
         onClick = onChannelTap,
         shape = RoundedCornerShape(AppRadii.pill),
         background = CyberHomeColors.control,
-        semanticsLabel = stringResource(R.string.vehicle_header_channel_format, channelStatus.label),
+        semanticsLabel = stringResource(R.string.vehicle_header_channel_format, channelLabel),
       ) {
         Row(
           modifier = Modifier
@@ -581,7 +630,7 @@ private fun CyberStatusLine(
           )
           Spacer(Modifier.width(4.dp))
           Text(
-            text = channelStatus.label,
+            text = channelLabel,
             style = androidx.compose.ui.text.TextStyle(
               fontSize = if (compact) 10.sp else 11.sp,
               fontWeight = FontWeight.W600,
@@ -668,6 +717,7 @@ private fun VehicleThumb(
 private fun CyberBleChip(
   state: OfficialBleChipState,
   onClick: (() -> Unit)?,
+  modifier: Modifier = Modifier,
 ) {
   if (state == OfficialBleChipState.Hidden) return
   val connected = state == OfficialBleChipState.Connected
@@ -684,6 +734,7 @@ private fun CyberBleChip(
 
   AppPressable(
     onClick = onClick,
+    modifier = modifier,
     shape = RoundedCornerShape(AppRadii.sheet),
     background = if (connected) CyberHomeColors.primary.copy(alpha = 0.12f) else CyberHomeColors.control,
     borderWidth = 1.dp,
@@ -692,6 +743,7 @@ private fun CyberBleChip(
   ) {
     Row(
       modifier = Modifier
+        .fillMaxWidth()
         .height(AppTouchTargets.min)
         .padding(horizontal = 10.dp),
       verticalAlignment = Alignment.CenterVertically,
@@ -730,6 +782,8 @@ private fun CyberBleChip(
       // Label text
       AnimatedContent(
         targetState = label,
+        modifier = Modifier.weight(1f),
+        contentAlignment = Alignment.CenterStart,
         transitionSpec = {
           fadeIn(tween(AppMotion.status)) togetherWith fadeOut(tween(AppMotion.status))
         },
@@ -737,6 +791,8 @@ private fun CyberBleChip(
       ) { chipLabel ->
         Text(
           text = chipLabel,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           style = androidx.compose.ui.text.TextStyle(
             fontSize = 11.sp,
             fontWeight = FontWeight.W600,
@@ -755,14 +811,20 @@ private fun RoundIconBtn(
   interactive: Boolean,
   onClick: () -> Unit,
 ) {
-  Box(
-    modifier = Modifier
-      .size(AppTouchTargets.min) // 48×48 (Dart AppTouchTargets.min)
-      .clip(CircleShape)
-      .background(CyberHomeColors.control)
-      .clickable(enabled = interactive) { onClick() },
-    contentAlignment = Alignment.Center,
+  AppPressable(
+    onClick = if (interactive) onClick else null,
+    enabled = interactive,
+    modifier = Modifier.size(AppTouchTargets.min),
+    shape = CircleShape,
+    background = CyberHomeColors.control,
+    semanticsLabel = label,
+    haptic = false,
   ) {
-    LucideIcon(icon = icon, size = 19.dp, color = CyberHomeColors.inkMuted)
+    Box(
+      modifier = Modifier.fillMaxSize(),
+      contentAlignment = Alignment.Center,
+    ) {
+      LucideIcon(icon = icon, size = 19.dp, color = CyberHomeColors.inkMuted)
+    }
   }
 }

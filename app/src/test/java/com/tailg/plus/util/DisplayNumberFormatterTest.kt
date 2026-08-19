@@ -1,5 +1,6 @@
 package com.tailg.plus.util
 
+import com.tailg.plus.data.preferences.DistanceUnitPreference
 import org.junit.Assert.assertEquals
 import org.junit.Test
 
@@ -27,6 +28,18 @@ class DisplayNumberFormatterTest {
         assertEquals("999m", formatDistanceMeters(999.4))
         assertEquals("1km", formatDistanceMeters(1000.0))
         assertEquals("1.5km", formatDistanceMeters(1500.0))
+    }
+
+    @Test
+    fun distanceFormatters_supportImperialUnits() {
+        assertEquals("1640ft", formatDistanceMeters(500.0, DistanceUnitPreference.Imperial))
+        assertEquals("1mi", formatDistanceMeters(1609.344, DistanceUnitPreference.Imperial))
+        assertEquals("6.2 mi", formatDistanceKilometers(10.0, DistanceUnitPreference.Imperial))
+        assertEquals("6.2 mi", formatDistanceKilometersText("10 km", DistanceUnitPreference.Imperial))
+        assertEquals("328ft", formatTravelMileageMeters(100.0, unit = DistanceUnitPreference.Imperial))
+        assertEquals("1mi", formatTravelMileageMeters(1609.344, alwaysKm = true, unit = DistanceUnitPreference.Imperial))
+        assertEquals("62.1mph", formatSpeedKilometersPerHour(100.0, DistanceUnitPreference.Imperial))
+        assertEquals("62.1", formatSpeedKilometersPerHourValue("100km/h", DistanceUnitPreference.Imperial))
     }
 
     @Test

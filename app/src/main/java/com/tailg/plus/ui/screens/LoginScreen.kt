@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -93,8 +94,8 @@ private enum class LoginMode { SMS, TOKEN }
 @Composable
 fun LoginScreen(
   cloudService: OfficialCloudService,
-  onSignedIn: (successMessage: String?) -> Unit = { _ -> },
   modifier: Modifier = Modifier,
+  onSignedIn: (successMessage: String?) -> Unit = { _ -> },
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
@@ -153,6 +154,7 @@ fun LoginScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(padding)
+        .imePadding()
         .verticalScroll(rememberScrollState())
         .padding(start = 24.dp, end = 24.dp, top = 12.dp, bottom = 28.dp),
       horizontalAlignment = Alignment.CenterHorizontally,
@@ -534,6 +536,7 @@ private fun TokenSafetyNote() {
     Spacer(Modifier.width(10.dp))
     Text(
       text = stringResource(R.string.login_token_warning),
+      modifier = Modifier.weight(1f),
       style = TextStyle(
         fontSize = 12.sp,
         lineHeight = 12.sp * 1.45f,

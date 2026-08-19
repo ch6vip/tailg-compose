@@ -1,7 +1,7 @@
 package com.tailg.plus.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -20,11 +20,15 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.domain.control.ControlTopBarChannel
+import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
@@ -52,6 +56,7 @@ fun CyberChannelStrip(
   onChanged: (OfficialControlChannel) -> Unit,
   onInduction: () -> Unit,
 ) {
+  val statusLabel = status.localizedLabel()
   Column(
     modifier = modifier
       .padding(horizontal = 20.dp)
@@ -69,15 +74,21 @@ fun CyberChannelStrip(
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
         text = stringResource(R.string.channel_strip_title),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 14.sp,
           fontWeight = FontWeight.W600,
           color = CyberHomeColors.ink,
         ),
       )
-      Spacer(Modifier.weight(1f))
+      Spacer(Modifier.width(8.dp))
       Text(
-        text = if (busy) stringResource(R.string.channel_strip_busy) else status.label,
+        text = if (busy) stringResource(R.string.channel_strip_busy) else statusLabel,
+        modifier = Modifier.weight(1f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        textAlign = TextAlign.End,
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 12.sp,
           color = if (busy) CyberHomeColors.warning else CyberHomeColors.inkMuted,
@@ -91,6 +102,8 @@ fun CyberChannelStrip(
       ) {
         Text(
           text = stringResource(R.string.channel_strip_induction_short),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           style = androidx.compose.ui.text.TextStyle(
             fontSize = 12.sp,
             color = CyberHomeColors.primary,
@@ -130,6 +143,17 @@ fun CyberChannelStrip(
 }
 
 @Composable
+internal fun ControlTopBarChannel.localizedLabel(): String = when (kind) {
+  ControlTopBarChannelKind.BLE_DIRECT -> stringResource(R.string.control_channel_ble_direct)
+  ControlTopBarChannelKind.BLE_CONNECTING -> stringResource(R.string.control_channel_ble_connecting)
+  ControlTopBarChannelKind.MQTT_REMOTE -> stringResource(R.string.control_channel_mqtt_remote)
+  ControlTopBarChannelKind.MQTT_CONNECTING -> stringResource(R.string.control_channel_mqtt_connecting)
+  ControlTopBarChannelKind.MQTT_RETRY -> stringResource(R.string.control_channel_mqtt_retry)
+  ControlTopBarChannelKind.CLOUD_STANDBY -> stringResource(R.string.control_channel_cloud_standby)
+  ControlTopBarChannelKind.UNAVAILABLE -> stringResource(R.string.control_channel_unavailable)
+}
+
+@Composable
 private fun ChannelChip(
   channel: OfficialControlChannel,
   label: String,
@@ -143,22 +167,26 @@ private fun ChannelChip(
     modifier = modifier
       .height(34.dp)
       .clip(RoundedCornerShape(17.dp))
-      .background(if (on) CyberHomeColors.primary else CyberHomeColors.control),
+      .background(if (on) CyberHomeColors.primary else CyberHomeColors.control)
+      .selectable(
+        selected = on,
+        enabled = !busy,
+        role = Role.Tab,
+        onClick = onSelect,
+      ),
     contentAlignment = Alignment.Center,
   ) {
     Text(
       text = label,
+      modifier = Modifier.fillMaxWidth(),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      textAlign = TextAlign.Center,
       style = androidx.compose.ui.text.TextStyle(
         fontSize = 12.sp,
         fontWeight = FontWeight.W600,
         color = if (on) CyberHomeColors.white else CyberHomeColors.inkMuted,
       ),
-      modifier = Modifier
-        .matchParentSize()
-        .clickableWithoutRipple(enabled = !busy) { onSelect() },
     )
   }
 }
-
-private fun Modifier.clickableWithoutRipple(enabled: Boolean, onClick: () -> Unit): Modifier =
-  this.clickable(enabled = enabled, onClick = onClick)

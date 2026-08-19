@@ -106,7 +106,11 @@ fun NotificationPrefsScreen(
         .padding(padding),
     ) {
       CyberPageHeader(title = stringResource(R.string.notif_title), onBack = onBack)
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
+      ) {
         when {
           loading -> LoadingState()
           error != null -> NotificationState(

@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudService
@@ -124,7 +125,7 @@ fun LanguageSettingsScreen(
             AppLanguagePreference.entries.forEachIndexed { index, preference ->
               if (index > 0) InsetDivider()
               OptionRow(
-                title = preference.label,
+                title = preference.localizedLabel(),
                 selected = selected == preference,
                 onClick = { selected = preference },
               )
@@ -195,7 +196,7 @@ fun UnitSettingsScreen(
             DistanceUnitPreference.entries.forEachIndexed { index, preference ->
               if (index > 0) InsetDivider()
               OptionRow(
-                title = preference.label,
+                title = preference.localizedLabel(),
                 subtitle = preference.hint,
                 selected = selected == preference,
                 onClick = { select(preference) },
@@ -406,7 +407,10 @@ private fun InfoRow(label: String, value: String) {
     Spacer(Modifier.width(12.dp))
     Text(
       text = value,
+      modifier = Modifier.weight(1f),
       textAlign = TextAlign.End,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = cyberItemTitleStyle.copy(fontSize = 13.sp),
     )
   }

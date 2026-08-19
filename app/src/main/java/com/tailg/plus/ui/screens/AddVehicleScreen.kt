@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
@@ -63,6 +64,7 @@ fun AddVehicleScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(padding)
+        .imePadding()
         .verticalScroll(rememberScrollState())
         .padding(horizontal = 20.dp),
     ) {
@@ -140,7 +142,7 @@ private fun AddVehicleHero() {
       LucideIcon(icon = Lucide.vehicle, color = CyberHomeColors.primary, size = AppIconSizes.lg)
     }
     Spacer(Modifier.size(14.dp))
-    Column {
+    Column(modifier = Modifier.weight(1f)) {
       Text(
         text = stringResource(R.string.add_vehicle_sync_your),
         style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),

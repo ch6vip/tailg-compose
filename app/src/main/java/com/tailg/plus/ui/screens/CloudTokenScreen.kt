@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
@@ -110,8 +111,9 @@ fun CloudTokenScreen(
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .verticalScroll(rememberScrollState())
         .padding(padding)
+        .imePadding()
+        .verticalScroll(rememberScrollState())
         .padding(bottom = 32.dp),
     ) {
       CyberPageHeader(title = stringResource(R.string.token_cloud_title), onBack = onBack)
@@ -223,8 +225,7 @@ fun CloudTokenScreen(
 
       CyberCard(contentPadding = PaddingValues(14.dp)) {
         Text(
-          text = stringResource(R.string.token_copy_desc) +
-            stringResource(R.string.token_copy_desc),
+          text = stringResource(R.string.token_copy_desc),
           style = TextStyle(fontSize = 12.sp, lineHeight = 12.sp * 1.45f, color = CyberHomeColors.inkMuted),
         )
       }

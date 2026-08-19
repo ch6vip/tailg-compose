@@ -181,14 +181,16 @@ fun OfficialReplicaScreen(
               modifier = Modifier.height(AppTouchTargets.min),
               contentAlignment = Alignment.Center,
             ) {
-              Text(
-                text = when (p) {
-                  ReplicaPage.NFC -> "NFC"
-                  ReplicaPage.FENCE -> stringResource(R.string.replica_tab_fence)
-                  ReplicaPage.SHARE -> stringResource(R.string.replica_tab_share)
-                  ReplicaPage.RIDE -> stringResource(R.string.replica_tab_ride)
-                },
-                style = androidx.compose.ui.text.TextStyle(
+                Text(
+                  text = when (p) {
+                    ReplicaPage.NFC -> "NFC"
+                    ReplicaPage.FENCE -> stringResource(R.string.replica_tab_fence)
+                    ReplicaPage.SHARE -> stringResource(R.string.replica_tab_share)
+                    ReplicaPage.RIDE -> stringResource(R.string.replica_tab_ride)
+                  },
+                  maxLines = 1,
+                  overflow = TextOverflow.Ellipsis,
+                  style = androidx.compose.ui.text.TextStyle(
                   fontSize = 13.sp,
                   fontWeight = FontWeight.W700,
                   color = if (active) CyberHomeColors.ink else CyberHomeColors.inkMuted,
@@ -198,29 +200,31 @@ fun OfficialReplicaScreen(
           }
         }
       }
-      when (page) {
-        ReplicaPage.NFC -> NfcKeyTab(
-          store = store,
-          bleNfc = bleNfc,
-          snackbarHostState = snackbarHostState,
-          scope = scope,
-        )
-        ReplicaPage.FENCE -> ElectricFenceTab(
-          store = store,
-          vehicleStore = vehicleStore,
-          snackbarHostState = snackbarHostState,
-          scope = scope,
-        )
-        ReplicaPage.SHARE -> ShareBikeTab(
-          store = store,
-          snackbarHostState = snackbarHostState,
-          scope = scope,
-        )
-        ReplicaPage.RIDE -> RideRecordTab(
-          cloudService = cloudService,
-          vehicleStore = vehicleStore,
-          log = log,
-        )
+      Box(modifier = Modifier.weight(1f)) {
+        when (page) {
+          ReplicaPage.NFC -> NfcKeyTab(
+            store = store,
+            bleNfc = bleNfc,
+            snackbarHostState = snackbarHostState,
+            scope = scope,
+          )
+          ReplicaPage.FENCE -> ElectricFenceTab(
+            store = store,
+            vehicleStore = vehicleStore,
+            snackbarHostState = snackbarHostState,
+            scope = scope,
+          )
+          ReplicaPage.SHARE -> ShareBikeTab(
+            store = store,
+            snackbarHostState = snackbarHostState,
+            scope = scope,
+          )
+          ReplicaPage.RIDE -> RideRecordTab(
+            cloudService = cloudService,
+            vehicleStore = vehicleStore,
+            log = log,
+          )
+        }
       }
     }
   }

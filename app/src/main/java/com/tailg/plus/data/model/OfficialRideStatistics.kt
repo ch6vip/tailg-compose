@@ -1,6 +1,8 @@
 package com.tailg.plus.data.model
 
 import com.squareup.moshi.JsonClass
+import com.tailg.plus.data.preferences.DistanceUnitPreference
+import com.tailg.plus.util.formatDistanceKilometersValue
 import com.tailg.plus.util.formatFixed
 import java.time.Instant
 import java.time.LocalDate
@@ -122,6 +124,23 @@ data class OfficialRideStatistics(
             // Dart `~/` is floor division; Math.floorDiv keeps negative parity.
             val truncatedHundredths = Math.floorDiv(wholeMeters * 100, 1000)
             return formatFixed(truncatedHundredths / 100.0, 2)
+        }
+
+        fun formatMileage(
+            value: String,
+            unit: DistanceUnitPreference,
+        ): String {
+            if (unit == DistanceUnitPreference.Metric) return formatMileageKm(value)
+            val normalized = value.trim()
+            if (normalized.isEmpty()) return "--"
+            val wholeMeters = normalized.substringBefore('.').toIntOrNull()
+                ?: normalized.toDoubleOrNull()?.toInt()
+                ?: return "--"
+            return formatDistanceKilometersValue(
+                kilometers = wholeMeters / 1000.0,
+                unit = unit,
+                fractionDigits = 2,
+            )
         }
     }
 }

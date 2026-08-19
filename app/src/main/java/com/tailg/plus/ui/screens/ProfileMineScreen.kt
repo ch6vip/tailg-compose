@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -167,6 +168,7 @@ fun ProfileMineScreen(
       modifier = Modifier
         .fillMaxSize()
         .padding(padding)
+        .imePadding()
         .verticalScroll(rememberScrollState())
         .padding(top = 6.dp),
     ) {
@@ -431,7 +433,7 @@ private fun VehicleCard(
             LucideIcon(icon = Lucide.vehicle, size = 22.dp, color = CyberHomeColors.primary)
           }
           Spacer(Modifier.width(12.dp))
-          Column {
+          Column(modifier = Modifier.weight(1f)) {
             Text(
               text = name,
               maxLines = 1,
@@ -449,6 +451,8 @@ private fun VehicleCard(
               Spacer(Modifier.width(6.dp))
               Text(
                 text = statusLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
               )
               Box(
@@ -460,6 +464,8 @@ private fun VehicleCard(
               )
               Text(
                 text = batteryLabel,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
                 style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
               )
             }

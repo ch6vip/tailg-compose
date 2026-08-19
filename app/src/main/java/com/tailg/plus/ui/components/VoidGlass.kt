@@ -13,6 +13,7 @@ import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.ui.theme.AppColorsDark
@@ -84,7 +85,11 @@ fun VoidGlassCard(
     .padding(contentPadding)
 
   Box(
-    modifier = if (onClick != null) base.clickable(onClick = onClick) else base,
+    modifier = if (onClick != null) {
+      base.clickable(role = Role.Button, onClick = onClick)
+    } else {
+      base
+    },
   ) {
     content()
   }

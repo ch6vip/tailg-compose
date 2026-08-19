@@ -23,6 +23,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableDoubleStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -46,6 +47,7 @@ import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import com.tailg.plus.util.formatDistanceMeters
 import kotlinx.coroutines.launch
 
@@ -62,11 +64,13 @@ internal fun FenceTab(
   scope: kotlinx.coroutines.CoroutineScope,
   cloudService: OfficialCloudService,
   snackbarHostState: androidx.compose.material3.SnackbarHostState,
+  modifier: Modifier = Modifier,
 ) {
   val fence = cloudState.fenceData
+  val distanceUnit = LocalDistanceUnitPreference.current
   var enabled by remember(fence) { mutableStateOf(fence?.enabled ?: false) }
   var radiusValue by remember(fence) {
-    mutableStateOf((fence?.fenceRadius?.toDoubleOrNull() ?: 1.0).coerceIn(
+    mutableDoubleStateOf((fence?.fenceRadius?.toDoubleOrNull() ?: 1.0).coerceIn(
       fence?.fenceRadiusMin?.toDoubleOrNull() ?: 1.0,
       fence?.fenceRadiusMax?.toDoubleOrNull() ?: 100.0,
     ))
@@ -85,7 +89,7 @@ internal fun FenceTab(
   val maxRadiusDisplay = maxRadius * 100
   val source = if (fence?.hasData == true) stringResource(R.string.location_fence_sync_desc) else if (cloudState.signedIn) stringResource(R.string.location_fence_no_data) else stringResource(R.string.location_fence_login_required)
 
-  Column(modifier = Modifier.fillMaxSize()) {
+  Column(modifier = modifier.fillMaxSize()) {
     // Floating header for fence tab.
     Row(
       modifier = Modifier
@@ -215,7 +219,7 @@ internal fun FenceTab(
             modifier = Modifier.weight(1f),
           )
           Text(
-            text = formatDistanceMeters(radius),
+            text = formatDistanceMeters(radius, distanceUnit),
             style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.primary),
           )
         }
@@ -227,9 +231,9 @@ internal fun FenceTab(
           enabled = enabled,
         )
         Row {
-          Text(text = formatDistanceMeters(minRadiusDisplay), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint))
+          Text(text = formatDistanceMeters(minRadiusDisplay, distanceUnit), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint))
           Spacer(Modifier.weight(1f))
-          Text(text = formatDistanceMeters(maxRadiusDisplay), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint))
+          Text(text = formatDistanceMeters(maxRadiusDisplay, distanceUnit), style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint))
         }
         HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp), color = CyberHomeColors.line)
         Row(verticalAlignment = Alignment.CenterVertically) {

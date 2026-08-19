@@ -5,12 +5,15 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -37,6 +40,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -108,7 +112,7 @@ fun GarageScreen(
   var loadingMore by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
   var busyVehicleKey by remember { mutableStateOf<String?>(null) }
-  var pageIndex by remember { mutableStateOf(0) }
+  var pageIndex by remember { mutableIntStateOf(0) }
   var hasNext by remember { mutableStateOf(false) }
   var showSearchTypeSheet by remember { mutableStateOf(false) }
   var showRenameDialog by remember { mutableStateOf<OfficialVehicle?>(null) }
@@ -289,7 +293,11 @@ fun GarageScreen(
         style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkMuted),
         modifier = Modifier.padding(start = 24.dp, bottom = 10.dp),
       )
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
+      ) {
         when {
           !signedIn -> GarageMessage(
             icon = Lucide.login,
@@ -629,9 +637,10 @@ private fun GarageSearchHeader(
       }
       Spacer(Modifier.width(4.dp))
     }
-    Row(
-      modifier = Modifier
-        .height(52.dp)
+      Row(
+        modifier = Modifier
+          .weight(1f)
+          .height(56.dp)
         .clip(RoundedCornerShape(AppRadii.tile))
         .background(CyberHomeColors.card)
         .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
@@ -640,14 +649,16 @@ private fun GarageSearchHeader(
     ) {
       AppPressable(
         onClick = onChooseType,
+        modifier = Modifier.width(if (type == GarageSearchType.FRAME) 78.dp else 104.dp),
         semanticsLabel = stringResource(R.string.garage_search_type_format, stringResource(type.labelRes)),
       ) {
         Row(
-          modifier = Modifier.padding(horizontal = 8.dp),
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Text(
             text = stringResource(type.labelRes),
+            modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkSecondary),
@@ -696,7 +707,7 @@ private fun GarageSearchHeader(
           semanticsLabel = stringResource(R.string.garage_clear_search),
         ) {
           Box(
-            modifier = Modifier.size(width = 36.dp, height = 52.dp),
+            modifier = Modifier.size(width = 36.dp, height = 56.dp),
             contentAlignment = Alignment.Center,
           ) {
             LucideIcon(icon = Lucide.x, size = 16.dp, color = CyberHomeColors.inkFaint)
@@ -708,7 +719,7 @@ private fun GarageSearchHeader(
         semanticsLabel = stringResource(R.string.common_search),
       ) {
         Box(
-          modifier = Modifier.size(width = 48.dp, height = 52.dp),
+          modifier = Modifier.size(width = 48.dp, height = 56.dp),
           contentAlignment = Alignment.Center,
         ) {
           Text(
@@ -781,6 +792,7 @@ private fun GarageSearchTypeSheet(
 
 // ── Vehicle card ──────────────────────────────────────────────────────────
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GarageVehicleCard(
   vehicle: OfficialVehicle,
@@ -822,7 +834,10 @@ private fun GarageVehicleCard(
               style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
             )
             Spacer(Modifier.height(8.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FlowRow(
+              horizontalArrangement = Arrangement.spacedBy(8.dp),
+              verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
               if (isUsing) {
                 GarageBadge(text = stringResource(R.string.garage_in_use), color = CyberHomeColors.primary, background = CyberHomeColors.primarySoft)
               }
@@ -839,6 +854,8 @@ private fun GarageVehicleCard(
             Spacer(Modifier.height(4.dp))
             Text(
               text = if (shared) stringResource(R.string.garage_shared_vehicle) else stringResource(R.string.garage_owner_vehicle),
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
               style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
             )
           }
@@ -869,17 +886,19 @@ private fun GarageVehicleCard(
           if (!shared) {
             GarageCardAction(icon = Lucide.scan, label = stringResource(R.string.garage_vehicle_code), onTap = onVehicleCode)
           }
-          Spacer(Modifier.weight(1f))
+          Spacer(Modifier.width(8.dp))
           Text(
             text = vehicle.carName.ifEmpty { stringResource(R.string.garage_default_name) },
+            modifier = Modifier.weight(1f),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
+            textAlign = TextAlign.Center,
             style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkSecondary),
           )
-          Spacer(Modifier.width(4.dp))
+          Spacer(Modifier.width(8.dp))
           GarageCardAction(icon = Lucide.edit, label = stringResource(R.string.garage_rename), compact = true, onTap = onRename)
-          Spacer(Modifier.weight(1f))
           if (!shared) {
+            Spacer(Modifier.width(8.dp))
             GarageCardAction(icon = Lucide.unlink, label = stringResource(R.string.garage_unbind), danger = true, onTap = onUnbind)
           }
         }
@@ -913,15 +932,19 @@ private fun GarageCardAction(
     haptic = false,
     semanticsLabel = label,
   ) {
-    Row(
-      modifier = Modifier.padding(horizontal = if (compact) 4.dp else 6.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
+      Row(
+        modifier = Modifier
+          .heightIn(min = AppTouchTargets.min)
+          .padding(horizontal = if (compact) 4.dp else 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
       LucideIcon(icon = icon, size = 15.dp, color = color)
       Spacer(Modifier.width(4.dp))
-      Text(
-        text = label,
-        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = color),
+        Text(
+          text = label,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = color),
       )
     }
   }
@@ -937,6 +960,8 @@ private fun GarageBadge(text: String, color: Color, background: Color) {
   ) {
     Text(
       text = text,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = color),
     )
   }
@@ -955,6 +980,8 @@ private fun GarageStatus(online: Boolean) {
     Spacer(Modifier.width(5.dp))
     Text(
       text = if (online) stringResource(R.string.common_online) else stringResource(R.string.common_offline),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = color),
     )
   }

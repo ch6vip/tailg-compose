@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -167,7 +168,9 @@ fun ReplaceBatteryScreen(
       CyberPageHeader(title = stringResource(R.string.replace_battery_title), onBack = { onBack(false) })
       if (loadingTypes) {
         Box(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .weight(1f),
           contentAlignment = Alignment.Center,
         ) {
           CircularProgressIndicator(color = CyberHomeColors.primary)
@@ -176,6 +179,8 @@ fun ReplaceBatteryScreen(
         Column(
           modifier = Modifier
             .fillMaxSize()
+            .weight(1f)
+            .imePadding()
             .verticalScroll(rememberScrollState())
             .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 24.dp),
         ) {

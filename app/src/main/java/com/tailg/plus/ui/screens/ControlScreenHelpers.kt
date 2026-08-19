@@ -7,10 +7,11 @@ import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.OfficialVehicle
+import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.ui.components.OfficialBleChipState
-import com.tailg.plus.util.formatCompactDecimal
-import com.tailg.plus.util.formatDecimalDown
+import com.tailg.plus.util.formatDistanceKilometers
+import com.tailg.plus.util.formatDistanceKilometersText
 
 /**
  * Pure state/formatting helpers extracted from [ControlScreen].
@@ -54,39 +55,51 @@ internal fun officialBleChipState(
   return OfficialBleChipState.ClickToConnect
 }
 
-private val NON_DIGIT_PATTERN = Regex("[^\\d.]")
-
-internal fun rangeLabel(battery: BatterySnapshot): String {
+internal fun rangeLabel(
+  battery: BatterySnapshot,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
   val remaining = battery.remainingMileage?.trim()
   if (!remaining.isNullOrEmpty()) {
-    val cleaned = remaining.replace(NON_DIGIT_PATTERN, "")
-    val parsed = cleaned.toDoubleOrNull()
-    if (parsed != null) return "${formatCompactDecimal(parsed)} km"
-    return if (remaining.contains("km")) remaining else "$remaining km"
+    return formatDistanceKilometersText(
+      raw = remaining,
+      unit = distanceUnit,
+      missing = remaining,
+    )
   }
   val estimated = battery.estimatedRangeKm
-  if (estimated != null) return "${formatCompactDecimal(estimated)} km"
+  if (estimated != null) return formatDistanceKilometers(estimated, distanceUnit)
   return "--"
 }
 
-internal fun todayRideLabel(cloudState: OfficialCloudState): String {
+internal fun todayRideLabel(
+  cloudState: OfficialCloudState,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
   val direct = cloudState.todayRideMileage.trim()
   if (direct.isNotEmpty()) {
-    val cleaned = direct.replace(NON_DIGIT_PATTERN, "")
-    val parsed = cleaned.toDoubleOrNull()
-    if (parsed != null) return "${formatCompactDecimal(parsed)} km"
-    return if (direct.lowercase().contains("km")) direct else "$direct km"
+    return formatDistanceKilometersText(
+      raw = direct,
+      unit = distanceUnit,
+      missing = direct,
+    )
   }
   return "--"
 }
 
-internal fun totalMileageLabel(vehicle: OfficialVehicle?): String {
+internal fun totalMileageLabel(
+  vehicle: OfficialVehicle?,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
   val m = vehicle?.mileage
-  if (m != null && m > 0) return "${formatCompactDecimal(m)} km"
+  if (m != null && m > 0) return formatDistanceKilometers(m, distanceUnit)
   return "--"
 }
 
-internal fun lastRideVisuals(cloudState: OfficialCloudState): Pair<String, String> {
+internal fun lastRideVisuals(
+  cloudState: OfficialCloudState,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): Pair<String, String> {
   var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
   for (day in cloudState.travelDays) {
     for (record in day.records) {
@@ -98,7 +111,7 @@ internal fun lastRideVisuals(cloudState: OfficialCloudState): Pair<String, Strin
   if (latest == null) return "--" to "--"
   val distKm = latest.mileageKm
   val mins = (latest.durationSeconds / 60.0).toInt()
-  val dist = "${formatDecimalDown(distKm, fractionDigits = 1)} km"
+  val dist = formatDistanceKilometers(distKm, distanceUnit, fractionDigits = 1)
   val dur = if (mins > 0) "$mins min" else latest.durationLabel
   return dist to dur
 }

@@ -5,6 +5,7 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -70,14 +71,16 @@ import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import com.tailg.plus.util.BatteryHelpCopy
+import com.tailg.plus.util.formatDistanceKilometersText
 import com.tailg.plus.util.formatRelativeSyncText
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 
-private val batteryCardDecoration: Modifier
-  get() = Modifier
+private fun Modifier.batteryCardDecoration(): Modifier =
+  this
     .clip(RoundedCornerShape(AppRadii.tile))
     .background(CyberHomeColors.card)
     .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile))
@@ -398,7 +401,7 @@ private fun BatteryHero(snapshot: BatterySnapshot) {
     modifier = Modifier
       .fillMaxWidth()
       .height(300.dp)
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 20.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -549,18 +552,26 @@ private fun SourceStrip(snapshot: BatterySnapshot, cloudState: OfficialCloudStat
 
 @Composable
 private fun OfficialSummaryRow(snapshot: BatterySnapshot) {
+  val distanceUnit = LocalDistanceUnitPreference.current
   val bms = snapshot.bms
   val voltage = snapshot.voltage
+  val pendingText = stringResource(R.string.battery_pending_read)
   val items = listOf(
-    Metric(stringResource(R.string.battery_est_range), withUnit(snapshot.remainingMileage, "km")),
-    Metric(stringResource(R.string.battery_total_range), withUnit(snapshot.totalMileage, "km")),
-    Metric(stringResource(R.string.battery_voltage), if (voltage == null) stringResource(R.string.battery_pending_read) else "${"%.1f".format(voltage)}V"),
-    Metric(stringResource(R.string.battery_capacity), bms.batteryCapacity ?: stringResource(R.string.battery_pending_read)),
+    Metric(
+      stringResource(R.string.battery_est_range),
+      formatDistanceKilometersText(snapshot.remainingMileage, distanceUnit, missing = pendingText),
+    ),
+    Metric(
+      stringResource(R.string.battery_total_range),
+      formatDistanceKilometersText(snapshot.totalMileage, distanceUnit, missing = pendingText),
+    ),
+    Metric(stringResource(R.string.battery_voltage), if (voltage == null) pendingText else "${"%.1f".format(voltage)}V"),
+    Metric(stringResource(R.string.battery_capacity), bms.batteryCapacity ?: pendingText),
   )
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(vertical = 14.dp),
   ) {
     items.forEachIndexed { index, metric ->
@@ -610,15 +621,25 @@ private fun OfficialMetricGrid(
     Metric(stringResource(R.string.battery_current_temp), temperatureDisplay(snapshot), Lucide.thermometer),
     Metric(stringResource(R.string.battery_score), BatterySnapshot.displayMetric(snapshot.batteryScore, unit = stringResource(R.string.battery_score_unit)), Lucide.gauge, onScoreHelp),
   )
-  Column {
-    items.chunked(2).forEach { row ->
-      Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-        row.forEach { item ->
-          MetricTile(metric = item, modifier = Modifier.weight(1f))
+  BoxWithConstraints {
+    val compact = maxWidth < 330.dp
+    Column {
+      if (compact) {
+        items.forEachIndexed { index, item ->
+          MetricTile(metric = item, modifier = Modifier.fillMaxWidth())
+          if (index != items.lastIndex) Spacer(Modifier.height(10.dp))
         }
-        if (row.size == 1) Spacer(Modifier.weight(1f))
+      } else {
+        items.chunked(2).forEach { row ->
+          Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            row.forEach { item ->
+              MetricTile(metric = item, modifier = Modifier.weight(1f))
+            }
+            if (row.size == 1) Spacer(Modifier.weight(1f))
+          }
+          Spacer(Modifier.height(10.dp))
+        }
       }
-      Spacer(Modifier.height(10.dp))
     }
   }
 }
@@ -629,7 +650,7 @@ private fun MetricTile(metric: Metric, modifier: Modifier = Modifier) {
   Row(
     modifier = modifier
       .height(112.dp)
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(16.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -649,6 +670,8 @@ private fun MetricTile(metric: Metric, modifier: Modifier = Modifier) {
           text = metric.label,
           style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
           modifier = Modifier.weight(1f),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
         )
         if (metric.onHelp != null) {
           AppPressable(
@@ -689,7 +712,7 @@ private fun FaultCard(snapshot: BatterySnapshot) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(16.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -717,7 +740,7 @@ private fun BmsDetailsCard(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration),
+      .batteryCardDecoration(),
   ) {
     Row(
       modifier = Modifier.padding(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 8.dp),
@@ -821,7 +844,7 @@ private fun CoulombMeterCard(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(16.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -888,7 +911,7 @@ private fun VehicleBatteryMetaCard(vehicle: OfficialVehicle) {
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .then(batteryCardDecoration)
+        .batteryCardDecoration()
         .padding(16.dp),
     ) {
       Text(
@@ -936,7 +959,7 @@ private fun BatteryRouteHintCard(vehicle: OfficialVehicle?) {
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+        .batteryCardDecoration()
       .padding(16.dp),
   ) {
     Text(
@@ -983,7 +1006,7 @@ private fun BatteryActionsCard(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(16.dp),
   ) {
     Text(
@@ -1025,7 +1048,7 @@ private fun BatteryReadOnlyCard() {
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .then(batteryCardDecoration)
+      .batteryCardDecoration()
       .padding(16.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1050,9 +1073,6 @@ private data class Metric(
   val icon: androidx.compose.ui.graphics.vector.ImageVector = Lucide.info,
   val onHelp: (() -> Unit)? = null,
 )
-
-private fun withUnit(value: String?, unit: String): String =
-  BatterySnapshot.displayMetric(value, unit = unit)
 
 @Composable
 private fun temperatureDisplay(snapshot: BatterySnapshot): String {

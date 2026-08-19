@@ -30,6 +30,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -40,6 +41,7 @@ import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
+import com.tailg.plus.R
 
 /**
  * Port of `lib/widgets/app_chrome.dart` — page header, section label, card,
@@ -75,6 +77,7 @@ fun AppPageHeader(
         background = AppColorsDark.surface.copy(alpha = 0.7f),
         borderWidth = 1.dp,
         borderColor = AppColorsDark.textPrimary.copy(alpha = 0.13f),
+        semanticsLabel = stringResource(R.string.common_back),
       ) {
         Box(
           modifier = Modifier.size(AppTouchTargets.min),

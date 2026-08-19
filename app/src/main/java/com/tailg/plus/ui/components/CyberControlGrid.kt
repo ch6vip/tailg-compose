@@ -2,11 +2,13 @@ package com.tailg.plus.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
@@ -18,6 +20,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.CommandCode
@@ -70,7 +73,7 @@ fun CyberControlGrid(
   Column(modifier = modifier.padding(horizontal = 20.dp)) {
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalAlignment = Alignment.Top,
     ) {
       CircleKey(
@@ -80,12 +83,14 @@ fun CyberControlGrid(
         unavailableReason = findAvailability.disabledReason,
         busy = active(CommandCode.find),
         subdued = subdued(CommandCode.find),
+        modifier = Modifier.weight(1f),
         onTap = onFind,
       )
-      Box(modifier = Modifier.weight(1f), contentAlignment = Alignment.Center) {
+      BoxWithConstraints(modifier = Modifier.weight(1.8f), contentAlignment = Alignment.Center) {
         SlidePowerButton(
           isPowered = powered,
           onSlide = onPowerToggle,
+          trackWidth = maxWidth.coerceAtMost(160.dp),
           enabled = powerAvailability.enabled,
           busy = busy,
           unavailableReason = powerAvailability.disabledReason,
@@ -99,13 +104,14 @@ fun CyberControlGrid(
         unavailableReason = armAvailability.disabledReason,
         busy = armActive,
         subdued = armSubdued,
+        modifier = Modifier.weight(1f),
         onTap = onArmToggle,
       )
     }
     Spacer(Modifier.height(18.dp))
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
+      horizontalArrangement = Arrangement.spacedBy(8.dp),
       verticalAlignment = Alignment.Top,
     ) {
       CircleKey(
@@ -115,6 +121,7 @@ fun CyberControlGrid(
         unavailableReason = "",
         busy = false,
         subdued = false,
+        modifier = Modifier.weight(1f),
         onTap = onSettings,
       )
       CircleKey(
@@ -124,6 +131,7 @@ fun CyberControlGrid(
         unavailableReason = seatAvailability.disabledReason,
         busy = active(CommandCode.openSeat),
         subdued = subdued(CommandCode.openSeat),
+        modifier = Modifier.weight(1f),
         onTap = onSeat,
       )
       CircleKey(
@@ -133,6 +141,7 @@ fun CyberControlGrid(
         unavailableReason = "",
         busy = false,
         subdued = false,
+        modifier = Modifier.weight(1f),
         onTap = onNfc,
       )
     }
@@ -195,6 +204,9 @@ private fun CircleKey(
     Spacer(Modifier.height(8.dp))
     Text(
       text = if (busy) stringResource(R.string.control_grid_in_progress_format, label) else label,
+      modifier = Modifier.fillMaxWidth(),
+      maxLines = 2,
+      overflow = TextOverflow.Ellipsis,
       textAlign = TextAlign.Center,
       style = androidx.compose.ui.text.TextStyle(
         fontSize = 12.sp,
@@ -202,7 +214,10 @@ private fun CircleKey(
         lineHeight = 12.sp * 1.2f,
       ),
     )
-    Box(Modifier.height(16.dp)) {
+    Box(
+      modifier = Modifier.heightIn(min = 16.dp),
+      contentAlignment = Alignment.TopCenter,
+    ) {
       if (!available && !busy) {
         Text(
           text = stringResource(R.string.control_grid_unavailable),

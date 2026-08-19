@@ -107,7 +107,9 @@ fun DiagnosticScreen(
 
       if (history.isEmpty()) {
         Box(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .weight(1f),
           contentAlignment = Alignment.Center,
         ) {
           Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -130,7 +132,9 @@ fun DiagnosticScreen(
         }
       } else {
         LazyColumn(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .weight(1f),
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
         ) {

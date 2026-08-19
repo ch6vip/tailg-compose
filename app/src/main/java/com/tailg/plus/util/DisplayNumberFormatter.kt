@@ -1,5 +1,6 @@
 package com.tailg.plus.util
 
+import com.tailg.plus.data.preferences.DistanceUnitPreference
 import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.ceil
@@ -42,11 +43,94 @@ fun formatCompactDecimalText(value: String, fractionDigits: Int = 1): String {
 }
 
 /** `formatDistanceMeters`: meters below 1 km, compact km otherwise. */
-fun formatDistanceMeters(meters: Double): String {
-    if (meters >= 1000.0) {
-        return formatCompactDecimal(meters / 1000.0) + "km"
+fun formatDistanceMeters(
+    meters: Double,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
+    if (unit == DistanceUnitPreference.Imperial) {
+        val feet = meters * FEET_PER_METER
+        if (feet >= FEET_PER_MILE) {
+            return formatCompactDecimal(feet / FEET_PER_MILE) + "mi"
+        }
+        return formatFixed(feet, 0) + "ft"
+    }
+    if (meters >= METERS_PER_KILOMETER) {
+        return formatCompactDecimal(meters / METERS_PER_KILOMETER) + "km"
     }
     return formatFixed(meters, 0) + "m"
+}
+
+fun formatDistanceKilometers(
+    kilometers: Double,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+    fractionDigits: Int = 1,
+): String {
+    return "${formatDistanceKilometersValue(kilometers, unit, fractionDigits)} ${distanceUnitSuffix(unit)}"
+}
+
+fun formatDistanceKilometersValue(
+    kilometers: Double,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+    fractionDigits: Int = 1,
+): String {
+    val converted = if (unit == DistanceUnitPreference.Imperial) {
+        kilometers * MILES_PER_KILOMETER
+    } else {
+        kilometers
+    }
+    return formatCompactDecimal(converted, fractionDigits)
+}
+
+fun formatDistanceKilometersText(
+    raw: String?,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+    fractionDigits: Int = 1,
+    missing: String = "--",
+): String {
+    val value = parseDisplayNumber(raw) ?: return missing
+    return formatDistanceKilometers(value, unit, fractionDigits)
+}
+
+fun formatSpeedKilometersPerHour(
+    kilometersPerHour: Double,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+    fractionDigits: Int = 1,
+): String {
+    val converted = if (unit == DistanceUnitPreference.Imperial) {
+        kilometersPerHour * MILES_PER_KILOMETER
+    } else {
+        kilometersPerHour
+    }
+    return "${formatCompactDecimal(converted, fractionDigits)}${speedUnitSuffix(unit)}"
+}
+
+fun formatSpeedKilometersPerHourValue(
+    raw: String?,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+    fractionDigits: Int = 1,
+    missing: String = "--",
+): String {
+    val value = parseDisplayNumber(raw) ?: return missing
+    val converted = if (unit == DistanceUnitPreference.Imperial) {
+        value * MILES_PER_KILOMETER
+    } else {
+        value
+    }
+    return formatCompactDecimal(converted, fractionDigits)
+}
+
+fun distanceUnitSuffix(unit: DistanceUnitPreference): String =
+    if (unit == DistanceUnitPreference.Imperial) "mi" else "km"
+
+fun speedUnitSuffix(unit: DistanceUnitPreference): String =
+    if (unit == DistanceUnitPreference.Imperial) "mph" else "km/h"
+
+private val DISPLAY_NUMBER_PATTERN = Regex("[-+]?\\d+(?:\\.\\d+)?")
+
+private fun parseDisplayNumber(raw: String?): Double? {
+    val text = raw?.trim() ?: return null
+    if (text.isEmpty() || text == "--" || text.equals("null", ignoreCase = true)) return null
+    return DISPLAY_NUMBER_PATTERN.find(text)?.value?.toDoubleOrNull()
 }
 
 /**
@@ -75,9 +159,20 @@ fun travelMetersToKm(meters: Double): Double = meters / 1000.0
  * - [alwaysKm] false (list): `<1000m` → `500m`, else `57.29km`
  * - [alwaysKm] true (ride-stats style): always km, decimals truncated down.
  */
-fun formatTravelMileageMeters(meters: Double, alwaysKm: Boolean = false): String {
+fun formatTravelMileageMeters(
+    meters: Double,
+    alwaysKm: Boolean = false,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
     if (meters.isNaN() || meters.isInfinite()) return "--"
     val intMeters = abs(meters).toLong() // truncate toward zero
+    if (unit == DistanceUnitPreference.Imperial) {
+        val feet = abs(meters) * FEET_PER_METER
+        if (!alwaysKm && feet < FEET_PER_MILE) {
+            return "${feet.toLong()}ft"
+        }
+        return formatDecimalDown(feet / FEET_PER_MILE, fractionDigits = 2) + "mi"
+    }
     if (!alwaysKm && intMeters < 1000) {
         return "${intMeters}m"
     }
@@ -85,11 +180,24 @@ fun formatTravelMileageMeters(meters: Double, alwaysKm: Boolean = false): String
 }
 
 /** `formatTravelMileageMetersText`: blank input returns an empty string. */
-fun formatTravelMileageMetersText(raw: String?, alwaysKm: Boolean = false): String {
+fun formatTravelMileageMetersText(
+    raw: String?,
+    alwaysKm: Boolean = false,
+    unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
     val text = raw?.trim() ?: ""
     if (text.isEmpty()) return ""
-    return formatTravelMileageMeters(parseTravelMileageMeters(text), alwaysKm = alwaysKm)
+    return formatTravelMileageMeters(
+        parseTravelMileageMeters(text),
+        alwaysKm = alwaysKm,
+        unit = unit,
+    )
 }
+
+private const val METERS_PER_KILOMETER = 1000.0
+private const val FEET_PER_METER = 3.280839895013123
+private const val FEET_PER_MILE = 5280.0
+private const val MILES_PER_KILOMETER = 0.621371192237334
 
 /**
  * `formatDecimalDown`: truncate toward zero at [fractionDigits] decimals,

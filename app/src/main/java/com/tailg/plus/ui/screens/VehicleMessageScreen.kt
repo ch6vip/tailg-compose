@@ -32,6 +32,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
@@ -99,7 +100,7 @@ fun VehicleMessageScreen(
   val log = rememberTailgEntryPoint().logService()
   val cloudState by cloudService.stateFlow.collectAsState()
 
-  var activeTab by remember { mutableStateOf(0) }
+  var activeTab by remember { mutableIntStateOf(0) }
   var loading by remember { mutableStateOf(false) }
   var clearing by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
@@ -232,7 +233,11 @@ fun VehicleMessageScreen(
         activeTab = activeTab,
         onSelect = { activeTab = it },
       )
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
+      ) {
         when {
           !signedIn -> MessageState(
             icon = Lucide.lock,
@@ -566,6 +571,8 @@ private fun MessageTabs(
           Text(
             text = label,
             textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
             style = TextStyle(
               fontSize = 13.sp,
               fontWeight = if (active) FontWeight.W700 else FontWeight.W600,

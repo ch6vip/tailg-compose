@@ -69,6 +69,7 @@ import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberMapView
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.components.ScaleToFit
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
@@ -325,12 +326,14 @@ fun LocationScreen(
           onRefresh = { refreshAll() },
           onCopy = if (location != null) { { copyLocation(location) } } else null,
           onOpenMap = if (location != null) { { openMap(location) } } else null,
+          modifier = Modifier.weight(1f),
         )
         LocationTab.TRAVEL -> TravelTab(
           cloudState = cloudState,
           onRefresh = { refreshTravelHistory() },
           onChangeMonth = { changeTravelMonth(it) },
           onRecordTap = { loadTravelDetail(it) },
+          modifier = Modifier.weight(1f),
         )
         LocationTab.FENCE -> FenceTab(
           cloudState = cloudState,
@@ -340,6 +343,7 @@ fun LocationScreen(
           scope = scope,
           cloudService = cloudService,
           snackbarHostState = snackbarHostState,
+          modifier = Modifier.weight(1f),
         )
       }
     }
@@ -402,6 +406,7 @@ internal fun LocationSegmentedTabs(index: Int, onChanged: (Int) -> Unit) {
   val tabs = listOf(Triple(Lucide.mapPin, stringResource(R.string.location_tab_label_position), 0), Triple(Lucide.route, stringResource(R.string.location_tab_label_travel), 1), Triple(Lucide.radar, stringResource(R.string.location_tab_label_fence), 2))
   Row(
     modifier = Modifier
+      .fillMaxWidth()
       .padding(start = 20.dp, top = 14.dp, end = 20.dp)
       .clip(RoundedCornerShape(AppRadii.tile))
       .background(CyberHomeColors.control)
@@ -425,14 +430,23 @@ internal fun LocationSegmentedTabs(index: Int, onChanged: (Int) -> Unit) {
         ) {
           LucideIcon(icon = icon, size = AppIconSizes.sm, color = if (active) CyberHomeColors.ink else CyberHomeColors.inkMuted)
           Spacer(Modifier.width(5.dp))
-          Text(
-            text = label,
-            style = androidx.compose.ui.text.TextStyle(
-              fontSize = 13.sp,
-              fontWeight = FontWeight.W700,
-              color = if (active) CyberHomeColors.ink else CyberHomeColors.inkMuted,
-            ),
-          )
+          ScaleToFit(
+            modifier = Modifier
+              .weight(1f)
+              .height(20.dp),
+            contentAlignment = Alignment.CenterStart,
+          ) {
+            Text(
+              text = label,
+              maxLines = 1,
+              overflow = TextOverflow.Ellipsis,
+              style = androidx.compose.ui.text.TextStyle(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.W700,
+                color = if (active) CyberHomeColors.ink else CyberHomeColors.inkMuted,
+              ),
+            )
+          }
         }
       }
     }
@@ -449,9 +463,10 @@ private fun MapTab(
   onRefresh: () -> Unit,
   onCopy: (() -> Unit)?,
   onOpenMap: (() -> Unit)?,
+  modifier: Modifier = Modifier,
 ) {
   LazyColumn(
-    modifier = Modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize(),
     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 24.dp),
   ) {
     item {
@@ -518,6 +533,7 @@ private fun MiniMapPlaceholder(location: ResolvedVehicleLocation?, fence: Offici
       Spacer(Modifier.width(5.dp))
       Text(
         text = location?.address?.ifEmpty { null } ?: location?.coordinateText ?: stringResource(R.string.location_no_data),
+        modifier = Modifier.weight(1f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
@@ -628,6 +644,8 @@ private fun LocationStatusTag(source: String) {
     Spacer(Modifier.width(6.dp))
     Text(
       text = source,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.5.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.primary),
     )
   }
@@ -679,17 +697,29 @@ private fun LocationActionButton(
       .clickable(enabled = enabled) { onTap?.invoke() },
     contentAlignment = Alignment.Center,
   ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+    Row(
+      modifier = Modifier.fillMaxWidth(),
+      verticalAlignment = Alignment.CenterVertically,
+    ) {
       if (loading) {
         CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = fg)
       } else {
         LucideIcon(icon = icon, size = AppIconSizes.sm, color = fg)
       }
       Spacer(Modifier.width(7.dp))
-      Text(
-        text = label,
-        style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W700, color = fg),
-      )
+      ScaleToFit(
+        modifier = Modifier
+          .weight(1f)
+          .height(20.dp),
+        contentAlignment = Alignment.CenterStart,
+      ) {
+        Text(
+          text = label,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W700, color = fg),
+        )
+      }
     }
   }
 }
@@ -706,11 +736,18 @@ internal fun ReadOnlyNotice(title: String, subtitle: String) {
   ) {
     LucideIcon(icon = Lucide.lock, color = CyberHomeColors.primary, size = AppIconSizes.sm)
     Spacer(Modifier.width(10.dp))
-    Column {
-      Text(text = title, style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink))
+    Column(modifier = Modifier.weight(1f)) {
+      Text(
+        text = title,
+        maxLines = 2,
+        overflow = TextOverflow.Ellipsis,
+        style = androidx.compose.ui.text.TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+      )
       Spacer(Modifier.height(4.dp))
       Text(
         text = subtitle,
+        maxLines = 4,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.4f, color = CyberHomeColors.inkMuted),
       )
     }

@@ -167,7 +167,9 @@ fun LogScreen(
       val entries = log.all
       if (entries.isEmpty()) {
         Box(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .weight(1f),
           contentAlignment = Alignment.Center,
         ) {
           CyberEmptyState(
@@ -180,7 +182,9 @@ fun LogScreen(
         // listGeneration is read so a bump forces recomposition.
         @Suppress("UNUSED_EXPRESSION") listGeneration
         LazyColumn(
-          modifier = Modifier.fillMaxSize(),
+          modifier = Modifier
+            .fillMaxSize()
+            .weight(1f),
           reverseLayout = true,
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),

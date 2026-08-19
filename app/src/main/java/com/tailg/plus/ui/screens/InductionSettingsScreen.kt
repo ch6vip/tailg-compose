@@ -216,7 +216,9 @@ fun InductionSettingsScreen(
         },
       )
       LazyColumn(
-        modifier = Modifier.fillMaxSize(),
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
         contentPadding = androidx.compose.foundation.layout.PaddingValues(
           start = 20.dp,
           end = 20.dp,

@@ -91,15 +91,20 @@ fun CyberRecentCommands(
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
         text = stringResource(R.string.recent_commands_title),
+        modifier = Modifier.weight(1f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 14.sp,
           fontWeight = FontWeight.W600,
           color = CyberHomeColors.ink,
         ),
       )
-      Spacer(Modifier.weight(1f))
+      Spacer(Modifier.width(8.dp))
       Text(
         text = if (commands.isEmpty()) stringResource(R.string.recent_commands_empty) else stringResource(R.string.recent_commands_count_format, commands.size),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
     }
@@ -180,6 +185,8 @@ private fun CmdRow(entry: ControlCommandActivity) {
     }
     Text(
       text = stringResource(R.string.recent_commands_just_now),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
     )
   }

@@ -26,6 +26,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -72,12 +75,16 @@ fun CyberMapStatsRow(
   ) {
     val stacked = maxWidth < 420.dp
     val mapCard: @Composable () -> Unit = {
-      AppPressable(
-        onClick = onMapTap,
-        shape = RoundedCornerShape(AppRadii.sheet),
-        semanticsLabel = stringResource(R.string.map_stats_vehicle_location, address),
-        shadowElevation = 6.dp,
-        shadowColor = CyberHomeColors.actionShadow,
+      Box(
+        modifier = Modifier
+          .fillMaxWidth()
+          .shadow(
+            elevation = 6.dp,
+            shape = RoundedCornerShape(AppRadii.sheet),
+            clip = false,
+            ambientColor = Color.Transparent,
+            spotColor = CyberHomeColors.actionShadow,
+          ),
       ) {
         MiniMap(
           location = location,
@@ -131,6 +138,11 @@ private fun MiniMap(
   val hasPin = location?.hasCoordinate == true
   val lat = location?.latitude
   val lng = location?.longitude
+  val mapDescription = if (address.isBlank()) {
+    stringResource(R.string.map_no_location)
+  } else {
+    "${stringResource(R.string.location_title)}：$address"
+  }
 
   Box(
     modifier = Modifier
@@ -148,9 +160,11 @@ private fun MiniMap(
     Box(
       modifier = Modifier
         .matchParentSize()
+        .semantics { contentDescription = mapDescription }
         .clickable(
           interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
           indication = null,
+          role = Role.Button,
         ) { onMapTap() },
     )
     if (hasPin) {
@@ -177,6 +191,7 @@ private fun MiniMap(
       Spacer(Modifier.width(5.dp))
       Text(
         text = address.ifEmpty { stringResource(R.string.map_stats_no_location) },
+        modifier = Modifier.weight(1f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
@@ -220,26 +235,42 @@ private fun RideCard(
     Spacer(Modifier.height(14.dp))
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-      Column {
-        AnimatedValueText(
-          value = todayKm,
-          style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        )
+      Column(modifier = Modifier.weight(1f)) {
+        ScaleToFit(
+          modifier = Modifier.fillMaxWidth().height(36.dp),
+          contentAlignment = Alignment.CenterStart,
+        ) {
+          AnimatedValueText(
+            value = todayKm,
+            maxLines = 1,
+            style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+          )
+        }
         Text(
           text = stringResource(R.string.map_stats_today_distance),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
-      Column(horizontalAlignment = Alignment.End) {
-        AnimatedValueText(
-          value = totalKm,
-          textAlign = TextAlign.End,
-          style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        )
+      Spacer(Modifier.width(12.dp))
+      Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
+        ScaleToFit(
+          modifier = Modifier.fillMaxWidth().height(36.dp),
+          contentAlignment = Alignment.CenterEnd,
+        ) {
+          AnimatedValueText(
+            value = totalKm,
+            textAlign = TextAlign.End,
+            maxLines = 1,
+            style = androidx.compose.ui.text.TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+          )
+        }
         Text(
           text = stringResource(R.string.map_stats_total_distance),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
         )
       }
@@ -247,23 +278,50 @@ private fun RideCard(
     Spacer(Modifier.weight(1f))
     Row(
       modifier = Modifier.fillMaxWidth(),
-      horizontalArrangement = Arrangement.SpaceBetween,
     ) {
-      Metric(value = lastDistance, label = stringResource(R.string.map_stats_last_ride_distance))
-      Metric(value = lastDuration, label = stringResource(R.string.map_stats_last_ride_duration))
+      Metric(
+        value = lastDistance,
+        label = stringResource(R.string.map_stats_last_ride_distance),
+        modifier = Modifier.weight(1f),
+      )
+      Spacer(Modifier.width(12.dp))
+      Metric(
+        value = lastDuration,
+        label = stringResource(R.string.map_stats_last_ride_duration),
+        modifier = Modifier.weight(1f),
+        textAlign = TextAlign.End,
+        horizontalAlignment = Alignment.End,
+      )
     }
   }
 }
 
 @Composable
-private fun Metric(value: String, label: String) {
-  Column {
-    AnimatedValueText(
-      value = value,
-      style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.ink),
-    )
+private fun Metric(
+  value: String,
+  label: String,
+  modifier: Modifier = Modifier,
+  textAlign: TextAlign = TextAlign.Start,
+  horizontalAlignment: Alignment.Horizontal = Alignment.Start,
+) {
+  Column(modifier = modifier, horizontalAlignment = horizontalAlignment) {
+    ScaleToFit(
+      modifier = Modifier.fillMaxWidth().height(22.dp),
+      contentAlignment = if (textAlign == TextAlign.End) Alignment.CenterEnd else Alignment.CenterStart,
+    ) {
+      AnimatedValueText(
+        value = value,
+        textAlign = textAlign,
+        maxLines = 1,
+        style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.ink),
+      )
+    }
     Text(
       text = label,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      textAlign = textAlign,
+      modifier = Modifier.fillMaxWidth(),
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
     )
   }

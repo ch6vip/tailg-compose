@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.navigation
 
+import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -15,6 +17,10 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -53,13 +59,16 @@ import com.tailg.plus.ui.screens.UnitSettingsScreen
 import com.tailg.plus.ui.screens.VehicleMessageScreen
 import com.tailg.plus.ui.screens.VehicleSettingsScreen
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.remember
+import com.tailg.plus.di.TailgEntryPoint
 import com.tailg.plus.di.rememberTailgEntryPoint
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
+import com.tailg.plus.data.preferences.AppLanguagePreference
 import kotlinx.coroutines.launch
 import timber.log.Timber
+import java.util.Locale
 
 /**
  * Root navigation host — wires all 30 screens into a single NavHost.
@@ -69,11 +78,64 @@ import timber.log.Timber
  */
 @Composable
 fun TailgNavHost() {
+  val entryPoint = rememberTailgEntryPoint()
+  val preferences = entryPoint.appPreferences()
+  val respectTextScale by preferences.respectSystemTextScale.collectAsState()
+  val language by preferences.language.collectAsState()
+  val distanceUnit by preferences.distanceUnit.collectAsState()
+  LaunchedEffect(Unit) {
+    preferences.init()
+  }
+  val baseContext = LocalContext.current
+  val baseConfiguration = LocalConfiguration.current
+  val localizedConfiguration = remember(baseConfiguration, language) {
+    baseConfiguration.withAppLanguage(language)
+  }
+  val localizedContext = remember(baseContext, localizedConfiguration, language) {
+    if (language == AppLanguagePreference.System) {
+      baseContext
+    } else {
+      baseContext.createConfigurationContext(localizedConfiguration)
+    }
+  }
+  val baseDensity = LocalDensity.current
+  val effectiveDensity = remember(baseDensity, respectTextScale) {
+    Density(
+      density = baseDensity.density,
+      fontScale = resolveAppFontScale(baseDensity.fontScale, respectTextScale),
+    )
+  }
+
+  CompositionLocalProvider(
+    LocalContext provides localizedContext,
+    LocalConfiguration provides localizedConfiguration,
+    LocalDensity provides effectiveDensity,
+    LocalDistanceUnitPreference provides distanceUnit,
+  ) {
+    // Keep this call at a stable composition position so locale changes
+    // recompose the current destination without replacing its NavController.
+    TailgNavHostContent(entryPoint)
+  }
+}
+
+private fun Configuration.withAppLanguage(language: AppLanguagePreference): Configuration =
+  Configuration(this).apply {
+    if (language != AppLanguagePreference.System) {
+      val locale = Locale.forLanguageTag(language.value)
+      setLocale(locale)
+      setLayoutDirection(locale)
+    }
+  }
+
+internal fun resolveAppFontScale(systemFontScale: Float, respectSystemTextScale: Boolean): Float =
+  if (respectSystemTextScale) systemFontScale.coerceIn(0.85f, 1.5f) else 1f
+
+@Composable
+private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
   val navController = rememberNavController()
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
-  val entryPoint = rememberTailgEntryPoint()
   val cloudService = entryPoint.cloudService()
   val cloudState by cloudService.stateFlow.collectAsState()
 

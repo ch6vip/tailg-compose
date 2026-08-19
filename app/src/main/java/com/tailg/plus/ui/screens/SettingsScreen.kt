@@ -26,6 +26,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.data.preferences.AppLanguagePreference
@@ -86,7 +87,7 @@ fun SettingsScreen(
     ) {
       CyberPageHeader(title = stringResource(R.string.settings_title), onBack = onBack)
       CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.garage,
           title = stringResource(R.string.settings_my_vehicle),
@@ -101,7 +102,7 @@ fun SettingsScreen(
         ),
       )
       CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.tune,
           title = stringResource(R.string.settings_vehicle_settings),
@@ -116,17 +117,17 @@ fun SettingsScreen(
         ),
       )
       CyberSectionLabel(stringResource(R.string.settings_general))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.languages,
           title = stringResource(R.string.settings_language_setting),
-          subtitle = language.label,
+          subtitle = language.localizedLabel(),
           onClick = { onNavigate(Routes.LANGUAGE_SETTINGS) },
         ),
         settingItemModel(
           icon = Lucide.ruler,
           title = stringResource(R.string.settings_unit_setting),
-          subtitle = "${distanceUnit.label} · ${distanceUnit.hint}",
+          subtitle = "${distanceUnit.localizedLabel()} · ${distanceUnit.hint}",
           onClick = { onNavigate(Routes.UNIT_SETTINGS) },
         ),
         settingItemModel(
@@ -153,7 +154,7 @@ fun SettingsScreen(
         ),
       )
       CyberSectionLabel(stringResource(R.string.settings_advanced))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.shieldCheck,
           title = stringResource(R.string.settings_diagnostics),
@@ -168,7 +169,7 @@ fun SettingsScreen(
         ),
       )
       CyberSectionLabel(stringResource(R.string.settings_about))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.info,
           title = stringResource(R.string.settings_about_app),
@@ -203,7 +204,7 @@ fun AdvancedDiagnosticsScreen(
     ) {
       CyberPageHeader(title = stringResource(R.string.settings_diagnostics), onBack = onBack)
       Spacer(Modifier.height(4.dp))
-      settingsGroup(
+      SettingsGroup(
         settingItemModel(
           icon = Lucide.stethoscope,
           title = stringResource(R.string.settings_fault_diagnostics),
@@ -223,7 +224,7 @@ fun AdvancedDiagnosticsScreen(
 
 /** Dart `_group`: a [CyberCard] that stacks [items] with inset dividers between them. */
 @Composable
-private fun settingsGroup(vararg items: SettingItemModel) {
+private fun SettingsGroup(vararg items: SettingItemModel) {
   CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
     Column {
       items.forEachIndexed { index, item ->
@@ -265,7 +266,10 @@ private fun SettingItemRow(item: SettingItemModel) {
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .clickable(enabled = item.onClick != null) { item.onClick?.invoke() }
+      .clickable(
+        enabled = item.onClick != null,
+        role = Role.Button,
+      ) { item.onClick?.invoke() }
       .padding(horizontal = 16.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {

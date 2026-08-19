@@ -44,13 +44,16 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
 
 /**
  * Port of `lib/widgets/slide_power_button.dart` — official-like bidirectional
@@ -72,7 +75,6 @@ import kotlinx.coroutines.launch
  * Haptics: Dart `mediumImpact/heavyImpact` → `HapticFeedbackType.LongPress` (closest).
  */
 
-private const val TrackWidth = 160f
 private const val TrackHeight = 60f
 private const val ThumbSize = 60f
 private const val CompletionThreshold = 0.98f
@@ -85,6 +87,7 @@ fun SlidePowerButton(
   isPowered: Boolean?,
   onSlide: suspend () -> Unit,
   modifier: Modifier = Modifier,
+  trackWidth: Dp = 160.dp,
   enabled: Boolean = true,
   busy: Boolean = false,
   unavailableReason: String = "",
@@ -94,7 +97,7 @@ fun SlidePowerButton(
   val haptics = LocalHapticFeedback.current
   val scope = rememberCoroutineScope()
 
-  val maxDragPx = with(density) { (TrackWidth - ThumbSize).dp.toPx() }
+  val maxDragPx = with(density) { (trackWidth - ThumbSize.dp).coerceAtLeast(0.dp).toPx() }
   val idlePx = if (isPowered == true) maxDragPx else 0f
   val completedPx = if (isPowered == true) 0f else maxDragPx
 
@@ -200,7 +203,7 @@ fun SlidePowerButton(
   ) {
     Box(
       modifier = Modifier
-        .width(TrackWidth.dp)
+        .width(trackWidth)
         .height(TrackHeight.dp),
     ) {
       // Track.
@@ -233,7 +236,7 @@ fun SlidePowerButton(
       Box(
         modifier = Modifier
           .align(Alignment.CenterStart)
-          .offset(x = with(density) { thumbAnimPx.toDp() })
+          .offset { IntOffset(thumbAnimPx.roundToInt(), 0) }
           .graphicsLayer { translationX = shakeX.value }
           .size(ThumbSize.dp)
           .shadow(

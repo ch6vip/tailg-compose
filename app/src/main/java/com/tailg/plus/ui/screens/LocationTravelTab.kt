@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -38,15 +39,20 @@ import com.tailg.plus.data.model.OfficialTravelRecord
 import com.tailg.plus.data.model.formatCompactDuration
 import com.tailg.plus.data.model.sumTravelDurationSeconds
 import com.tailg.plus.data.model.sumTravelMileageKm
+import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.ui.components.CyberMapView
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.components.ScaleToFit
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
-import com.tailg.plus.util.formatDecimalDown
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
+import com.tailg.plus.util.formatSpeedKilometersPerHourValue
+import com.tailg.plus.util.formatTravelMileageMeters
 import com.tailg.plus.util.formatTravelMileageMetersText
 import com.tailg.plus.util.parseTravelMileageMeters
+import com.tailg.plus.util.speedUnitSuffix
 import com.tailg.plus.util.travelMetersToKm
 import com.tailg.plus.util.formatDateText
 import com.tailg.plus.util.formatDateMinuteText
@@ -65,6 +71,7 @@ internal fun TravelTab(
   onRefresh: () -> Unit,
   onChangeMonth: (Int) -> Unit,
   onRecordTap: (OfficialTravelRecord) -> Unit,
+  modifier: Modifier = Modifier,
 ) {
   val records = remember(cloudState.travelDays) {
     cloudState.travelDays.flatMap { it.records }
@@ -74,7 +81,7 @@ internal fun TravelTab(
   }
 
   LazyColumn(
-    modifier = Modifier.fillMaxSize(),
+    modifier = modifier.fillMaxSize(),
     contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, top = 14.dp, end = 20.dp, bottom = 24.dp),
   ) {
     item {
@@ -128,8 +135,8 @@ internal fun TravelTab(
           day = day,
           travelDetails = cloudState.travelDetails,
           detailLoading = cloudState.travelDetailLoading,
-          onRecordTap = onRecordTap,
-        )
+           onRecordTap = onRecordTap,
+         )
       }
     }
     item { Spacer(Modifier.height(4.dp)) }
@@ -178,10 +185,11 @@ internal fun TravelDayCard(
   detailLoading: Boolean,
   onRecordTap: (OfficialTravelRecord) -> Unit,
 ) {
+  val distanceUnit = LocalDistanceUnitPreference.current
   val records = day.records
   val summedKm = sumTravelMileageKm(records)
   val totalMeters = if (day.totalMileage.trim().isNotEmpty()) parseTravelMileageMeters(day.totalMileage) else summedKm * 1000
-  val mileageParts = travelMileageSummaryParts(totalMeters)
+  val mileageParts = travelMileageSummaryParts(totalMeters, distanceUnit)
   val duration = if (day.totalTime.isNotEmpty()) day.totalTime else formatCompactDuration(sumTravelDurationSeconds(records), emptyWhenZero = true)
 
   Column(
@@ -193,6 +201,8 @@ internal fun TravelDayCard(
   ) {
     Text(
       text = if (day.travelDate.isEmpty()) stringResource(R.string.location_official_travel) else day.travelDate,
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.height(14.dp))
@@ -229,17 +239,17 @@ internal fun SummaryValue(label: String, value: String, unit: String, modifier: 
   Column(
     modifier = modifier.padding(12.dp),
   ) {
-    Row(verticalAlignment = Alignment.Bottom) {
-      Text(
-        text = value,
+    ScaleToFit(
+      modifier = Modifier.fillMaxWidth().height(28.dp),
+      contentAlignment = Alignment.CenterStart,
+    ) {
+      com.tailg.plus.ui.components.AnimatedValueText(
+        value = value,
+        unit = unit.takeIf { it.isNotEmpty() },
         style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+        unitStyle = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
+        maxLines = 1,
       )
-      if (unit.isNotEmpty()) {
-        Text(
-          text = unit,
-          style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
-        )
-      }
     }
     Spacer(Modifier.height(2.dp))
     Text(
@@ -258,6 +268,18 @@ internal fun TravelRecordCard(
   loading: Boolean,
   onTap: () -> Unit,
 ) {
+  val distanceUnit = LocalDistanceUnitPreference.current
+  val pendingText = stringResource(R.string.battery_pending_read)
+  val mileageLabel = if (record.mileage.isEmpty()) {
+    pendingText
+  } else {
+    formatTravelMileageMetersText(record.mileage, unit = distanceUnit)
+  }
+  val speedLabel = if (record.averageSpeed.isEmpty()) {
+    pendingText
+  } else {
+    "${formatSpeedKilometersPerHourValue(record.averageSpeed, unit = distanceUnit)}${speedUnitSuffix(distanceUnit)}"
+  }
   val actionText = when {
     loading && loadedPoints == null -> stringResource(R.string.location_reading)
     loadedPoints != null && loadedPoints >= 2 -> stringResource(R.string.location_loaded_points_format, loadedPoints)
@@ -278,25 +300,29 @@ internal fun TravelRecordCard(
     Column(modifier = Modifier.width(76.dp)) {
       Text(
         text = if (record.startTime.isEmpty()) "--" else record.startTime,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
       Spacer(Modifier.height(20.dp))
       Text(
         text = if (record.endTime.isEmpty()) "--" else record.endTime,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
       )
     }
     Spacer(Modifier.width(14.dp))
     Column(modifier = Modifier.weight(1f)) {
       Text(
-        text = record.mileageLabel,
+        text = mileageLabel,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.ink),
       )
       Spacer(Modifier.height(6.dp))
       Text(
-        text = "${record.averageSpeedLabel}  ·  ${record.durationLabel}",
+        text = "$speedLabel  ·  ${record.durationLabel}",
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
         style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
@@ -304,6 +330,9 @@ internal fun TravelRecordCard(
     }
     Text(
       text = actionText,
+      modifier = Modifier.widthIn(max = 96.dp),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
       style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
     )
     Spacer(Modifier.width(8.dp))
@@ -312,11 +341,18 @@ internal fun TravelRecordCard(
   }
 }
 
-internal fun travelMileageSummaryParts(meters: Double): Pair<String, String> {
+internal fun travelMileageSummaryParts(
+  meters: Double,
+  unit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): Pair<String, String> {
   if (meters <= 0 || meters.isNaN() || meters.isInfinite()) return "--" to ""
-  val intMeters = meters.toInt()
-  if (intMeters < 1000) return "$intMeters" to "m"
-  return formatDecimalDown(intMeters / 1000.0, fractionDigits = 2) to "km"
+  val formatted = formatTravelMileageMeters(meters, unit = unit)
+  val suffix = if (unit == DistanceUnitPreference.Imperial) {
+    if (formatted.endsWith("ft")) "ft" else "mi"
+  } else {
+    if (formatted.endsWith("m")) "m" else "km"
+  }
+  return formatted.removeSuffix(suffix) to suffix
 }
 
 

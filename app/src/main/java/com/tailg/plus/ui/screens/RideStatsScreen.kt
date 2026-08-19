@@ -52,12 +52,17 @@ import com.tailg.plus.ui.components.AnimatedValueText
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.components.ScaleToFit
 import com.tailg.plus.ui.components.cyberButtonShape
 import com.tailg.plus.ui.components.cyberFilledButtonColors
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import com.tailg.plus.ui.navigation.Routes
+import com.tailg.plus.util.distanceUnitSuffix
+import com.tailg.plus.util.formatSpeedKilometersPerHourValue
+import com.tailg.plus.util.speedUnitSuffix
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -130,7 +135,11 @@ fun RideStatsScreen(
         onBack = onBack,
         onHelp = { showInfoSheet = InfoSheetContent(strHelp, strRideNotice) },
       )
-      Box(modifier = Modifier.fillMaxSize()) {
+      Box(
+        modifier = Modifier
+          .fillMaxSize()
+          .weight(1f),
+      ) {
         when {
           gate == RideStatsGate.NEED_LOGIN -> GateState(
             title = stringResource(R.string.ride_stats_login_required),
@@ -301,14 +310,17 @@ private fun RideStatsHeader(
         }
       }
     }
-    Text(
-      text = stringResource(R.string.ride_stats_title),
-      modifier = Modifier.weight(1f),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      textAlign = TextAlign.Center,
-      style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-    )
+    ScaleToFit(
+      modifier = Modifier.weight(1f).height(32.dp),
+      contentAlignment = Alignment.Center,
+    ) {
+      Text(
+        text = stringResource(R.string.ride_stats_title),
+        maxLines = 1,
+        textAlign = TextAlign.Center,
+        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+      )
+    }
     AppPressable(
       onClick = onHelp,
       semanticsLabel = stringResource(R.string.ride_stats_view_help),
@@ -321,8 +333,9 @@ private fun RideStatsHeader(
         contentAlignment = Alignment.CenterEnd,
       ) {
         Text(
-          text = stringResource(R.string.ride_stats_help),
+          text = stringResource(R.string.ride_stats_help_action),
           maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
           style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.primary),
         )
       }
@@ -404,12 +417,16 @@ private fun EcoMetric(
       }
     }
     Spacer(Modifier.height(10.dp))
-    Box(modifier = Modifier.height(36.dp), contentAlignment = Alignment.CenterStart) {
+    ScaleToFit(
+      modifier = Modifier.fillMaxWidth().height(36.dp),
+      contentAlignment = Alignment.CenterStart,
+    ) {
       AnimatedValueText(
         value = value,
         style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         unit = " $unit",
         unitStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+        maxLines = 1,
       )
     }
   }
@@ -475,6 +492,7 @@ private fun MileageSummary(
   period: OfficialRidePeriod,
   statistics: OfficialRideStatistics?,
 ) {
+  val distanceUnit = LocalDistanceUnitPreference.current
   Row(
     modifier = Modifier
       .fillMaxWidth()
@@ -486,7 +504,8 @@ private fun MileageSummary(
     MileageValue(
       modifier = Modifier.weight(1f),
       label = period.mileageTitle,
-      value = OfficialRideStatistics.formatMileageKm(statistics?.mileageFor(period) ?: ""),
+      value = OfficialRideStatistics.formatMileage(statistics?.mileageFor(period) ?: "", distanceUnit),
+      unit = distanceUnitSuffix(distanceUnit),
     )
     Box(
       modifier = Modifier
@@ -498,7 +517,8 @@ private fun MileageSummary(
     MileageValue(
       modifier = Modifier.weight(1f),
       label = stringResource(R.string.ride_stats_total_distance),
-      value = OfficialRideStatistics.formatMileageKm(statistics?.totalMileage ?: ""),
+      value = OfficialRideStatistics.formatMileage(statistics?.totalMileage ?: "", distanceUnit),
+      unit = distanceUnitSuffix(distanceUnit),
     )
   }
 }
@@ -507,6 +527,7 @@ private fun MileageSummary(
 private fun MileageValue(
   label: String,
   value: String,
+  unit: String,
   modifier: Modifier = Modifier,
 ) {
   Column(
@@ -516,15 +537,25 @@ private fun MileageValue(
   ) {
     Text(
       text = label,
+      modifier = Modifier.fillMaxWidth(),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      textAlign = TextAlign.Center,
       style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
     )
     Spacer(Modifier.height(8.dp))
-    AnimatedValueText(
-      value = value,
-      style = TextStyle(fontSize = 23.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-      unit = " km",
-      unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-    )
+    ScaleToFit(
+      modifier = Modifier.fillMaxWidth().height(32.dp),
+      contentAlignment = Alignment.Center,
+    ) {
+      AnimatedValueText(
+        value = value,
+        style = TextStyle(fontSize = 23.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+        unit = " $unit",
+        unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+        maxLines = 1,
+      )
+    }
   }
 }
 
@@ -532,7 +563,13 @@ private fun MileageValue(
 
 @Composable
 private fun MetricsGrid(statistics: OfficialRideStatistics?) {
+  val distanceUnit = LocalDistanceUnitPreference.current
   fun value(raw: String?): String = OfficialRideStatistics.displayValue(raw ?: "")
+  fun speedValue(raw: String?): String = formatSpeedKilometersPerHourValue(
+    raw = raw,
+    unit = distanceUnit,
+  )
+  val speedUnit = speedUnitSuffix(distanceUnit)
   Column(
     modifier = Modifier
       .fillMaxWidth()
@@ -544,8 +581,8 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
       MetricCell(
         modifier = Modifier.weight(1f),
         label = stringResource(R.string.ride_stats_max_speed),
-        value = value(statistics?.maxSpeed),
-        unit = "km/h",
+        value = speedValue(statistics?.maxSpeed),
+        unit = speedUnit,
         icon = Lucide.gauge,
         accent = CyberHomeColors.primary,
       )
@@ -588,8 +625,8 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
       MetricCell(
         modifier = Modifier.weight(1f),
         label = stringResource(R.string.ride_stats_avg_speed),
-        value = value(statistics?.avgSpeed),
-        unit = "km/h",
+        value = speedValue(statistics?.avgSpeed),
+        unit = speedUnit,
         icon = Lucide.activity,
         accent = CyberHomeColors.success,
       )
@@ -616,6 +653,9 @@ private fun MetricCell(
       Spacer(Modifier.width(7.dp))
       Text(
         text = label,
+        modifier = Modifier.weight(1f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
         style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
       )
     }
@@ -624,12 +664,18 @@ private fun MetricCell(
       modifier = Modifier.fillMaxWidth().height(31.dp),
       contentAlignment = Alignment.CenterStart,
     ) {
-      AnimatedValueText(
-        value = value,
-        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        unit = " $unit",
-        unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-      )
+      ScaleToFit(
+        modifier = Modifier.fillMaxSize(),
+        contentAlignment = Alignment.CenterStart,
+      ) {
+        AnimatedValueText(
+          value = value,
+          style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+          unit = " $unit",
+          unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+          maxLines = 1,
+        )
+      }
     }
   }
 }

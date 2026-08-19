@@ -93,7 +93,6 @@ import com.tailg.plus.data.ble.parseResponse
 import com.tailg.plus.data.ble.parseTLinkResponse
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
-import java.util.EnumMap
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
 import kotlin.math.pow
@@ -149,7 +148,11 @@ class ConnectionManager(
   private val ownsScope = externalScope == null
   private val scope = externalScope ?: CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val lock = Any()
-  private val queueLock = Any()
+
+  // Serialized GATT operation queue (Dart priority queue), extracted into
+  // [GattOperationQueue] so ConnectionManager owns connection/protocol state
+  // only. Lives on [scope] so queue drains share the manager lifecycle.
+  private val gattQueue = GattOperationQueue(scope)
 
   private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
   private val bluetoothAdapter: BluetoothAdapter? get() = bluetoothManager?.adapter
@@ -203,14 +206,6 @@ class ConnectionManager(
   @Volatile private var _tlinkInductionSetDeferred: CompletableDeferred<Boolean>? = null
   @Volatile private var _tlinkProximityDistanceDeferred: CompletableDeferred<Boolean>? = null
   private val _qgjResponseDeferreds = ConcurrentHashMap<Int, CompletableDeferred<QgjResponse?>>()
-
-  // GATT operation queue (Dart `_gattPendingByPriority` / `_activeGattOperation`).
-  private val _gattPendingByPriority =
-    EnumMap<GattOperationPriority, ArrayDeque<QueuedGattOperation<Any?>>>(GattOperationPriority::class.java).apply {
-      for (p in GattOperationPriority.entries) put(p, ArrayDeque())
-    }
-  @Volatile private var _activeGattOperation: QueuedGattOperation<Any?>? = null
-  @Volatile private var _gattRunning = false
 
   // Exposed flows (Dart broadcast StreamControllers).
   private val _state = MutableStateFlow(ConnectionState.DISCONNECTED)
@@ -432,67 +427,7 @@ class ConnectionManager(
     operation: suspend () -> T,
   ): T {
     if (_disposed) throw IllegalStateException("ConnectionManager disposed")
-    @Suppress("UNCHECKED_CAST")
-    val queued = QueuedGattOperation(operation, priority) as QueuedGattOperation<Any?>
-    synchronized(queueLock) {
-      _gattPendingByPriority[priority]?.addLast(queued)
-    }
-    drainGattQueue()
-    @Suppress("UNCHECKED_CAST")
-    return (queued.deferred as CompletableDeferred<T>).await()
-  }
-
-  /** True when any priority queue holds pending operations. */
-  private val hasPendingGattOperations: Boolean
-    get() = synchronized(queueLock) {
-      GattOperationPriority.entries.any { _gattPendingByPriority[it]?.isNotEmpty() == true }
-    }
-
-  /** Port of Dart `_takeNextGattOperation` — first non-empty priority queue, FIFO. */
-  private fun takeNextGattOperation(): QueuedGattOperation<Any?>? {
-    for (p in GattOperationPriority.entries) {
-      val queue = _gattPendingByPriority[p] ?: continue
-      if (queue.isNotEmpty()) return queue.removeFirst()
-    }
-    return null
-  }
-
-  /**
-   * Port of Dart `_drainGattQueue` — single consumer loop. [queueLock]
-   * guards enqueue/take/clear races; operations run outside the lock so a
-   * long GATT await does not block queue bookkeeping.
-   */
-  private fun drainGattQueue() {
-    scope.launch {
-      synchronized(queueLock) {
-        if (_gattRunning) return@launch
-        _gattRunning = true
-      }
-      try {
-        while (true) {
-          val queued = synchronized(queueLock) { takeNextGattOperation() } ?: break
-          _activeGattOperation = queued
-          try {
-            val result = withTimeout(BleTimings.gattOperationTimeout) { queued.operation() }
-            if (!queued.deferred.isCompleted) queued.deferred.complete(result)
-          } catch (e: TimeoutCancellationException) {
-            // withTimeout fired: fail this operation, keep draining the queue.
-            if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
-          } catch (e: kotlinx.coroutines.CancellationException) {
-            throw e
-          } catch (e: Exception) {
-            if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
-          } finally {
-            if (_activeGattOperation === queued) _activeGattOperation = null
-          }
-        }
-      } finally {
-        synchronized(queueLock) { _gattRunning = false }
-        // Dart re-drains after the loop exits in case an item was queued
-        // between the last take and `_gattRunning = false`.
-        if (hasPendingGattOperations) drainGattQueue()
-      }
-    }
+    return gattQueue.run(priority, operation)
   }
 
   // =========================================================================
@@ -2232,19 +2167,7 @@ class ConnectionManager(
 
   /** Port of Dart `_completePendingGattOperations` — fail queued + active GATT ops. */
   private fun completePendingGattOperations(error: Throwable) {
-    val active = _activeGattOperation
-    if (active != null && !active.deferred.isCompleted) {
-      active.deferred.completeExceptionally(error)
-    }
-    _activeGattOperation = null
-    synchronized(queueLock) {
-      for (queue in _gattPendingByPriority.values) {
-        for (queued in queue) {
-          if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(error)
-        }
-        queue.clear()
-      }
-    }
+    gattQueue.completePending(error)
   }
 
   /** Port of Dart `_reset` — drop device, state, characteristics. */

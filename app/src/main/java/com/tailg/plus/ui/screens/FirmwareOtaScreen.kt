@@ -22,22 +22,17 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import com.tailg.plus.data.ble.platform.ConnectionManager
-import com.tailg.plus.data.cloud.OfficialCloudRedactor
-import com.tailg.plus.data.cloud.OfficialCloudService
+import androidx.hilt.navigation.compose.hiltViewModel
+import com.tailg.plus.R
 import com.tailg.plus.service.FirmwareOtaPhase
-import com.tailg.plus.service.FirmwareOtaProgress
-import com.tailg.plus.service.FirmwareOtaService
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberCard
 import com.tailg.plus.ui.components.CyberPageHeader
@@ -51,64 +46,35 @@ import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
-import kotlinx.coroutines.flow.collectLatest
-import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
-import com.tailg.plus.R
 
 /**
  * Port of `lib/pages/firmware_ota_page.dart` → `FirmwareOtaScreen.kt`.
  *
  * P3-5 experimental official OTA flow: query → download → writeOtaOrder →
- * writeOtaFileChunk. The Dart `StatefulWidget` listens to a `Stream<FirmwareOtaProgress>`;
- * here we collect the cold [FirmwareOtaService.run] `Flow` in a `LaunchedEffect`.
+ * writeOtaFileChunk. The [FirmwareOtaViewModel] owns the [FirmwareOtaService]
+ * flow collection and running/progress state; this composable is a thin,
+ * stateless renderer that resolves the transient snackbar only.
  */
 @Composable
 fun FirmwareOtaScreen(
   onBack: () -> Unit,
-  cloudService: OfficialCloudService,
-  connectionManager: ConnectionManager? = null,
+  viewModel: FirmwareOtaViewModel = hiltViewModel(),
 ) {
-  val context = LocalContext.current
-  val cloud = cloudService
-  val connection = remember(connectionManager) { connectionManager ?: ConnectionManager(context) }
-  val ota = remember(cloud, connection) { FirmwareOtaService(cloud = cloud, connectionManager = connection) }
   val snackbarHostState = remember { SnackbarHostState() }
-  val scope = rememberCoroutineScope()
+  val running by viewModel.running.collectAsState()
+  val progress by viewModel.progress.collectAsState()
 
-  val strOtaStandby = stringResource(R.string.ota_standby)
-  val strOtaStarting = stringResource(R.string.ota_starting)
-
-  var progress by remember {
-    mutableStateOf(FirmwareOtaProgress(FirmwareOtaPhase.IDLE, 0.0, strOtaStandby))
-  }
-  var running by remember { mutableStateOf(false) }
-
-  val start: () -> Unit = {
-    if (!running) {
-    running = true
-    progress = FirmwareOtaProgress(FirmwareOtaPhase.QUERYING, 0.0, strOtaStarting)
-    scope.launch {
-      try {
-        ota.run().collectLatest { p ->
-          progress = p
-          if (p.phase == FirmwareOtaPhase.COMPLETED) {
-            running = false
-            AppSnack.success(snackbarHostState, p.message)
-          } else if (p.phase == FirmwareOtaPhase.FAILED) {
-            running = false
-            AppSnack.error(snackbarHostState, p.message)
-          }
-        }
-      } catch (e: Exception) {
-        running = false
-        val msg = OfficialCloudRedactor.errorMessage(e)
-        progress = FirmwareOtaProgress(FirmwareOtaPhase.FAILED, progress.fraction, msg)
-        AppSnack.error(snackbarHostState, msg)
-      }
-    }
+  // Resolve the transient OTA outcome snackbar from the phase transition.
+  LaunchedEffect(progress.phase) {
+    when (progress.phase) {
+      FirmwareOtaPhase.COMPLETED -> AppSnack.success(snackbarHostState, progress.message)
+      FirmwareOtaPhase.FAILED -> AppSnack.error(snackbarHostState, progress.message)
+      else -> Unit
     }
   }
+
+  val start: () -> Unit = { viewModel.start() }
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
@@ -155,7 +121,12 @@ fun FirmwareOtaScreen(
           )
           Spacer(Modifier.height(10.dp))
           Text(
-            text = "${progress.phase.name.lowercase()} · ${progress.message}",
+            text = when (progress.phase) {
+              FirmwareOtaPhase.IDLE ->
+                stringResource(R.string.ota_standby)
+              else ->
+                "${progress.phase.name.lowercase()} · ${progress.message}",
+            },
             style = cyberCaptionStyle,
           )
           Spacer(Modifier.height(16.dp))

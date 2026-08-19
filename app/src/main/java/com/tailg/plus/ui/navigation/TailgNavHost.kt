@@ -463,7 +463,6 @@ private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
       ) { entry ->
         FirmwareOtaScreen(
           onBack = { navController.popBackStack() },
-          cloudService = cloudService,
         )
       }
       composable(

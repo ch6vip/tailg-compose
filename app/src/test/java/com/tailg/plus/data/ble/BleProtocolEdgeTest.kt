@@ -172,10 +172,11 @@ class BleProtocolEdgeTest {
 
   @Test
   fun qgjControlFrameUsesOfficialOpCodes() {
-    // setStatus (0x1002), 1-byte op payload → length=3 → `A7 00 00 03 10 02 <op>`.
-    assertArrayEquals(hexToBytes("A70003100201"), buildQgjControlFrame(CommandCode.unlock))
-    assertArrayEquals(hexToBytes("A70003100207"), buildQgjControlFrame(CommandCode.openSeat))
-    assertArrayEquals(hexToBytes("A70003100208"), buildQgjControlFrame(CommandCode.find))
+    // setStatus (0x1002), 1-byte op payload → length=3 → two-byte BE length `00 03`.
+    // Frame: A7 00 00 03 10 02 <op>.
+    assertArrayEquals(hexToBytes("A7000003100201"), buildQgjControlFrame(CommandCode.unlock))
+    assertArrayEquals(hexToBytes("A7000003100207"), buildQgjControlFrame(CommandCode.openSeat))
+    assertArrayEquals(hexToBytes("A7000003100208"), buildQgjControlFrame(CommandCode.find))
     // readState is not a QGJ control op → null.
     assertNull(buildQgjControlFrame(CommandCode.readState))
   }

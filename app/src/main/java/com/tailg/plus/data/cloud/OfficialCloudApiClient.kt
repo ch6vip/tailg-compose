@@ -15,8 +15,6 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
-import retrofit2.Retrofit
-import retrofit2.converter.moshi.MoshiConverterFactory
 
 /**
  * Port of `OfficialCloudApiClient` from `lib/services/official_cloud_api_client.dart`.
@@ -43,17 +41,14 @@ class OfficialCloudApiClient(
 ) : OfficialCloudApiClientInterface {
     private val httpClient: OkHttpClient = okHttpClient ?: OkHttpClient.Builder()
         .connectTimeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+        // Client-level read/write guards: without these OkHttp defaults to a
+        // 10-minute read timeout, so a stalled body could pin the IO thread far
+        // beyond the per-call budget below.
+        .readTimeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+        .writeTimeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         .build()
 
     private val moshi = com.squareup.moshi.Moshi.Builder().build()
-
-    /** Typed Retrofit contract for the same endpoints (see [OfficialCloudApiService]). */
-    val api: OfficialCloudApiService = Retrofit.Builder()
-        .baseUrl(config.apiBase)
-        .client(httpClient)
-        .addConverterFactory(MoshiConverterFactory.create(moshi))
-        .build()
-        .create(OfficialCloudApiService::class.java)
 
     private var clock: () -> LocalDateTime = clock
 

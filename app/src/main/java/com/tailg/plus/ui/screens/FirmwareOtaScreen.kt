@@ -23,7 +23,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -62,8 +62,8 @@ fun FirmwareOtaScreen(
   viewModel: FirmwareOtaViewModel = hiltViewModel(),
 ) {
   val snackbarHostState = remember { SnackbarHostState() }
-  val running by viewModel.running.collectAsState()
-  val progress by viewModel.progress.collectAsState()
+  val running by viewModel.running.collectAsStateWithLifecycle()
+  val progress by viewModel.progress.collectAsStateWithLifecycle()
 
   // Resolve the transient OTA outcome snackbar from the phase transition.
   LaunchedEffect(progress.phase) {

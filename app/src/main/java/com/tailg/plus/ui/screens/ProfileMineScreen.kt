@@ -34,7 +34,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -92,13 +92,12 @@ fun ProfileMineScreen(
   modifier: Modifier = Modifier,
   onSignedOut: () -> Unit = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
 ) {
-  val cloudService = cloudService
   val context = androidx.compose.ui.platform.LocalContext.current
   val messageReadStore = remember { MessageReadStore(context) }
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val cloudState by cloudService.stateFlow.collectAsState()
-  val unreadCount by messageReadStore.unreadCount.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  val unreadCount by messageReadStore.unreadCount.collectAsStateWithLifecycle()
 
   var showLogoutSheet by remember { mutableStateOf(false) }
   var showEditNickname by remember { mutableStateOf(false) }

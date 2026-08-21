@@ -29,7 +29,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,9 +104,9 @@ fun BatteryDetailsScreen(
 ) {
   val scope = rememberCoroutineScope()
   val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
   val snackbarHostState = remember { SnackbarHostState() }
-  val bleState by connectionManager.stateFlow.collectAsState()
+  val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
 
   val vehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
   val data = remember(cloudState) {

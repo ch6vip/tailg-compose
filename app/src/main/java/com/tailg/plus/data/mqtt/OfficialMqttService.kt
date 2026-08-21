@@ -88,6 +88,18 @@ class OfficialMqttService(
         private const val SUBSCRIBE_TIMEOUT_MS = 5_000L
 
         /**
+         * Auto-reconnect after an unexpected [MqttCallback.connectionLost].
+         * Paho's own `isAutomaticReconnect` stays off (it bypasses our
+         * credential/topic pipeline), so the loss callback schedules this
+         * bounded exponential-backoff loop instead: 2s → 4s → 8s → 16s → 32s,
+         * then gives up until the next trigger (command send, control screen
+         * enter, or network restored via [monitorNetwork]).
+         */
+        private const val AUTO_RECONNECT_MAX_ATTEMPTS = 5
+        private const val AUTO_RECONNECT_BASE_DELAY_MS = 2_000L
+        private const val AUTO_RECONNECT_MAX_DELAY_MS = 60_000L
+
+        /**
          * Compact raw error for logs/diagnostics (type + message, no stack).
          * Dart `formatConnectError` (dart:io types mapped to JVM equivalents:
          * SocketException, SSLException for Handshake/Tls, TimeoutException).
@@ -148,6 +160,8 @@ class OfficialMqttService(
     @Volatile private var _disposed: Boolean = false
     @Volatile private var _boundCloud: OfficialCloudService? = null
     private var _cloudJob: Job? = null
+    private var _reconnectJob: Job? = null
+    private var _networkJob: Job? = null
 
     val isConnected: Boolean get() = _client?.isConnected == true
 
@@ -307,6 +321,90 @@ class OfficialMqttService(
         preconnect(vehicle = vehicle, userId = state.userId)
     }
 
+    // --- auto reconnect / network trigger -----------------------------------
+
+    /**
+     * Observe link-layer changes and retry the session when connectivity is
+     * restored while a vehicle session should be live (WiFi↔cellular handover,
+     * airplane-mode off, …). Attach once at app scope; no-op until [attachToCloud].
+     */
+    fun monitorNetwork(network: com.tailg.plus.data.network.NetworkAvailabilityService) {
+        synchronized(lock) {
+            _networkJob?.cancel()
+            _networkJob = scope.launch {
+                var previous: Boolean? = null
+                network.changes.collect { available ->
+                    val was = previous
+                    previous = available
+                    if (_disposed || !available) return@collect
+                    // Rising edge only — the initial emission must not double-
+                    // trigger what onCloudState already preconnects.
+                    if (was != false || isConnected) return@collect
+                    val cloud = _boundCloud ?: return@collect
+                    val state = cloud.currentState
+                    val vehicle = state.selectedVehicle
+                    if (!state.signedIn || vehicle == null) return@collect
+                    log.operation("网络已恢复，重试官方 MQTT 连接", level = LogLevel.INFO)
+                    preconnect(vehicle = vehicle, userId = state.userId, force = true)
+                }
+            }
+        }
+    }
+
+    /** Single-flight scheduler for the post-loss backoff loop. */
+    private fun scheduleAutoReconnect(lostClient: MqttAsyncClient) {
+        if (_disposed) return
+        synchronized(lock) {
+            if (_reconnectJob?.isActive == true) return
+            _reconnectJob = scope.launch { autoReconnectLoop(lostClient) }
+        }
+    }
+
+    /**
+     * Bounded exponential-backoff restore of the lost session. Self-terminates
+     * when the session moved on (logout clears `_client`; a vehicle switch or
+     * manual preconnect installs a different client), so no explicit cancel
+     * bookkeeping is needed on those paths.
+     */
+    private suspend fun autoReconnectLoop(lostClient: MqttAsyncClient) {
+        val cloud = _boundCloud ?: return
+        for (attempt in 1..AUTO_RECONNECT_MAX_ATTEMPTS) {
+            val delayMs = (AUTO_RECONNECT_BASE_DELAY_MS shl (attempt - 1))
+                .coerceAtMost(AUTO_RECONNECT_MAX_DELAY_MS)
+            delay(delayMs)
+            if (_disposed) return
+            // Superseded by a newer session or explicitly disconnected.
+            if (_client !== lostClient) return
+            val state = cloud.currentState
+            val vehicle = state.selectedVehicle
+            if (!state.signedIn || vehicle == null) return
+            try {
+                log.operation(
+                    "官方 MQTT 自动重连",
+                    detail = "attempt=$attempt/$AUTO_RECONNECT_MAX_ATTEMPTS",
+                )
+                preconnect(vehicle = vehicle, userId = state.userId, force = true)
+                if (isConnected) {
+                    log.operation("官方 MQTT 自动重连成功", detail = "attempt=$attempt")
+                    return
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                log.operation(
+                    "官方 MQTT 自动重连失败",
+                    detail = formatConnectError(e),
+                    level = LogLevel.DEBUG,
+                )
+            }
+        }
+        log.operation(
+            "官方 MQTT 自动重连放弃",
+            detail = "attempts=$AUTO_RECONNECT_MAX_ATTEMPTS，等待下次触发",
+            level = LogLevel.WARNING,
+        )
+    }
+
     // --- connect / disconnect ---------------------------------------------
 
     suspend fun disconnect() {
@@ -440,6 +538,10 @@ class OfficialMqttService(
                         level = LogLevel.WARNING,
                     )
                     _linkState.value = OfficialMqttLinkState.DISCONNECTED
+                    // Without a reconnect trigger here the remote-control
+                    // channel stayed down until the user re-entered a screen
+                    // that preconnects — schedule a bounded backoff retry.
+                    scheduleAutoReconnect(created)
                 }
 
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
@@ -726,6 +828,10 @@ class OfficialMqttService(
         synchronized(lock) {
             _cloudJob?.cancel()
             _cloudJob = null
+            _reconnectJob?.cancel()
+            _reconnectJob = null
+            _networkJob?.cancel()
+            _networkJob = null
             _boundCloud = null
             _preconnectInFlight = false
         }

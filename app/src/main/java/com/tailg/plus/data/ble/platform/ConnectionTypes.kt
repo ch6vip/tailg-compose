@@ -1,5 +1,6 @@
 package com.tailg.plus.data.ble.platform
 
+import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import java.util.concurrent.atomic.AtomicReference
@@ -95,7 +96,16 @@ internal class AtomicDeferred<T>(
 
 /** Internal event carried from the `BluetoothGattCallback` to the event loop. */
 internal sealed interface GattEvent {
-  data class ConnectionStateChanged(val status: Int, val newState: Int) : GattEvent
+  /**
+   * [gatt] identifies the emitting [BluetoothGatt] instance so the event loop
+   * can drop late events from a superseded connection (a stale DISCONNECTED
+   * must not fail a freshly started connect attempt).
+   */
+  data class ConnectionStateChanged(
+    val gatt: BluetoothGatt?,
+    val status: Int,
+    val newState: Int,
+  ) : GattEvent
   data class ServicesDiscovered(val status: Int) : GattEvent
   data class CharacteristicRead(
     val characteristic: BluetoothGattCharacteristic,

@@ -20,7 +20,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -57,8 +57,8 @@ internal fun RideRecordTab(
   vehicleStore: VehicleStore,
   log: LogService,
 ) {
-  val cloudState by cloudService.stateFlow.collectAsState()
-  val vehicles by vehicleStore.vehiclesFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  val vehicles by vehicleStore.vehiclesFlow.collectAsStateWithLifecycle()
   val vehicle = vehicleStore.defaultVehicle
   val location = vehicle?.lastLocation
   val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null

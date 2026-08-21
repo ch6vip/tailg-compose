@@ -33,7 +33,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -94,13 +94,13 @@ fun OfficialCloudScreen(
 ) {
   val scope = rememberCoroutineScope()
   val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
   val snackbarHostState = remember { SnackbarHostState() }
 
   var phone by remember { mutableStateOf(cloudService.currentState.phone) }
   var smsCode by remember { mutableStateOf("") }
   val smsCountdown = remember { SmsCountdown(scope = scope) }
-  val countdown by smsCountdown.remaining.collectAsState()
+  val countdown by smsCountdown.remaining.collectAsStateWithLifecycle()
 
   val strSmsSent = stringResource(R.string.cloud_sms_sent)
   val strSmsFailed = stringResource(R.string.cloud_sms_failed)

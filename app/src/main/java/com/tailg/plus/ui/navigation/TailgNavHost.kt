@@ -14,7 +14,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -48,9 +48,9 @@ import java.util.Locale
 fun TailgNavHost() {
   val vm: MainViewModel = hiltViewModel()
   val preferences = vm.appPreferences
-  val respectTextScale by preferences.respectSystemTextScale.collectAsState()
-  val language by preferences.language.collectAsState()
-  val distanceUnit by preferences.distanceUnit.collectAsState()
+  val respectTextScale by preferences.respectSystemTextScale.collectAsStateWithLifecycle()
+  val language by preferences.language.collectAsStateWithLifecycle()
+  val distanceUnit by preferences.distanceUnit.collectAsStateWithLifecycle()
   LaunchedEffect(Unit) {
     preferences.init()
   }
@@ -102,7 +102,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudService = vm.cloudService
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
   // Bootstrap once: restore the persisted session, bind MQTT to the cloud state.
   var bootstrapped by remember { mutableStateOf(false) }

@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.screens
 
+import android.os.SystemClock
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
@@ -16,7 +17,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -99,11 +100,11 @@ fun ControlScreen(
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val log = viewModel.log
-  val cloudState by cloudService.stateFlow.collectAsState()
-  val bleState by connectionManager.stateFlow.collectAsState()
-  val bleBikeState by connectionManager.bikeStateFlow.collectAsState()
-  val mqttLinkState by mqttService.linkState.collectAsState()
-  val ui by viewModel.uiState.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
+  val bleBikeState by connectionManager.bikeStateFlow.collectAsStateWithLifecycle()
+  val mqttLinkState by mqttService.linkState.collectAsStateWithLifecycle()
+  val ui by viewModel.uiState.collectAsStateWithLifecycle()
   val busy = ui.busy
   val activeCommand = ui.activeCommand
   val controlChannel = ui.controlChannel
@@ -219,67 +220,50 @@ fun ControlScreen(
     )
   }
 
-  val findAvailability = remember(cloudState, controlChannel, bleState, networkReady) {
+  // Shared busy-free base for the per-command routes below — resolving it
+  // once avoids four identical ControlChannelResolver.resolve() passes per
+  // recomposition (each keyed remember block used to re-run the same resolve).
+  val baseAvailability = remember(cloudState, bleState, controlChannel, networkReady) {
+    ControlChannelResolver.resolve(
+      cloudState = cloudState.asControlCloudState(),
+      bleReady = connectionManager.isProtocolLoggedIn,
+      bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
+      defaultVehicleId = vehicleStore.defaultVehicle?.id,
+      channel = controlChannel,
+      busy = false,
+      networkReady = networkReady,
+    )
+  }
+
+  val findAvailability = remember(baseAvailability, cloudVehicle) {
     ControlCommandRoute.resolve(
-      base = ControlChannelResolver.resolve(
-        cloudState = cloudState.asControlCloudState(),
-        bleReady = connectionManager.isProtocolLoggedIn,
-        bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-        defaultVehicleId = vehicleStore.defaultVehicle?.id,
-        channel = controlChannel,
-        busy = false,
-        networkReady = networkReady,
-      ),
+      base = baseAvailability,
       command = CommandCode.FIND,
       vehicle = cloudVehicle,
     )
   }
 
-  val powerAvailability = remember(cloudState, controlChannel, isPowerOn, bleState, networkReady) {
+  val powerAvailability = remember(baseAvailability, isPowerOn, cloudVehicle) {
     val cmd = if (isPowerOn == true) CommandCode.POWER_OFF else CommandCode.POWER_ON
     ControlCommandRoute.resolve(
-      base = ControlChannelResolver.resolve(
-        cloudState = cloudState.asControlCloudState(),
-        bleReady = connectionManager.isProtocolLoggedIn,
-        bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-        defaultVehicleId = vehicleStore.defaultVehicle?.id,
-        channel = controlChannel,
-        busy = false,
-        networkReady = networkReady,
-      ),
+      base = baseAvailability,
       command = cmd,
       vehicle = cloudVehicle,
     )
   }
 
-  val armAvailability = remember(cloudState, controlChannel, isArmed, bleState, networkReady) {
+  val armAvailability = remember(baseAvailability, isArmed, cloudVehicle) {
     val cmd = if (isArmed == true) CommandCode.UNLOCK else CommandCode.LOCK
     ControlCommandRoute.resolve(
-      base = ControlChannelResolver.resolve(
-        cloudState = cloudState.asControlCloudState(),
-        bleReady = connectionManager.isProtocolLoggedIn,
-        bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-        defaultVehicleId = vehicleStore.defaultVehicle?.id,
-        channel = controlChannel,
-        busy = false,
-        networkReady = networkReady,
-      ),
+      base = baseAvailability,
       command = cmd,
       vehicle = cloudVehicle,
     )
   }
 
-  val seatAvailability = remember(cloudState, controlChannel, bleState, networkReady) {
+  val seatAvailability = remember(baseAvailability, cloudVehicle) {
     ControlCommandRoute.resolve(
-      base = ControlChannelResolver.resolve(
-        cloudState = cloudState.asControlCloudState(),
-        bleReady = connectionManager.isProtocolLoggedIn,
-        bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-        defaultVehicleId = vehicleStore.defaultVehicle?.id,
-        channel = controlChannel,
-        busy = false,
-        networkReady = networkReady,
-      ),
+      base = baseAvailability,
       command = CommandCode.OPEN_SEAT,
       vehicle = cloudVehicle,
     )
@@ -382,7 +366,9 @@ fun ControlScreen(
         mqttAcked = false,
       )
     }
-    val startedAt = System.currentTimeMillis()
+    // Monotonic clock — wall-clock jumps (user adjusts system time) must not
+    // stretch or truncate the confirmation window.
+    val startedAt = SystemClock.elapsedRealtime()
     while (true) {
       if (mqttService.pendingCommandError != null) return false
       val mqttAcked = ControlCommandConfirmation.mqttPendingAcknowledged(
@@ -399,7 +385,7 @@ fun ControlScreen(
         )
       }
       if (needsMqttResponse) {
-        if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+        if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
         delay(CONTROL_CONFIRM_POLL_DELAY_MS)
         continue
       }
@@ -413,7 +399,7 @@ fun ControlScreen(
         mqttAcked = mqttAcked,
       )
       if (confirmed) return true
-      if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+      if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
       refreshStateForConfirmation()
       if (mqttService.pendingCommandError != null) return false
       val mqttAckedAfterRefresh = ControlCommandConfirmation.mqttPendingAcknowledged(
@@ -430,7 +416,7 @@ fun ControlScreen(
         mqttAcked = mqttAckedAfterRefresh,
       )
       if (confirmedAfterRefresh) return true
-      if (System.currentTimeMillis() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
+      if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
       delay(CONTROL_CONFIRM_POLL_DELAY_MS)
     }
   }

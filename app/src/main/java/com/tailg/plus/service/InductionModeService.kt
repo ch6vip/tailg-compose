@@ -132,7 +132,10 @@ class InductionModeService(
   private var _connJob: Job? = null
   private var _appInForeground = true
 
-  // RSSI path runtime.
+  // RSSI path runtime. [rssiLock] serializes loop start/stop so concurrent
+  // setAppForeground/refresh/onConnectionChanged cannot double-launch the
+  // polling job or race its teardown.
+  private val rssiLock = Any()
   private var _rssiJob: Job? = null
   private val _rssiSamples = ArrayDeque<Int>()
   private var _rssiTaskState = RssiTaskState.idle
@@ -571,13 +574,15 @@ class InductionModeService(
   // ---------------------------------------------------------------------------
 
   private fun startRssiLoop() {
-    if (_rssiJob != null) return
-    _rssiSamples.clear()
-    _rssiTaskState = RssiTaskState.idle
-    _rssiJob = scope.launch {
-      while (isActive) {
-        delay(rssiPollInterval)
-        rssiTick()
+    synchronized(rssiLock) {
+      if (_rssiJob?.isActive == true) return
+      _rssiSamples.clear()
+      _rssiTaskState = RssiTaskState.idle
+      _rssiJob = scope.launch {
+        while (isActive) {
+          delay(rssiPollInterval)
+          rssiTick()
+        }
       }
     }
     scope.launch { startRssiForegroundService() }
@@ -592,11 +597,18 @@ class InductionModeService(
   }
 
   private fun stopRssiLoop() {
-    _rssiJob?.cancel()
-    _rssiJob = null
-    _rssiSamples.clear()
-    _rssiFiring = false
-    scope.launch { _foregroundService.stop() }
+    val job: Job?
+    synchronized(rssiLock) {
+      job = _rssiJob
+      _rssiJob = null
+      _rssiSamples.clear()
+      _rssiFiring = false
+    }
+    job?.cancel()
+    // Stop synchronously: a cancelled/canceling scope would silently drop a
+    // scope.launch'ed stop and leave the foreground notification behind.
+    runCatching { _foregroundService.stopNow() }
+      .onFailure { _log.operation("RSSI 前台服务停止失败", detail = it.toString(), level = LogLevel.WARNING) }
   }
 
   private suspend fun rssiTick() {

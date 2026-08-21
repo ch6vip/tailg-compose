@@ -32,7 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,8 +104,8 @@ fun LoginScreen(
   val log = entryPoint.logService()
   val clipboard = entryPoint.clipboardText()
   val smsCountdown = remember { SmsCountdown(scope = scope) }
-  val countdown by smsCountdown.remaining.collectAsState()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val countdown by smsCountdown.remaining.collectAsStateWithLifecycle()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
   // String resources resolved once in the composition so they can be used
   // from coroutine lambdas below (stringResource is @Composable-only).

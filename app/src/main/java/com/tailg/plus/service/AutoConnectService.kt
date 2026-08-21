@@ -69,23 +69,28 @@ enum class BluetoothAdapterState {
 
 /** Port of Dart `AutoConnectRunGate` — coalesce concurrent run attempts. */
 class AutoConnectRunGate {
-  private var runningJob: kotlinx.coroutines.Job? = null
+  /**
+   * AtomicReference instead of a plain field: concurrent `run` callers raced
+   * on the check-then-set, so the gate state itself could go inconsistent.
+   * CAS on the observed value keeps the published job consistent even when
+   * two callers pass the active-check together.
+   */
+  private val runningJob =
+    java.util.concurrent.atomic.AtomicReference<kotlinx.coroutines.Job?>(null)
 
-  val isRunning: Boolean get() = runningJob?.isActive == true
+  val isRunning: Boolean get() = runningJob.get()?.isActive == true
 
   suspend fun run(operation: suspend () -> Unit) {
-    val existing = runningJob
-    if (existing != null && existing.isActive) {
-      existing.join()
+    val observed = runningJob.get()
+    if (observed != null && observed.isActive) {
+      observed.join()
       return
     }
     coroutineScope {
       val job = launch { operation() }
-      runningJob = job
+      runningJob.compareAndSet(observed, job)
       job.join()
-      if (runningJob === job) {
-        runningJob = null
-      }
+      runningJob.compareAndSet(job, null)
     }
   }
 }

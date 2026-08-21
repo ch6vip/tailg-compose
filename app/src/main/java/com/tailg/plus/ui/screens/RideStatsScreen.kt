@@ -25,7 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -88,9 +88,8 @@ fun RideStatsScreen(
   modifier: Modifier = Modifier,
   onNavigate: (String) -> Unit = {},
 ) {
-  val cloudService = cloudService
   val scope = rememberCoroutineScope()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
   var period by remember { mutableStateOf(OfficialRidePeriod.DAY) }
   var statistics by remember { mutableStateOf<OfficialRideStatistics?>(null) }

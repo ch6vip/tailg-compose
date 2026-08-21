@@ -71,6 +71,14 @@ class VehicleStore(
     private var _initialized = false
     private val initMutex = Mutex()
 
+    /**
+     * Serializes the in-memory read-modify-write cycles (upsert/rename/remove/
+     * setDefault). DataStore only serializes the disk write — without this
+     * mutex two concurrent `upsert`s can both miss the same id and append
+     * duplicate profiles.
+     */
+    private val mutationMutex = Mutex()
+
     /** Dart `vehicles`: immutable snapshot of the current list. */
     val vehicles: List<VehicleProfile> get() = _vehicles.toList()
 
@@ -132,7 +140,7 @@ class VehicleStore(
         makeDefault: Boolean = false,
         lastConnectedAt: Instant? = null,
         savedAt: Instant? = null,
-    ): VehicleProfile {
+    ): VehicleProfile = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id)
             ?: throw IllegalArgumentException("Vehicle id must not be blank: $id")
@@ -166,11 +174,11 @@ class VehicleStore(
         }
 
         save()
-        return profile
+        profile
     }
 
     /** Dart `rename`. */
-    suspend fun rename(id: String, name: String, savedAt: Instant? = null) {
+    suspend fun rename(id: String, name: String, savedAt: Instant? = null) = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         val normalizedName = normalizeName(name) ?: return
@@ -184,7 +192,11 @@ class VehicleStore(
     }
 
     /** Dart `updateLastLocation`. */
-    suspend fun updateLastLocation(id: String, location: VehicleLocation, savedAt: Instant? = null) {
+    suspend fun updateLastLocation(
+        id: String,
+        location: VehicleLocation,
+        savedAt: Instant? = null,
+    ) = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         val index = _vehicles.indexOfFirst { it.id == normalizedId }
@@ -197,7 +209,7 @@ class VehicleStore(
     }
 
     /** Dart `setDefault`. */
-    suspend fun setDefault(id: String) {
+    suspend fun setDefault(id: String) = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         if (_vehicles.none { it.id == normalizedId }) return
@@ -206,7 +218,7 @@ class VehicleStore(
     }
 
     /** Dart `remove`. */
-    suspend fun remove(id: String) {
+    suspend fun remove(id: String) = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         _vehicles.removeAll { it.id == normalizedId }

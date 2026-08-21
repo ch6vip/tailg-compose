@@ -30,7 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -115,7 +115,7 @@ fun LocationScreen(
   val scope = rememberCoroutineScope()
   val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
   val log = entryPoint.logService()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
   val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val clipboard = entryPoint.clipboardText()

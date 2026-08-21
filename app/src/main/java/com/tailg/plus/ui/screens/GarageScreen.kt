@@ -37,7 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -98,10 +98,9 @@ fun GarageScreen(
   scannedCode: String? = null,
   onConsumeScan: () -> Unit = {},
 ) {
-  val cloudService = cloudService
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
 
   var searchQuery by remember { mutableStateOf("") }
@@ -486,16 +485,30 @@ fun GarageScreen(
     )
   }
 
+  // Guard rails hoisted out of the conditional dialog trees: a
+  // LaunchedEffect created inside an `if` joins/leaves composition with the
+  // branch, making its side-effect timing unpredictable. Keying on the
+  // dialog payload keeps exactly one stable effect per open.
+  LaunchedEffect(showUnbindDialog) {
+    if (showUnbindDialog != null &&
+      !OfficialCloudLoginValidator.isValidPhone(cloudState.phone.trim())
+    ) {
+      // Cannot unbind without a complete phone; dismiss with error.
+      AppSnack.error(snackbarHostState, strUnbindPhoneIncomplete)
+      showUnbindDialog = null
+    }
+  }
+  LaunchedEffect(showVehicleCodeSheet) {
+    if (showVehicleCodeSheet?.frame?.isEmpty() == true) {
+      AppSnack.error(snackbarHostState, strNoFrame)
+      showVehicleCodeSheet = null
+    }
+  }
+
   // Unbind verification dialog.
   showUnbindDialog?.let { vehicle ->
-    val phone = cloudState.phone.trim()
-    if (!OfficialCloudLoginValidator.isValidPhone(phone)) {
-      // Cannot unbind without a complete phone; dismiss with error.
-      LaunchedEffect(vehicle) {
-        AppSnack.error(snackbarHostState, strUnbindPhoneIncomplete)
-        showUnbindDialog = null
-      }
-    } else {
+    if (OfficialCloudLoginValidator.isValidPhone(cloudState.phone.trim())) {
+      val phone = cloudState.phone.trim()
       val masked = "${phone.substring(0, 3)}****${phone.substring(7)}"
       GarageUnbindDialog(
         maskedPhone = masked,
@@ -538,14 +551,9 @@ fun GarageScreen(
     }
   }
 
-  // Vehicle code QR sheet.
+  // Vehicle code QR sheet (empty-frame guard hoisted above).
   showVehicleCodeSheet?.let { vehicle ->
-    if (vehicle.frame.isEmpty()) {
-      LaunchedEffect(vehicle) {
-        AppSnack.error(snackbarHostState, strNoFrame)
-        showVehicleCodeSheet = null
-      }
-    } else {
+    if (vehicle.frame.isNotEmpty()) {
       // QR sheet renders the scannable frame-number QR via zxing.
       GarageVehicleCodeSheet(
         frame = vehicle.frame,

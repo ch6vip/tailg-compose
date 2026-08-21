@@ -1,7 +1,7 @@
 package com.tailg.plus.ui.navigation
 
 import android.content.Context
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavController
@@ -73,7 +73,7 @@ fun NavGraphBuilder.vehicleNavGraph(
     // ---- Vehicle management ----
     composable(Routes.GARAGE) { entry ->
         val scannedCode by entry.savedStateHandle.getStateFlow<String?>("scanned_vehicle_code", null)
-            .collectAsState()
+            .collectAsStateWithLifecycle()
         GarageScreen(
             cloudService = cloudService,
             onBack = { navController.popBackStack() },
@@ -165,7 +165,7 @@ fun NavGraphBuilder.vehicleNavGraph(
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
     ) { entry ->
         val batteryChanged by entry.savedStateHandle.getStateFlow<Boolean?>("battery_changed", null)
-            .collectAsState()
+            .collectAsStateWithLifecycle()
         BatteryDetailsScreen(
             cloudService = cloudService,
             connectionManager = connectionManager,

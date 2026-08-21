@@ -7,9 +7,8 @@ import okhttp3.HttpUrl.Companion.toHttpUrl
 
 /**
  * Port of `lib/services/official_cloud_api_client.dart` foundation types
- * (exceptions, redactor, retry policy, API config). The Retrofit endpoint
- * contract lives in [OfficialCloudApiService] and the OkHttp transport in
- * [OfficialCloudApiClient].
+ * (exceptions, redactor, retry policy, API config). The OkHttp transport
+ * lives in [OfficialCloudApiClient].
  */
 class OfficialCloudApiException(
     override val message: String,

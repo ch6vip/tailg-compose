@@ -26,7 +26,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -91,10 +91,9 @@ fun InductionSettingsScreen(
   vehicleId: String,
   onBack: () -> Unit,
   cloudService: OfficialCloudService,
-  connectionManager: ConnectionManager? = null,
+  connectionManager: ConnectionManager,
 ) {
   val context = LocalContext.current
-  val cloudService = cloudService
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
@@ -116,9 +115,9 @@ fun InductionSettingsScreen(
   val strEnableFailed = stringResource(R.string.induction_enable_failed)
   val strInductionEnabled = stringResource(R.string.induction_enabled)
 
-  // Shared Hilt singleton when injected; a private instance would always be
-  // DISCONNECTED and permanently report stringResource(R.string.induction_ble_required).
-  val connectionManager = connectionManager ?: remember { ConnectionManager(context) }
+  // Always the shared Hilt singleton — a private instance would be a second
+  // BLE manager that stays DISCONNECTED forever (and would hold the Activity
+  // context past this screen's lifetime).
   val prefs = remember { DataStoreInductionPrefs(context) }
   val manualModeService = remember { ManualModeService(prefs) }
   val inductionService = remember {
@@ -137,8 +136,8 @@ fun InductionSettingsScreen(
     onDispose { inductionService.dispose() }
   }
 
-  val snapshot by inductionService.snapshotFlow.collectAsState()
-  val manualEnabled by manualModeService.enabledFlow.collectAsState()
+  val snapshot by inductionService.snapshotFlow.collectAsStateWithLifecycle()
+  val manualEnabled by manualModeService.enabledFlow.collectAsStateWithLifecycle()
 
   var busy by remember { mutableStateOf(false) }
   var distanceDraft by remember {

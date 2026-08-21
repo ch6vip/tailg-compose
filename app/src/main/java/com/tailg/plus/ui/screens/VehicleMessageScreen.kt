@@ -29,7 +29,7 @@ import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -98,7 +98,7 @@ fun VehicleMessageScreen(
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val log = rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsState()
+  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
   var activeTab by remember { mutableIntStateOf(0) }
   var loading by remember { mutableStateOf(false) }
@@ -149,12 +149,24 @@ fun VehicleMessageScreen(
     )
   }
 
-  val visibleMessages = remember(cloudState, hiddenIds) {
+  // Map + sort/filter split with narrow keys: any unrelated cloudState field
+  // change (battery %, location, …) used to rebuild and re-sort the whole
+  // message list; now only actual message-list or filter changes recompute.
+  val mappedMessages = remember(
+    cloudState.vehicleMessages,
+    cloudState.systemMessages,
+    signedIn,
+    strNoDetail, strTypeFault, strTypeAlarm, strTypeError,
+    strTypeFailed, strTypeLocation, strTypeGps, strTypePower, strTypeBattery,
+  ) {
     if (!signedIn) emptyList()
     else buildList {
       cloudState.vehicleMessages.forEach { add(mapCloudMessage(it, strNoDetail, strTypeFault, strTypeAlarm, strTypeError, strTypeFailed, strTypeLocation, strTypeGps, strTypePower, strTypeBattery)) }
       cloudState.systemMessages.forEach { add(mapCloudMessage(it, strNoDetail, strTypeFault, strTypeAlarm, strTypeError, strTypeFailed, strTypeLocation, strTypeGps, strTypePower, strTypeBattery)) }
-    }.sortedByDescending { it.time }
+    }
+  }
+  val visibleMessages = remember(mappedMessages, hiddenIds) {
+    mappedMessages.sortedByDescending { it.time }
       .filter { it.id !in hiddenIds }
   }
 

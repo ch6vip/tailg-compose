@@ -4,6 +4,7 @@ import android.app.Application
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.mqtt.OfficialMqttService
+import com.tailg.plus.data.network.NetworkAvailabilityService
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import javax.inject.Inject
@@ -22,6 +23,7 @@ class TailgApplication : Application() {
   @Inject lateinit var cloudService: OfficialCloudService
   @Inject lateinit var mqttService: OfficialMqttService
   @Inject lateinit var connectionManager: ConnectionManager
+  @Inject lateinit var networkAvailability: NetworkAvailabilityService
 
   override fun onCreate() {
     super.onCreate()
@@ -43,5 +45,8 @@ class TailgApplication : Application() {
     cloudService.registerAfterLogout("ble_disconnect") {
       connectionManager.disconnect()
     }
+    // Network-restored trigger for the MQTT session (WiFi↔cellular handover,
+    // airplane-mode off). Pairs with the connectionLost backoff loop.
+    mqttService.monitorNetwork(networkAvailability)
   }
 }

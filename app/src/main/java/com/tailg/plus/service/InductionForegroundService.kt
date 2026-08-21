@@ -149,6 +149,14 @@ interface InductionForegroundServiceBridge {
 
   /** Dart `stop()`. */
   suspend fun stop(): Boolean
+
+  /**
+   * Non-suspension twin of [stop] for teardown paths whose scope may already
+   * be cancelled (a `scope.launch { stop() }` there would never run and leave
+   * the foreground notification behind). The underlying call is a synchronous
+   * `Context.stopService`, so no coroutine is actually required.
+   */
+  fun stopNow(): Boolean
 }
 
 /** Default bridge — launches the Android [InductionForegroundService]. */
@@ -170,6 +178,13 @@ class AndroidInductionForegroundServiceBridge(private val context: Context) :
     true
   } catch (e: Exception) {
     if (e is CancellationException) throw e
+    false
+  }
+
+  override fun stopNow(): Boolean = try {
+    InductionForegroundService.stop(context)
+    true
+  } catch (e: Exception) {
     false
   }
 }

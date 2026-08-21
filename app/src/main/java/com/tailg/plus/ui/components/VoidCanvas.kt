@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.blur
@@ -127,16 +128,22 @@ fun VoidCanvas(
         .background(blob2, CircleShape),
     )
     // Fine grain noise overlay (deterministic Random(7), low-opacity dots).
-    Canvas(modifier = Modifier.matchParentSize()) {
+    // Positions are precomputed once in normalized space — re-rolling up to
+    // 220 RNG draws on every draw pass was pure per-frame waste; the visual
+    // output is byte-identical (same seed, same order, same count formula).
+    val grainPoints = remember {
       val rnd = Random(7)
+      List(220) { Offset(rnd.nextFloat(), rnd.nextFloat()) }
+    }
+    Canvas(modifier = Modifier.matchParentSize()) {
       val count = (size.width * size.height / 1800).toInt().coerceIn(40, 220)
+      val grainColor = AppColorsDark.textPrimary.copy(alpha = 0.03f) // Dart 0x08FFFFFF grain
       for (i in 0 until count) {
-        val x = rnd.nextFloat() * size.width
-        val y = rnd.nextFloat() * size.height
+        val p = grainPoints[i]
         drawCircle(
-          color = AppColorsDark.textPrimary.copy(alpha = 0.03f), // Dart 0x08FFFFFF grain
+          color = grainColor,
           radius = 0.6f,
-          center = Offset(x, y),
+          center = Offset(p.x * size.width, p.y * size.height),
         )
       }
     }

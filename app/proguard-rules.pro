@@ -18,15 +18,11 @@
 -keepnames @com.squareup.moshi.JsonClass class *
 -dontwarn com.squareup.moshi.**
 
-# ---- Retrofit ----
-# Retrofit service interfaces are only referenced via reflection by the
-# generated proxy; keep all methods and the interface.
--keep,allowobfuscation,allowshrinking interface com.tailg.plus.data.cloud.OfficialCloudApiService
+# ---- OkHttp / Moshi ----
+# (Retrofit was removed — the transport is hand-rolled OkHttp.)
+# Generic signatures / enclosing metadata are required by Moshi generated
+# adapters and Dagger/Hilt reflection.
 -keepattributes Signature, InnerClasses, EnclosingMethod, *Annotation*
--keepclassmembers,allowshrinking,allowobfuscation interface * {
-    @retrofit2.http.* <methods>;
-}
--dontwarn retrofit2.**
 -dontwarn okhttp3.**
 -dontwarn okio.**
 

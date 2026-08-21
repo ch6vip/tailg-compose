@@ -439,7 +439,9 @@ class InductionModeServiceTest {
 
     assertTrue(ok)
     coVerify { cloud.setKksHidEnabled(false) }
-    coVerify { bridge.stop() }
+    // stopRssiLoop stops the foreground service synchronously (stopNow) so a
+    // cancelled scope can no longer drop the stop and strand the notification.
+    coVerify { bridge.stopNow() }
     coVerify { prefs.saveBoolean("induction_enabled_k1", false) }
     assertEquals(false, service.snapshot.enabled)
     service.dispose()

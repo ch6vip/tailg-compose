@@ -160,15 +160,9 @@ class ConnectionManager(
 
   // Delegated components (extracted from this file to reduce complexity).
   val bleScanner = BleScanner(context, log)
-  val gattConnection = GattConnectionManager(context, log)
 
   init {
     bleScanner.init(bluetoothAdapter)
-    // Wire GattConnectionManager internal deferred helpers to the existing
-    // event loop channel. The original gattCallback (line 997) still owns
-    // the BLE callback registration; GattConnectionManager is used for
-    // deferred management and write/read operations only.
-    // (Full callback migration is a future refactoring step.)
   }
 
   /** Underlying BLE device for the current connection. */
@@ -967,7 +961,7 @@ class ConnectionManager(
    */
   private val gattCallback = object : BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-      gattEvents.trySend(GattEvent.ConnectionStateChanged(status, newState))
+      gattEvents.trySend(GattEvent.ConnectionStateChanged(gatt, status, newState))
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
@@ -1050,6 +1044,11 @@ class ConnectionManager(
   private fun handleGattEvent(event: GattEvent) {
     when (event) {
       is GattEvent.ConnectionStateChanged -> {
+        // Drop events from a superseded GATT instance: closeGatt() during
+        // retry/reconnect lets the OLD gatt's late STATE_DISCONNECTED arrive
+        // after a new connectGattOnce() has installed its deferred — without
+        // this identity check the stale event fails the fresh connect.
+        if (event.gatt == null || event.gatt !== _gatt) return
         when (event.newState) {
           BluetoothProfile.STATE_CONNECTED -> {
             _connectDeferred?.complete(Unit)
@@ -1252,22 +1251,30 @@ class ConnectionManager(
 
   /** Suspend until the system bond state reaches [target] (max 15 s at call sites). */
   private suspend fun awaitBondState(target: Int): Boolean = suspendCancellableCoroutine { cont ->
+    val registerContext = context
     val receiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
         val state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)
-        if (state == target && !cont.isCancelled) cont.resume(true)
+        if (state == target && !cont.isCancelled) {
+          // Unregister BEFORE resuming: invokeOnCancellation only runs on the
+          // cancellation path, so the success path must clean up itself or
+          // the receiver stays registered forever — and a later bond broadcast
+          // would resume the already-completed continuation (ISE crash).
+          runCatching { registerContext.unregisterReceiver(this) }
+          cont.resume(true)
+        }
       }
     }
     val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
     if (Build.VERSION.SDK_INT >= 33) {
-      context.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+      registerContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
     } else {
-      context.registerReceiver(receiver, filter)
+      registerContext.registerReceiver(receiver, filter)
     }
     cont.invokeOnCancellation {
       try {
-        context.unregisterReceiver(receiver)
+        registerContext.unregisterReceiver(receiver)
       } catch (_: Exception) {
       }
     }

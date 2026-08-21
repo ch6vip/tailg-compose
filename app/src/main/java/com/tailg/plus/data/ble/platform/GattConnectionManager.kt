@@ -6,8 +6,10 @@ import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.content.Context
 import android.os.Build
+import com.tailg.plus.data.ble.BleTimings
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import kotlinx.coroutines.CancellationException
@@ -77,13 +79,6 @@ class GattConnectionManager(
             value: ByteArray,
         ) {
             onCharacteristicChanged?.invoke(characteristic, value)
-        }
-
-        override fun onCharacteristicChanged(
-            gatt: BluetoothGatt,
-            value: ByteArray,
-        ) {
-            onCharacteristicChanged?.invoke(null, value)
         }
 
         override fun onMtuChanged(gatt: BluetoothGatt, mtu: Int, status: Int) {
@@ -210,7 +205,7 @@ class GattConnectionManager(
         writeDeferreds[characteristic.uuid] = deferred
         val started = if (Build.VERSION.SDK_INT >= 33) {
             @Suppress("NewApi")
-            gatt.writeCharacteristic(characteristic, value, writeType)
+            gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
         } else {
             @Suppress("DEPRECATION")
             characteristic.value = value

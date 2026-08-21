@@ -53,7 +53,7 @@ fun NavGraphBuilder.settingsNavGraph(
         )
     }
     composable(Routes.APP_PREFERENCES) {
-        AppPreferencesScreen(
+        LanguageSettingsScreen(
             preferencesService = preferencesService,
             onBack = { navController.popBackStack() },
         )

@@ -41,6 +41,7 @@ import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
+import android.bluetooth.BluetoothStatusCodes
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanFilter
 import android.bluetooth.le.ScanResult
@@ -784,25 +785,17 @@ class ConnectionManager(
     if (!isProtocolLoggedIn || _protocol != ProtocolType.TLINK) {
       return false
     }
-    val previous = _tlinkProximityDistanceDeferred
-    if (previous != null && !previous.isCompleted) {
-      previous.complete(false)
-    }
     val deferred = CompletableDeferred<Boolean>()
-    _tlinkProximityDistanceDeferred = deferred
+    _tlinkProximityDistanceDeferred.getAndSet(deferred)
     val written = writeStandardHex(buildTLinkInductionDistancePlain(progress))
     if (!written) {
-      if (_tlinkProximityDistanceDeferred === deferred) {
-        _tlinkProximityDistanceDeferred = null
-      }
+      _tlinkProximityDistanceDeferred.compareAndSet(deferred, null)
       return false
     }
     try {
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
-      if (_tlinkProximityDistanceDeferred === deferred) {
-        _tlinkProximityDistanceDeferred = null
-      }
+      _tlinkProximityDistanceDeferred.compareAndSet(deferred, null)
     }
   }
 
@@ -1167,7 +1160,7 @@ class ConnectionManager(
     // devices. The deprecated API-18 path is kept for minSdk 26 compatibility.
     val started = if (Build.VERSION.SDK_INT >= 33) {
       @Suppress("NewApi")
-      gatt.writeCharacteristic(characteristic, value, writeType)
+      gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
     } else {
       @Suppress("DEPRECATION")
       characteristic.value = value

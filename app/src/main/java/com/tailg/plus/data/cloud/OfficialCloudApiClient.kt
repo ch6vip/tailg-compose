@@ -59,9 +59,9 @@ class OfficialCloudApiClient(
 
     private var lastRequestValue: OfficialCloudRequestSummary? = null
 
-    val lastRequest: OfficialCloudRequestSummary? get() = lastRequestValue
+    override val lastRequest: OfficialCloudRequestSummary? get() = lastRequestValue
 
-    fun dispose() {
+    override fun dispose() {
         httpClient.dispatcher.cancelAll()
         httpClient.dispatcher.executorService.shutdown()
         httpClient.connectionPool.evictAll()
@@ -76,12 +76,12 @@ class OfficialCloudApiClient(
      * @param body JSON request body (Moshi-encoded)
      * @param retryPolicy per-call retry policy
      */
-    suspend fun request(
+    override suspend fun request(
         path: String,
         method: String,
-        token: String? = null,
-        body: Map<String, Any?>? = null,
-        retryPolicy: OfficialCloudRetryPolicy = OfficialCloudRetryPolicy.TRANSPORT_ONLY,
+        token: String?,
+        body: Map<String, Any?>?,
+        retryPolicy: OfficialCloudRetryPolicy,
     ): OfficialCloudApiResponse {
         for (attempt in 0..retryPolicy.maxRetries) {
             val startedAt = clock()

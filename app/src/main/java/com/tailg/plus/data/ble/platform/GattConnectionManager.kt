@@ -1,5 +1,6 @@
 package com.tailg.plus.data.ble.platform
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
@@ -24,6 +25,7 @@ import kotlin.time.Duration
  * Core GATT connection lifecycle manager — extracted from [ConnectionManager].
  * Handles BluetoothGatt lifecycle, characteristic discovery, and MTU negotiation.
  */
+@SuppressLint("MissingPermission")
 class GattConnectionManager(
     private val context: Context,
     private val log: LogService,

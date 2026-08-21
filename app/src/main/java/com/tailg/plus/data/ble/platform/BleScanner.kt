@@ -1,5 +1,6 @@
 package com.tailg.plus.data.ble.platform
 
+import android.annotation.SuppressLint
 import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.le.ScanCallback
@@ -44,6 +45,7 @@ class BleScanner(
     /**
      * Start BLE scan with the given filters. Returns true if the scan started.
      */
+    @SuppressLint("MissingPermission")
     fun startScan(
         filters: List<ScanFilter> = emptyList(),
         settings: ScanSettings = ScanSettings.Builder()
@@ -66,6 +68,7 @@ class BleScanner(
         }
     }
 
+    @SuppressLint("MissingPermission")
     fun stopScan() {
         if (!_isScanning) return
         try {

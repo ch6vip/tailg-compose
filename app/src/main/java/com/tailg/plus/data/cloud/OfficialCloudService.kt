@@ -51,7 +51,7 @@ import kotlinx.coroutines.launch
  */
 class OfficialCloudService(
     storage: OfficialCloudStorage,
-    apiClient: OfficialCloudApiClient,
+    apiClient: OfficialCloudApiClientInterface,
     vehicleStore: OfficialCloudVehicleStore,
     log: LogService = LogService(),
     clock: () -> LocalDateTime = { LocalDateTime.now() },
@@ -61,7 +61,7 @@ class OfficialCloudService(
     // -- internal state (module-visible for the refresh/operations logic) ----
 
     internal val storage: OfficialCloudStorage = storage
-    internal var apiClient: OfficialCloudApiClient = apiClient
+    internal var apiClient: OfficialCloudApiClientInterface = apiClient
     internal val vehicleStore: OfficialCloudVehicleStore = vehicleStore
     internal val log: LogService = log
     internal var clock: () -> LocalDateTime = clock

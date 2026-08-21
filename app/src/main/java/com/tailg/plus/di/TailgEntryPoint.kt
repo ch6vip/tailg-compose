@@ -18,8 +18,13 @@ import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
 
 /**
- * Runtime access to the Hilt SingletonComponent graph from non-injectable
+ * Legacy runtime access to the Hilt SingletonComponent graph from non-injectable
  * hosts (Compose screens and the navigation host).
+ *
+ * **Prefer [MainViewModel] for new code.** This entry point is kept for backward
+ * compatibility with screens that still use it. New screens should receive
+ * services through `@HiltViewModel` constructor injection or via the
+ * [MainViewModel] passed down from [TailgNavHost].
  *
  * Resolve once per composition and pass singletons down as parameters so
  * screens stay testable with fakes while production always shares one graph.

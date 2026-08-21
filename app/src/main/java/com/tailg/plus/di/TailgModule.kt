@@ -3,6 +3,7 @@ package com.tailg.plus.di
 import android.content.Context
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudApiClient
+import com.tailg.plus.data.cloud.OfficialCloudApiClientInterface
 import com.tailg.plus.data.cloud.OfficialCloudApiConfig
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudStorage
@@ -13,6 +14,8 @@ import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
+import com.tailg.plus.permission.AppPermissionService
+import com.tailg.plus.service.LocationService
 import com.tailg.plus.ui.screens.VehicleStoreCloudAdapter
 import com.tailg.plus.util.ClipboardText
 import dagger.Module
@@ -51,7 +54,7 @@ object TailgModule {
   @Singleton
   fun provideOfficialCloudApiClient(
     log: LogService,
-  ): OfficialCloudApiClient = OfficialCloudApiClient(
+  ): OfficialCloudApiClientInterface = OfficialCloudApiClient(
     config = OfficialCloudApiConfig(),
     log = log,
   )
@@ -76,7 +79,7 @@ object TailgModule {
   @Singleton
   fun provideOfficialCloudService(
     storage: OfficialCloudStorage,
-    apiClient: OfficialCloudApiClient,
+    apiClient: OfficialCloudApiClientInterface,
     vehicleStore: OfficialCloudVehicleStore,
     log: LogService,
   ): OfficialCloudService = OfficialCloudService(
@@ -133,6 +136,26 @@ object TailgModule {
     log: LogService,
   ): ReplicaFeatureStore = ReplicaFeatureStore(
     context = context,
+    logService = log,
+  )
+
+  @Provides
+  @Singleton
+  fun provideAppPermissionService(
+    @ApplicationContext context: Context,
+  ): AppPermissionService = AppPermissionService(context)
+
+  @Provides
+  @Singleton
+  fun provideLocationService(
+    @ApplicationContext context: Context,
+    vehicleStore: VehicleStore,
+    permissionService: AppPermissionService,
+    log: LogService,
+  ): LocationService = LocationService(
+    context = context,
+    vehicleStore = vehicleStore,
+    permissionService = permissionService,
     logService = log,
   )
 }

@@ -147,6 +147,8 @@ object BleTimings {
   val qgjSearchCountdown: Duration = 30.seconds
   val gpsSearchCountdown: Duration = 6.seconds
   val gattOperationTimeout: Duration = 30.seconds
+  val discoveryTimeout: Duration = 10.seconds
+  val mtuTimeout: Duration = 5.seconds
 
   /**
    * Max time to wait for the device to deliver the token (standard) or QGJ

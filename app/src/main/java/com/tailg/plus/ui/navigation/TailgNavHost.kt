@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -14,72 +15,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import androidx.navigation.NavType
+import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.navigation.compose.NavHost
-import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.tailg.plus.ui.components.AppSnackbarHost
-import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.VoidOrbitalNav
-import com.tailg.plus.ui.screens.AboutAppScreen
-import com.tailg.plus.ui.screens.AddVehicleScreen
-import com.tailg.plus.ui.screens.BatteryDetailsScreen
-import com.tailg.plus.ui.screens.BindImeiScreen
-import com.tailg.plus.ui.screens.CloudTokenScreen
-import com.tailg.plus.ui.screens.ControlScreen
-import com.tailg.plus.ui.screens.DiagnosticScreen
-import com.tailg.plus.ui.screens.FirmwareOtaScreen
-import com.tailg.plus.ui.screens.GarageCodeScannerScreen
-import com.tailg.plus.ui.screens.GarageScreen
-import com.tailg.plus.ui.screens.InductionSettingsScreen
-import com.tailg.plus.ui.screens.LanguageSettingsScreen
-import com.tailg.plus.ui.screens.LocationScreen
-import com.tailg.plus.ui.screens.LoginScreen
-import com.tailg.plus.ui.screens.LogScreen
-import com.tailg.plus.ui.screens.NotificationPrefsScreen
-import com.tailg.plus.ui.screens.OfficialCloudScreen
-import com.tailg.plus.ui.screens.OfficialReplicaScreen
-import com.tailg.plus.ui.screens.ProfileMineScreen
-import com.tailg.plus.ui.screens.QgjSettingsScreen
-import com.tailg.plus.ui.screens.ReplaceBatteryScreen
-import com.tailg.plus.ui.screens.RideStatsScreen
-import com.tailg.plus.ui.screens.ScanScreen
-import com.tailg.plus.ui.screens.ServiceHubScreen
-import com.tailg.plus.ui.screens.SettingsScreen
-import com.tailg.plus.ui.screens.UnitSettingsScreen
-import com.tailg.plus.ui.screens.VehicleMessageScreen
-import com.tailg.plus.ui.screens.VehicleSettingsScreen
+import com.tailg.plus.ui.screens.MainViewModel
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
-import androidx.compose.material3.SnackbarHostState
-import com.tailg.plus.di.TailgEntryPoint
-import com.tailg.plus.di.rememberTailgEntryPoint
-import androidx.compose.ui.res.stringResource
-import com.tailg.plus.R
 import com.tailg.plus.data.preferences.AppLanguagePreference
-import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.Locale
 
 /**
- * Root navigation host — wires all 30 screens into a single NavHost.
+ * Root navigation host — wires all screens into a single NavHost through
+ * sub-graphs:
+ * - [authNavGraph] — login
+ * - [vehicleNavGraph] — garage, control, vehicle detail screens
+ * - [settingsNavGraph] — profile, settings, about screens
  *
  * Bottom-nav destinations (服务 / 控车 / 我的) share the [VoidOrbitalNav] bar;
  * all other routes are full-screen pushes without the bottom bar.
  */
 @Composable
 fun TailgNavHost() {
-  val entryPoint = rememberTailgEntryPoint()
-  val preferences = entryPoint.appPreferences()
+  val vm: MainViewModel = hiltViewModel()
+  val preferences = vm.appPreferences
   val respectTextScale by preferences.respectSystemTextScale.collectAsState()
   val language by preferences.language.collectAsState()
   val distanceUnit by preferences.distanceUnit.collectAsState()
@@ -112,9 +80,7 @@ fun TailgNavHost() {
     LocalDensity provides effectiveDensity,
     LocalDistanceUnitPreference provides distanceUnit,
   ) {
-    // Keep this call at a stable composition position so locale changes
-    // recompose the current destination without replacing its NavController.
-    TailgNavHostContent(entryPoint)
+    TailgNavHostContent(vm)
   }
 }
 
@@ -131,42 +97,29 @@ internal fun resolveAppFontScale(systemFontScale: Float, respectSystemTextScale:
   if (respectSystemTextScale) systemFontScale.coerceIn(0.85f, 1.5f) else 1f
 
 @Composable
-private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
+private fun TailgNavHostContent(vm: MainViewModel) {
   val navController = rememberNavController()
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
-  val scope = rememberCoroutineScope()
-  val cloudService = entryPoint.cloudService()
+  val cloudService = vm.cloudService
   val cloudState by cloudService.stateFlow.collectAsState()
 
-  // Bootstrap once (Dart `main()`): restore the persisted session, bind MQTT
-  // to the cloud state and register the logout channel teardown. The first
-  // frame stays a blank page until the session settles so the start
-  // destination is chosen with the restored sign-in state.
+  // Bootstrap once: restore the persisted session, bind MQTT to the cloud state.
   var bootstrapped by remember { mutableStateOf(false) }
   LaunchedEffect(Unit) {
-    val mqttService = entryPoint.mqttService()
-    // Logout MQTT/BLE teardown is registered once in TailgApplication.
-    mqttService.attachToCloud(cloudService)
+    vm.mqttService.attachToCloud(cloudService)
     try {
       cloudService.init()
     } catch (e: Exception) {
-      // A corrupted store / keystore must degrade to signed-out, never a
-      // startup crash loop.
       Timber.tag("TailgNavHost").w(e, "cloud session restore failed")
     }
     bootstrapped = true
   }
   if (!bootstrapped) {
-    // Same light container as the Cyber shell so the first frame does not
-    // flash a dark page before the session is restored.
     Box(modifier = Modifier.fillMaxSize().background(CyberHomeColors.pageBg))
     return
   }
-  // Capture the restored session only after bootstrap. Subsequent auth
-  // changes navigate explicitly from their submit/logout handlers; changing
-  // NavHost's startDestination after the graph is created would recreate the
-  // graph and can race that navigation.
+
   val startDestination = remember(bootstrapped) {
     if (cloudState.signedIn) Routes.vehicleHome(cloudState.selectedVehicle?.key) else Routes.LOGIN
   }
@@ -184,19 +137,12 @@ private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
   fun navigateBottomTab(route: String) {
     navController.navigate(route) {
       launchSingleTop = true
-      // The authenticated shell is rooted at the control destination. Using
-      // the route pattern also matches a concrete `control/<vehicleId>` entry.
       popUpTo(Routes.CONTROL) { saveState = true }
       restoreState = true
     }
   }
 
   Scaffold(
-    // The Cyber pages (服务/控车/我的) all paint CyberHomeColors.pageBg
-    // (light #F4F5F7). The floating nav bar does not cover the screen edges
-    // and the navigation bar is transparent (edge-to-edge), so the scaffold
-    // container behind the bottom strip must match the pages — otherwise the
-    // dark AppColors.pageBg shows through as a black strip around the bar.
     containerColor = CyberHomeColors.pageBg,
     contentWindowInsets = WindowInsets(0, 0, 0, 0),
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
@@ -210,15 +156,9 @@ private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
         }
         VoidOrbitalNav(
           currentIndex = index,
-          onService = {
-            navigateBottomTab(Routes.SERVICE_HUB)
-          },
-          onVehicle = {
-            navigateBottomTab(Routes.vehicleHome(vehicleRouteId))
-          },
-          onMine = {
-            navigateBottomTab(Routes.PROFILE_MINE)
-          },
+          onService = { navigateBottomTab(Routes.SERVICE_HUB) },
+          onVehicle = { navigateBottomTab(Routes.vehicleHome(vehicleRouteId)) },
+          onMine = { navigateBottomTab(Routes.PROFILE_MINE) },
         )
       }
     },
@@ -231,329 +171,34 @@ private fun TailgNavHostContent(entryPoint: TailgEntryPoint) {
         .padding(innerPadding)
         .background(CyberHomeColors.pageBg),
     ) {
-      // ---- Auth ----
-      composable(Routes.LOGIN) {
-        LoginScreen(
-          cloudService = cloudService,
-          onSignedIn = { successMessage ->
-            // Match Flutter's returnToVehicleHome(): after either SMS or
-            // Token login, land directly on the vehicle/control tab.
-            navController.navigate(Routes.vehicleHome(cloudService.currentState.selectedVehicle?.key)) {
-              launchSingleTop = true
-              popUpTo(Routes.LOGIN) { inclusive = true }
-            }
-            // Dart shows the success toast via the global ScaffoldMessenger
-            // AFTER navigating; M3 showSnackbar suspends (~4s), so firing it
-            // on the root host keeps the toast visible on the destination
-            // screen without blocking the login page.
-            if (successMessage != null) {
-              scope.launch { AppSnack.success(snackbarHostState, successMessage) }
-            }
-          },
-        )
-      }
+      // ---- Auth graph ----
+      authNavGraph(
+        navController = navController,
+        cloudService = cloudService,
+        snackbarHostState = snackbarHostState,
+      )
 
-      // ---- Bottom-nav: 服务 ----
-      composable(Routes.SERVICE_HUB) {
-        ServiceHubScreen(
-          vehicleRouteId = vehicleRouteId,
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
+      // ---- Vehicle graph ----
+      vehicleNavGraph(
+        navController = navController,
+        cloudService = cloudService,
+        connectionManager = vm.connectionManager,
+        mqttService = vm.mqttService,
+        vehicleStore = vm.vehicleStore,
+        vehicleRouteId = vehicleRouteId,
+        context = context,
+      )
 
-      // ---- Bottom-nav: 控车 ----
-      composable(
-        Routes.CONTROL,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        ControlScreen(
-          cloudService = cloudService,
-          connectionManager = entryPoint.connectionManager(),
-          mqttService = entryPoint.mqttService(),
-          vehicleStore = entryPoint.vehicleStore(),
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
-
-      // ---- Bottom-nav: 我的 ----
-      composable(Routes.PROFILE_MINE) {
-        ProfileMineScreen(
-          cloudService = cloudService,
-          onNavigate = { route -> navController.navigate(route) },
-          onBack = { navController.popBackStack() },
-          onSignedOut = {
-            navController.navigate(Routes.LOGIN) {
-              launchSingleTop = true
-              popUpTo(Routes.CONTROL) { inclusive = true }
-            }
-          },
-        )
-      }
-
-      // ---- Vehicle management ----
-      composable(Routes.GARAGE) { entry ->
-        // Dart `_scanVehicleCode`: observe the scanned code written by the
-        // code-scanner screen and auto-trigger a frame-number search.
-        val scannedCode by entry.savedStateHandle.getStateFlow<String?>("scanned_vehicle_code", null)
-          .collectAsState()
-        GarageScreen(
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-          scannedCode = scannedCode,
-          onConsumeScan = { entry.savedStateHandle.remove<String>("scanned_vehicle_code") },
-          mqttService = entryPoint.mqttService(),
-          connectionManager = entryPoint.connectionManager(),
-        )
-      }
-      composable(Routes.ADD_VEHICLE) {
-        AddVehicleScreen(
-          onBack = { navController.popBackStack() },
-          onOpenOfficialVehicles = { navController.navigate(Routes.OFFICIAL_CLOUD) },
-          onOpenImeiBind = { navController.navigate(Routes.BIND_IMEI) },
-          onOpenBleScan = { navController.navigate(Routes.SCAN) },
-        )
-      }
-      composable(Routes.BIND_IMEI) {
-        BindImeiScreen(
-          cloudService = cloudService,
-          onBack = { _ -> navController.popBackStack() },
-        )
-      }
-      composable(Routes.SCAN) {
-        val scanScope = androidx.compose.runtime.rememberCoroutineScope()
-        val connectionManager = entryPoint.connectionManager()
-        ScanScreen(
-          onBack = { navController.popBackStack() },
-          onConnectDevice = { deviceId, deviceName ->
-            scanScope.launch {
-              try {
-                val adapter = context.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
-                val device = adapter?.getRemoteDevice(deviceId)
-                if (device != null) {
-                  val state = cloudService.currentState
-                  val context = state.selectedVehicle?.let {
-                    com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
-                      it,
-                      state.userId,
-                    )
-                  }
-                  connectionManager.connect(device, context)
-                  if (deviceName.isNotEmpty()) {
-                    Timber.tag("TailgNavHost").i("BLE connected: $deviceName")
-                  }
-                }
-              } catch (e: SecurityException) {
-                Timber.tag("TailgNavHost").w(e, "BLE connect missing permission")
-              } catch (e: Exception) {
-                Timber.tag("TailgNavHost").w(e, "BLE connect failed")
-              } finally {
-                navController.popBackStack()
-              }
-            }
-          },
-        )
-      }
-      composable(Routes.GARAGE_CODE_SCANNER) {
-        GarageCodeScannerScreen(
-          onBack = { navController.popBackStack() },
-          onScanned = { value ->
-            // Dart `Navigator.pop(value)` — hand the scanned code back to
-            // the previous entry (garage) so it can prefill + search.
-            navController.previousBackStackEntry?.savedStateHandle?.set("scanned_vehicle_code", value)
-            navController.popBackStack()
-          },
-        )
-      }
-
-      // ---- Vehicle detail screens ----
-      composable(
-        Routes.LOCATION,
-        arguments = listOf(
-          navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType },
-          navArgument("tab") {
-            type = NavType.StringType
-            defaultValue = "map"
-          },
-        ),
-      ) { entry ->
-        LocationScreen(
-          cloudService = cloudService,
-          vehicleStore = entryPoint.vehicleStore(),
-          initialTab = when (entry.arguments?.getString("tab")) {
-            "travel" -> com.tailg.plus.ui.screens.LocationInitialTab.TRAVEL
-            "fence" -> com.tailg.plus.ui.screens.LocationInitialTab.FENCE
-            else -> com.tailg.plus.ui.screens.LocationInitialTab.MAP
-          },
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(
-        Routes.BATTERY_DETAILS,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        // Dart `.then((changed) { if (changed) refreshAllBatteryData() })`.
-        val batteryChanged by entry.savedStateHandle.getStateFlow<Boolean?>("battery_changed", null)
-          .collectAsState()
-        BatteryDetailsScreen(
-          cloudService = cloudService,
-          connectionManager = entryPoint.connectionManager(),
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-          batteryChanged = batteryChanged,
-          onConsumeBatteryChanged = { entry.savedStateHandle.remove<Boolean>("battery_changed") },
-        )
-      }
-      composable(
-        Routes.REPLACE_BATTERY,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        ReplaceBatteryScreen(
-          cloudService = cloudService,
-          onBack = { changed ->
-            // Dart `Navigator.pop(true)` — battery details refreshes on return.
-            if (changed) {
-              navController.previousBackStackEntry?.savedStateHandle?.set("battery_changed", true)
-            }
-            navController.popBackStack()
-          },
-        )
-      }
-      composable(
-        Routes.RIDE_STATS,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        RideStatsScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
-      composable(
-        Routes.VEHICLE_MESSAGE,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        VehicleMessageScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
-      composable(
-        Routes.VEHICLE_SETTINGS,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        VehicleSettingsScreen(
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-          onOpenNotificationPrefs = { navController.navigate(Routes.NOTIFICATION_PREFS) },
-          onOpenInductionSettings = {
-            val vid = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: ""
-            navController.navigate(Routes.inductionSettings(vid))
-          },
-          onAddVehicle = { navController.navigate(Routes.ADD_VEHICLE) },
-        )
-      }
-      composable(
-        Routes.FIRMWARE_OTA,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        FirmwareOtaScreen(
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(
-        Routes.DIAGNOSTIC,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        DiagnosticScreen(
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(
-        Routes.QGJ_SETTINGS,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        QgjSettingsScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(
-        Routes.INDUCTION_SETTINGS,
-        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
-      ) { entry ->
-        InductionSettingsScreen(
-          vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
-          cloudService = cloudService,
-          connectionManager = entryPoint.connectionManager(),
-          onBack = { navController.popBackStack() },
-        )
-      }
-
-      // ---- Settings & profile ----
-      composable(Routes.SETTINGS) {
-        SettingsScreen(
-          vehicleRouteId = vehicleRouteId,
-          preferencesService = entryPoint.appPreferences(),
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
-      composable(Routes.LANGUAGE_SETTINGS) {
-        LanguageSettingsScreen(
-          preferencesService = entryPoint.appPreferences(),
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(Routes.UNIT_SETTINGS) {
-        UnitSettingsScreen(
-          preferencesService = entryPoint.appPreferences(),
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(Routes.ABOUT_APP) {
-        AboutAppScreen(
-          onBack = { navController.popBackStack() },
-          cloudService = cloudService,
-        )
-      }
-      composable(Routes.NOTIFICATION_PREFS) {
-        NotificationPrefsScreen(
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(Routes.CLOUD_TOKEN) {
-        CloudTokenScreen(
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(Routes.LOG) {
-        LogScreen(
-          cloudService = cloudService,
-          logService = entryPoint.logService(),
-          onBack = { navController.popBackStack() },
-        )
-      }
-      composable(Routes.OFFICIAL_CLOUD) {
-        OfficialCloudScreen(
-          cloudService = cloudService,
-          onBack = { navController.popBackStack() },
-          onNavigate = { route -> navController.navigate(route) },
-        )
-      }
-      composable(Routes.OFFICIAL_REPLICA) {
-        OfficialReplicaScreen(
-          cloudService = cloudService,
-          vehicleStore = entryPoint.vehicleStore(),
-          connectionManager = entryPoint.connectionManager(),
-          onBack = { navController.popBackStack() },
-        )
-      }
+      // ---- Settings & profile graph ----
+      settingsNavGraph(
+        navController = navController,
+        cloudService = cloudService,
+        preferencesService = vm.appPreferences,
+        logService = vm.logService,
+        vehicleRouteId = vehicleRouteId,
+        vehicleStore = vm.vehicleStore,
+        connectionManager = vm.connectionManager,
+      )
     }
   }
 }

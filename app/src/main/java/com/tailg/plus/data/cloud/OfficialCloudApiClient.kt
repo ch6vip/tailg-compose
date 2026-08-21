@@ -36,11 +36,11 @@ import retrofit2.converter.moshi.MoshiConverterFactory
  * client uses the same [LogService] instance the service holds.
  */
 class OfficialCloudApiClient(
-    val config: OfficialCloudApiConfig = OfficialCloudApiConfig(),
+    override val config: OfficialCloudApiConfig = OfficialCloudApiConfig(),
     val log: LogService = LogService(),
     private val okHttpClient: OkHttpClient? = null,
     clock: () -> LocalDateTime = { LocalDateTime.now() },
-) {
+) : OfficialCloudApiClientInterface {
     private val httpClient: OkHttpClient = okHttpClient ?: OkHttpClient.Builder()
         .connectTimeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         .build()

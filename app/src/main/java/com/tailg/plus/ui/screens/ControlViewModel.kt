@@ -1,6 +1,5 @@
 package com.tailg.plus.ui.screens
 
-import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tailg.plus.data.ble.platform.ConnectionManager
@@ -15,7 +14,6 @@ import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.service.LocationService
 import dagger.hilt.android.lifecycle.HiltViewModel
-import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -47,19 +45,13 @@ class ControlViewModel @Inject constructor(
   val vehicleStore: VehicleStore,
   val log: LogService,
   networkAvailability: NetworkAvailabilityService,
-  @ApplicationContext appContext: Context,
+  val locationService: LocationService,
 ) : ViewModel() {
 
   private val _ui = MutableStateFlow(ControlUiState())
   val uiState: StateFlow<ControlUiState> = _ui.asStateFlow()
 
   val commandLog = ControlCommandActivityLog()
-
-  val locationService = LocationService(
-    context = appContext,
-    vehicleStore = vehicleStore,
-    logService = log,
-  )
 
   val commandExecutor = ControlCommandExecutor(
     sendBleCommand = { command -> connectionManager.sendCommand(command.toBleCommandCode()) },

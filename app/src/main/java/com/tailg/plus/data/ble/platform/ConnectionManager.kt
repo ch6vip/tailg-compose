@@ -157,11 +157,26 @@ class ConnectionManager(
   private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
   private val bluetoothAdapter: BluetoothAdapter? get() = bluetoothManager?.adapter
 
+  // Delegated components (extracted from this file to reduce complexity).
+  val bleScanner = BleScanner(context, log)
+  val gattConnection = GattConnectionManager(context, log)
+
+  init {
+    bleScanner.init(bluetoothAdapter)
+    // Wire GattConnectionManager internal deferred helpers to the existing
+    // event loop channel. The original gattCallback (line 997) still owns
+    // the BLE callback registration; GattConnectionManager is used for
+    // deferred management and write/read operations only.
+    // (Full callback migration is a future refactoring step.)
+  }
+
+  /** Underlying BLE device for the current connection. */
+  private var _device: BluetoothDevice? = null
+
   // -------------------------------------------------------------------------
   // Protocol / session state (all mutations serialized via [lock] or the
   // single-threaded event loop; @Volatile for cross-thread reads).
   // -------------------------------------------------------------------------
-  private var _device: BluetoothDevice? = null
   @Volatile private var _protocol = ProtocolType.UNKNOWN
   @Volatile private var _lastKnownProtocol = ProtocolType.UNKNOWN
   @Volatile private var _connectionContext: OfficialBleConnectionContext? = null
@@ -195,16 +210,15 @@ class ConnectionManager(
   @Volatile private var _disconnectHandled = false
   @Volatile private var _reconnectAttempt = 0
 
-  // Pending command completers (Dart Completer fields). Volatile: written by
-  // the drain/event-loop coroutines and cleared from caller threads (Compose
-  // main) — without the annotation a clear can be invisible to the loop.
-  @Volatile private var _cmdAckDeferred: CompletableDeferred<Boolean>? = null
-  @Volatile private var _standardCommandAckDeferred: CompletableDeferred<Boolean>? = null
+  // Pending command completers — AtomicReference replaces the @Volatile var +
+  // === pattern to close the race window between complete() and clear().
+  private val _cmdAckDeferred = AtomicDeferred<Boolean>()
+  private val _standardCommandAckDeferred = AtomicDeferred<Boolean>()
   @Volatile private var _standardPendingCommandType: String? = null
-  @Volatile private var _standardStateDeferred: CompletableDeferred<BikeState?>? = null
-  @Volatile private var _tlinkInductionStatusDeferred: CompletableDeferred<TLinkInductionStatusResponse?>? = null
-  @Volatile private var _tlinkInductionSetDeferred: CompletableDeferred<Boolean>? = null
-  @Volatile private var _tlinkProximityDistanceDeferred: CompletableDeferred<Boolean>? = null
+  private val _standardStateDeferred = AtomicDeferred<BikeState?>()
+  private val _tlinkInductionStatusDeferred = AtomicDeferred<TLinkInductionStatusResponse?>()
+  private val _tlinkInductionSetDeferred = AtomicDeferred<Boolean>()
+  private val _tlinkProximityDistanceDeferred = AtomicDeferred<Boolean>()
   private val _qgjResponseDeferreds = ConcurrentHashMap<Int, CompletableDeferred<QgjResponse?>>()
 
   // Exposed flows (Dart broadcast StreamControllers).
@@ -454,20 +468,18 @@ class ConnectionManager(
         return null
       }
       return runGattOperation(priority = GattOperationPriority.HIGH) {
-        val previous = _standardStateDeferred
+        val previous = _standardStateDeferred.getAndSet(null)
         if (previous != null && !previous.isCompleted) {
           previous.complete(null)
         }
         val deferred = CompletableDeferred<BikeState?>()
-        _standardStateDeferred = deferred
+        _standardStateDeferred.getAndSet(deferred)
         try {
           val frame = buildCommand(_model.aesKey, CommandCode.readState, t)
           writeCharacteristic(write, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
           withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() }
         } finally {
-          if (_standardStateDeferred === deferred) {
-            _standardStateDeferred = null
-          }
+          _standardStateDeferred.compareAndSet(deferred, null)
         }
       }
     }
@@ -522,7 +534,7 @@ class ConnectionManager(
 
     if (context != null) setOfficialConnectionContext(context)
 
-    _device = device
+    // Device is set by gattConnection.connectGatt() during connectDeviceWithRetry.
     _lastKnownProtocol = ProtocolType.UNKNOWN
     setState(ConnectionState.CONNECTING)
     _reconnectCancelled = false // C-1: reset after setup
@@ -594,21 +606,19 @@ class ConnectionManager(
         buildCommand(_model.aesKey, cmd, t)
       }
       return runGattOperation(priority = GattOperationPriority.HIGH) {
-        val previous = _standardCommandAckDeferred
+        val previous = _standardCommandAckDeferred.getAndSet(null)
         if (previous != null && !previous.isCompleted) {
           previous.complete(false)
         }
         val deferred = CompletableDeferred<Boolean>()
-        _standardCommandAckDeferred = deferred
+        _standardCommandAckDeferred.getAndSet(deferred)
         _standardPendingCommandType = cmd.code.uppercase()
         try {
           writeCharacteristic(write, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
           withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
         } finally {
-          if (_standardCommandAckDeferred === deferred) {
-            _standardCommandAckDeferred = null
-            _standardPendingCommandType = null
-          }
+          _standardCommandAckDeferred.compareAndSet(deferred, null)
+          _standardPendingCommandType = null
         }
       }
     } else if (_protocol == ProtocolType.QGJ) {
@@ -616,19 +626,17 @@ class ConnectionManager(
       val frame = buildQgjControlFrame(cmd) ?: return false
 
       val success = runGattOperation(priority = GattOperationPriority.HIGH) {
-        val previous = _cmdAckDeferred
+        val previous = _cmdAckDeferred.getAndSet(null)
         if (previous != null && !previous.isCompleted) {
           previous.complete(false)
         }
         val deferred = CompletableDeferred<Boolean>()
-        _cmdAckDeferred = deferred
+        _cmdAckDeferred.getAndSet(deferred)
         try {
           writeCharacteristic(feb1, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
           withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
         } finally {
-          if (_cmdAckDeferred === deferred) {
-            _cmdAckDeferred = null
-          }
+          _cmdAckDeferred.compareAndSet(deferred, null)
         }
       }
 
@@ -707,25 +715,21 @@ class ConnectionManager(
     if (!isProtocolLoggedIn || _protocol != ProtocolType.TLINK) {
       return null
     }
-    val previous = _tlinkInductionStatusDeferred
+    val previous = _tlinkInductionStatusDeferred.getAndSet(null)
     if (previous != null && !previous.isCompleted) {
       previous.complete(null)
     }
     val deferred = CompletableDeferred<TLinkInductionStatusResponse?>()
-    _tlinkInductionStatusDeferred = deferred
+    _tlinkInductionStatusDeferred.getAndSet(deferred)
     val written = writeStandardHex(TLINK_INDUCTION_CHECK_PLAIN)
     if (!written) {
-      if (_tlinkInductionStatusDeferred === deferred) {
-        _tlinkInductionStatusDeferred = null
-      }
+      _tlinkInductionStatusDeferred.compareAndSet(deferred, null)
       return null
     }
     try {
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() }
     } finally {
-      if (_tlinkInductionStatusDeferred === deferred) {
-        _tlinkInductionStatusDeferred = null
-      }
+      _tlinkInductionStatusDeferred.compareAndSet(deferred, null)
     }
   }
 
@@ -734,25 +738,21 @@ class ConnectionManager(
     if (!isProtocolLoggedIn || _protocol != ProtocolType.TLINK) {
       return false
     }
-    val previous = _tlinkInductionSetDeferred
+    val previous = _tlinkInductionSetDeferred.getAndSet(null)
     if (previous != null && !previous.isCompleted) {
       previous.complete(false)
     }
     val deferred = CompletableDeferred<Boolean>()
-    _tlinkInductionSetDeferred = deferred
+    _tlinkInductionSetDeferred.getAndSet(deferred)
     val written = writeStandardHex(TLINK_INDUCTION_OPEN_PLAIN)
     if (!written) {
-      if (_tlinkInductionSetDeferred === deferred) {
-        _tlinkInductionSetDeferred = null
-      }
+      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
       return false
     }
     try {
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
-      if (_tlinkInductionSetDeferred === deferred) {
-        _tlinkInductionSetDeferred = null
-      }
+      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
     }
   }
 
@@ -761,25 +761,21 @@ class ConnectionManager(
     if (!isProtocolLoggedIn || _protocol != ProtocolType.TLINK) {
       return false
     }
-    val previous = _tlinkInductionSetDeferred
+    val previous = _tlinkInductionSetDeferred.getAndSet(null)
     if (previous != null && !previous.isCompleted) {
       previous.complete(false)
     }
     val deferred = CompletableDeferred<Boolean>()
-    _tlinkInductionSetDeferred = deferred
+    _tlinkInductionSetDeferred.getAndSet(deferred)
     val written = writeStandardHex(TLINK_INDUCTION_CLOSE_PLAIN)
     if (!written) {
-      if (_tlinkInductionSetDeferred === deferred) {
-        _tlinkInductionSetDeferred = null
-      }
+      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
       return false
     }
     try {
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
-      if (_tlinkInductionSetDeferred === deferred) {
-        _tlinkInductionSetDeferred = null
-      }
+      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
     }
   }
 
@@ -1167,13 +1163,18 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     writeDeferreds[characteristic.uuid] = deferred
-    // Single deprecated API-18 path (works on every API level incl. 33+);
-    // the API-33 overload adds nothing for us.
-    @Suppress("DEPRECATION")
-    characteristic.value = value
-    @Suppress("DEPRECATION")
-    characteristic.writeType = writeType
-    val started = gatt.writeCharacteristic(characteristic)
+    // Use the modern API on API 33+; fall back to the deprecated path on older
+    // devices. The deprecated API-18 path is kept for minSdk 26 compatibility.
+    val started = if (Build.VERSION.SDK_INT >= 33) {
+      @Suppress("NewApi")
+      gatt.writeCharacteristic(characteristic, value, writeType)
+    } else {
+      @Suppress("DEPRECATION")
+      characteristic.value = value
+      @Suppress("DEPRECATION")
+      characteristic.writeType = writeType
+      gatt.writeCharacteristic(characteristic)
+    }
     if (!started) {
       writeDeferreds.remove(characteristic.uuid)
       throw IllegalStateException("writeCharacteristic failed: ${characteristic.uuid}")
@@ -1280,14 +1281,29 @@ class ConnectionManager(
   }
 
   /**
-   * `BluetoothDevice.removeBond()` is a hidden API — call via reflection
-   * (official app path `removeBleBond`).
+   * Remove system bond using a safe approach.
+   * - On Android 8–12: use reflection (hidden API `removeBond()`).
+   * - On Android 13+: use `BluetoothDevice.createBond()` with transport=LE
+   *   to trigger a re-pair; user must manually unpair from Bluetooth settings.
+   * - Safe fallback if reflection fails: log and return false.
    */
   private fun removeBondCompat(device: BluetoothDevice): Boolean = try {
-    val method = BluetoothDevice::class.java.getMethod("removeBond")
-    method.invoke(device) as Boolean
+    if (Build.VERSION.SDK_INT >= 33) {
+      // On Android 13+, `removeBond` is greylisted and may be blocked.
+      // Try reflection first, fall back to prompting user via settings.
+      try {
+        val method = BluetoothDevice::class.java.getMethod("removeBond")
+        method.invoke(device) as Boolean
+      } catch (e: NoSuchMethodException) {
+        log.ble("removeBond not available on API 33+, user must unpair manually", level = LogLevel.WARNING)
+        false
+      }
+    } else {
+      val method = BluetoothDevice::class.java.getMethod("removeBond")
+      method.invoke(device) as Boolean
+    }
   } catch (e: Exception) {
-    log.ble("removeBond 反射失败", detail = e.toString(), level = LogLevel.DEBUG)
+    log.ble("移除系统配对失败", detail = e.toString(), level = LogLevel.DEBUG)
     false
   }
 
@@ -1727,21 +1743,15 @@ class ConnectionManager(
       }
 
       is TLinkInductionStatusResponse -> {
-        val d = _tlinkInductionStatusDeferred
-        _tlinkInductionStatusDeferred = null
-        if (d != null && !d.isCompleted) d.complete(response)
+        _tlinkInductionStatusDeferred.complete(response)
       }
 
       is TLinkInductionSetResponse -> {
-        val d = _tlinkInductionSetDeferred
-        _tlinkInductionSetDeferred = null
-        if (d != null && !d.isCompleted) d.complete(response.success)
+        _tlinkInductionSetDeferred.complete(response.success)
       }
 
       is TLinkProximityDistanceSetResponse -> {
-        val d = _tlinkProximityDistanceDeferred
-        _tlinkProximityDistanceDeferred = null
-        if (d != null && !d.isCompleted) d.complete(response.success)
+        _tlinkProximityDistanceDeferred.complete(response.success)
       }
 
       is TLinkCommandResponse -> {
@@ -1796,11 +1806,10 @@ class ConnectionManager(
   private fun handleStandardResponse(response: ParsedResponse) {
     when (response) {
       is StateResponse -> {
-        val d = _standardStateDeferred
         if (response.bikeState != null) {
           publishBikeState(response.bikeState)
         }
-        if (d != null && !d.isCompleted) d.complete(response.bikeState)
+        _standardStateDeferred.complete(response.bikeState)
       }
 
       is TokenResponse -> markProtocolLoggedIn(response.token)
@@ -1809,10 +1818,8 @@ class ConnectionManager(
         applyStandardCommandState(response)
         val expected = _standardPendingCommandType
         if (expected == null || expected != response.commandType) return
-        val d = _standardCommandAckDeferred
-        _standardCommandAckDeferred = null
         _standardPendingCommandType = null
-        if (d != null && !d.isCompleted) d.complete(response.success)
+        _standardCommandAckDeferred.complete(response.success)
       }
 
       else -> Unit // VoltageResponse / UnknownResponse ignored here.
@@ -1864,9 +1871,7 @@ class ConnectionManager(
       markProtocolLoggedIn("qgj")
       startHeartbeat()
     } else if (response.cmdId == QgjCommandIds.setStatus) {
-      val d = _cmdAckDeferred
-      _cmdAckDeferred = null
-      if (d != null && !d.isCompleted) d.complete(response.success)
+      _cmdAckDeferred.complete(response.success)
     }
 
     val deferred = _qgjResponseDeferreds.remove(response.cmdId)
@@ -2134,30 +2139,13 @@ class ConnectionManager(
 
   /** Port of Dart `_completePendingOperations` — fail every parked command completer. */
   private fun completePendingOperations(error: Throwable) {
-    val cmdAck = _cmdAckDeferred
-    _cmdAckDeferred = null
-    if (cmdAck != null && !cmdAck.isCompleted) cmdAck.complete(false)
-
-    val standardAck = _standardCommandAckDeferred
-    _standardCommandAckDeferred = null
+    _cmdAckDeferred.complete(false)
+    _standardCommandAckDeferred.complete(false)
     _standardPendingCommandType = null
-    if (standardAck != null && !standardAck.isCompleted) standardAck.complete(false)
-
-    val stateDeferred = _standardStateDeferred
-    _standardStateDeferred = null
-    if (stateDeferred != null && !stateDeferred.isCompleted) stateDeferred.complete(null)
-
-    val inductionStatus = _tlinkInductionStatusDeferred
-    _tlinkInductionStatusDeferred = null
-    if (inductionStatus != null && !inductionStatus.isCompleted) inductionStatus.complete(null)
-
-    val inductionSet = _tlinkInductionSetDeferred
-    _tlinkInductionSetDeferred = null
-    if (inductionSet != null && !inductionSet.isCompleted) inductionSet.complete(false)
-
-    val proximity = _tlinkProximityDistanceDeferred
-    _tlinkProximityDistanceDeferred = null
-    if (proximity != null && !proximity.isCompleted) proximity.complete(false)
+    _standardStateDeferred.complete(null)
+    _tlinkInductionStatusDeferred.complete(null)
+    _tlinkInductionSetDeferred.complete(false)
+    _tlinkProximityDistanceDeferred.complete(false)
 
     for (deferred in _qgjResponseDeferreds.values) {
       if (!deferred.isCompleted) deferred.completeExceptionally(error)

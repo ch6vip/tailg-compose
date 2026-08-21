@@ -2,6 +2,7 @@ package com.tailg.plus.data.ble.platform
 
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CompletableDeferred
 
 /**
@@ -24,14 +25,6 @@ enum class ConnectionState {
   /** Handshake success path; combined with token → official LOGIN. */
   READY;
 
-  /**
-   * Port of Dart `ConnectionStateLabel.label`.
-   *
-   * NOTE: display labels are kept as string constants here (not string
-   * resources) because the enum is used from BLE / service layers without a
-   * Context; UI layers that need localized text should map this to a
-   * resource. See `strings.xml` extraction follow-up.
-   */
   val label: String
     get() = when (this) {
       DISCONNECTED -> "未连接"
@@ -54,6 +47,51 @@ internal class QueuedGattOperation<T>(
   val priority: GattOperationPriority,
   val deferred: CompletableDeferred<T> = CompletableDeferred(),
 )
+
+/**
+ * Thread-safe holder for a nullable [CompletableDeferred] using [AtomicReference],
+ * replacing the `@Volatile var` + `===` pattern that had a race window between
+ * `complete()` and `remove()`.
+ */
+internal class AtomicDeferred<T>(
+  private val ref: AtomicReference<CompletableDeferred<T>?> = AtomicReference(null),
+) {
+  /** Atomically set the deferred if none is currently held. */
+  fun set(deferred: CompletableDeferred<T>): Boolean =
+    ref.compareAndSet(null, deferred)
+
+  /** Atomically replace the held deferred, returning the previous one. */
+  fun getAndSet(deferred: CompletableDeferred<T>?): CompletableDeferred<T>? =
+    ref.getAndSet(deferred)
+
+  /** Atomically clear and return the current deferred. */
+  fun clear(): CompletableDeferred<T>? = ref.getAndSet(null)
+
+  /** Atomically complete the current deferred with [value] and clear it. */
+  fun complete(value: T) {
+    val d = ref.getAndSet(null)
+    if (d != null && !d.isCompleted) d.complete(value)
+  }
+
+  /** Atomically complete the current deferred exceptionally and clear it. */
+  fun completeExceptionally(error: Throwable) {
+    val d = ref.getAndSet(null)
+    if (d != null && !d.isCompleted) d.completeExceptionally(error)
+  }
+
+  /** Complete with [value] only if the held reference matches [expected]. */
+  fun completeIfSame(expected: CompletableDeferred<T>?, value: T) {
+    if (expected == null) return
+    ref.compareAndSet(expected, null)
+    if (!expected.isCompleted) expected.complete(value)
+  }
+
+  /** Atomically clear only if the current value is [expected]. */
+  fun compareAndSet(expected: CompletableDeferred<T>?, new: CompletableDeferred<T>?): Boolean =
+    ref.compareAndSet(expected, new)
+
+  fun get(): CompletableDeferred<T>? = ref.get()
+}
 
 /** Internal event carried from the `BluetoothGattCallback` to the event loop. */
 internal sealed interface GattEvent {

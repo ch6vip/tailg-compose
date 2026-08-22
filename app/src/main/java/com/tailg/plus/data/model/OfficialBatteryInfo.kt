@@ -94,13 +94,6 @@ data class OfficialBatteryInfo(
             return null
         }
 
-        private fun clean(value: Any?): String? {
-            if (value == null) return null
-            // Keep real zero values from the official battery API.
-            if (value is Number) return value.toString()
-            val text = value.toString().trim()
-            if (text.isEmpty() || text == "--" || text.lowercase() == "null") return null
-            return text
-        }
+        private fun clean(value: Any?): String? = cleanTextOrNull(value)
     }
 }

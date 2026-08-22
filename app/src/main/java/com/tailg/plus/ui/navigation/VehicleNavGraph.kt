@@ -36,6 +36,22 @@ import timber.log.Timber
 import kotlinx.coroutines.launch
 
 /**
+ * Screen-level navigation wrapper: a sign-out jump to LOGIN also clears the
+ * back stack up to the control tab, so back-pressing out of LOGIN cannot
+ * return to signed-out screens. Mirrors SettingsNavGraph's onSignedOut wiring.
+ */
+private fun navigateOrLogout(navController: NavController, route: String) {
+    if (route == Routes.LOGIN) {
+        navController.navigate(route) {
+            launchSingleTop = true
+            popUpTo(Routes.CONTROL) { inclusive = true }
+        }
+    } else {
+        navController.navigate(route)
+    }
+}
+
+/**
  * Vehicle-related navigation graph — garage, control, and vehicle detail screens.
  */
 fun NavGraphBuilder.vehicleNavGraph(
@@ -51,7 +67,7 @@ fun NavGraphBuilder.vehicleNavGraph(
     composable(Routes.SERVICE_HUB) {
         ServiceHubScreen(
             vehicleRouteId = vehicleRouteId,
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
         )
     }
 
@@ -66,7 +82,7 @@ fun NavGraphBuilder.vehicleNavGraph(
             mqttService = mqttService,
             vehicleStore = vehicleStore,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
         )
     }
 
@@ -77,7 +93,7 @@ fun NavGraphBuilder.vehicleNavGraph(
         GarageScreen(
             cloudService = cloudService,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
             scannedCode = scannedCode,
             onConsumeScan = { entry.savedStateHandle.remove<String>("scanned_vehicle_code") },
             mqttService = mqttService,
@@ -170,7 +186,7 @@ fun NavGraphBuilder.vehicleNavGraph(
             cloudService = cloudService,
             connectionManager = connectionManager,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
             batteryChanged = batteryChanged,
             onConsumeBatteryChanged = { entry.savedStateHandle.remove<Boolean>("battery_changed") },
         )
@@ -197,7 +213,7 @@ fun NavGraphBuilder.vehicleNavGraph(
             vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
             cloudService = cloudService,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
         )
     }
     composable(
@@ -208,7 +224,7 @@ fun NavGraphBuilder.vehicleNavGraph(
             vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
             cloudService = cloudService,
             onBack = { navController.popBackStack() },
-            onNavigate = { route -> navController.navigate(route) },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
         )
     }
     composable(

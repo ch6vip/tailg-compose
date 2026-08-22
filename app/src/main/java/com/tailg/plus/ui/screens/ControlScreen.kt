@@ -178,13 +178,15 @@ fun ControlScreen(
   val commandExecutor = viewModel.commandExecutor
 
   val cloudVehicle = cloudState.selectedVehicle
-  val battery = remember(cloudState) {
+  // Narrow keys: an unrelated cloudState field change (messages, loading
+  // flags) must not rebuild the battery/location snapshots.
+  val battery = remember(cloudState.signedIn, cloudVehicle, cloudState.batteryInfo) {
     BatterySnapshot.fromSources(
       officialVehicle = if (cloudState.signedIn) cloudVehicle else null,
       officialBatteryInfo = cloudState.batteryInfo,
     )
   }
-  val location = remember(cloudState) {
+  val location = remember(cloudState.vehicleLocation, cloudVehicle, vehicleStore.defaultVehicle) {
     resolveVehicleLocation(
       cloudState = cloudState,
       localVehicle = vehicleStore.defaultVehicle,

@@ -184,9 +184,4 @@ data class OfficialTravelPoint(
 private fun travelRecords(value: Any?): List<OfficialTravelRecord> =
     parsePersistedMapList(value).map { OfficialTravelRecord.fromJson(it) }
 
-private fun clean(value: Any?): String? {
-    if (value == null) return null
-    val text = value.toString().trim()
-    if (text.isEmpty() || text == "--" || text.lowercase() == "null") return null
-    return text
-}
+private fun clean(value: Any?): String? = cleanTextOrNull(value)

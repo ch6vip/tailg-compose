@@ -83,7 +83,9 @@ class OfficialCloudStorage(
     }
 
     suspend fun loadSession(): OfficialCloudStoredSession {
-        val prefs = context.cloudDataStore.data.first()
+        val prefs = com.tailg.plus.data.store.withDataStoreReadTimeout {
+            context.cloudDataStore.data.first()
+        }
         val credentials = withContext(Dispatchers.IO) { loadSecureCredentials(prefs) }
         val token = credentials.first
         val dataStoreVehicleJson = prefs[KEY_CAR_CONTROL_INFO]
@@ -268,15 +270,13 @@ class OfficialCloudStorage(
         val phone = securePhone ?: legacyPhone
         val userId = secureUserId ?: legacyUserId
         if (legacyToken.isNotEmpty() || legacyPhone.isNotEmpty() || legacyUserId.isNotEmpty()) {
-            if (token.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_TOKEN, token).commit()
-            }
-            if (phone.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_PHONE, phone).commit()
-            }
-            if (userId.isNotEmpty()) {
-                secure.edit().putString(KEY_SECURE_USER_ID, userId).commit()
-            }
+            // Single batched commit — three separate synchronous commits used
+            // to hit the disk three times during the one-time migration.
+            secure.edit().apply {
+                if (token.isNotEmpty()) putString(KEY_SECURE_TOKEN, token)
+                if (phone.isNotEmpty()) putString(KEY_SECURE_PHONE, phone)
+                if (userId.isNotEmpty()) putString(KEY_SECURE_USER_ID, userId)
+            }.commit()
             context.cloudDataStore.edit { prefsEdit ->
                 prefsEdit.remove(KEY_TOKEN)
                 prefsEdit.remove(KEY_PHONE)

@@ -50,7 +50,7 @@ CI 使用 Temurin 17；本机若默认是更新的 JDK，请设置 `JAVA_HOME` �
 | 模型 / 平台层（BLE/MQTT/云） | ✅ |
 | 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
 | UI 30 页 + 导航图 | ✅ |
-| 测试移植 | ✅ (28 个测试文件,203 个测试,全部通过) |
+| 测试移植 | ✅ (32 个测试文件,224 个测试,全部通过) |
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
 | Hilt DI 图 | ✅ (单例图 + EntryPoint；屏幕共用同一 graph，无双实例 factory) |
 | Control ViewModel | ✅ 控车页会话状态迁入 Hilt ViewModel |

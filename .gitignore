@@ -24,3 +24,5 @@ Thumbs.db
 
 # Session tooling
 .zcode/
+.claude/
+.kotlin/

@@ -71,7 +71,7 @@ class GattOperationQueue(
       try {
         while (true) {
           val queued = synchronized(queueLock) { takeNext() } ?: break
-          activeOperation = queued
+          synchronized(queueLock) { activeOperation = queued }
           try {
             val result = withTimeout(BleTimings.gattOperationTimeout) { queued.operation() }
             if (!queued.deferred.isCompleted) queued.deferred.complete(result)
@@ -83,7 +83,9 @@ class GattOperationQueue(
           } catch (e: Exception) {
             if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
           } finally {
-            if (activeOperation === queued) activeOperation = null
+            synchronized(queueLock) {
+              if (activeOperation === queued) activeOperation = null
+            }
           }
         }
       } finally {
@@ -97,12 +99,12 @@ class GattOperationQueue(
 
   /** Fail every queued + active operation (Dart `_completePendingGattOperations`). */
   fun completePending(error: Throwable) {
-    val active = activeOperation
-    if (active != null && !active.deferred.isCompleted) {
-      active.deferred.completeExceptionally(error)
-    }
-    activeOperation = null
     synchronized(queueLock) {
+      val active = activeOperation
+      if (active != null && !active.deferred.isCompleted) {
+        active.deferred.completeExceptionally(error)
+      }
+      activeOperation = null
       for (queue in pendingByPriority.values) {
         for (queued in queue) {
           if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(error)

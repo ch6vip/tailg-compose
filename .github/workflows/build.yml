@@ -6,6 +6,11 @@ on:
   pull_request:
   workflow_dispatch:
 
+# Cancel superseded runs on the same branch so rapid pushes do not queue up.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -35,16 +40,18 @@ jobs:
             wrapper
 
       # Cache Android SDK packages (platforms, build-tools) so setup-android
-      # does not re-download them on every run.
+      # does not re-download them on every run. The key hashes the version
+      # catalogs / build scripts so a toolchain bump invalidates the cache
+      # instead of silently reusing stale SDK packages forever.
       - name: Cache Android SDK
         uses: actions/cache@v4
         with:
           path: |
             ${{ runner.os == 'Linux' && '~/.android' || '' }}
             /usr/local/lib/android/sdk
-          key: android-sdk-${{ runner.os }}
+          key: android-sdk-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'app/build.gradle.kts') }}
           restore-keys: |
-            android-sdk-
+            android-sdk-${{ runner.os }}-
 
       - name: Assemble + unit tests + lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace
@@ -58,3 +65,16 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+
+      # Always publish reports (even on failure) so CI reds are debuggable
+      # without reproducing locally.
+      - name: Upload test & lint reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            app/build/reports/tests/
+            app/build/reports/lint-results-debug.html
+            app/build/reports/lint-results-debug.xml
+          if-no-files-found: ignore

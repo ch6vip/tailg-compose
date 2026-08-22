@@ -109,7 +109,8 @@ fun BatteryDetailsScreen(
   val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
 
   val vehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
-  val data = remember(cloudState) {
+  // Narrow keys: message/loading-only cloudState changes must not rebuild the snapshot.
+  val data = remember(vehicle, cloudState.batteryInfo, cloudState.bmsInfo) {
     BatterySnapshot.fromSources(
       officialVehicle = vehicle,
       officialBatteryInfo = cloudState.batteryInfo,

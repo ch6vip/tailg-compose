@@ -1440,8 +1440,10 @@ class ConnectionManager(
         _discoveryDeferred = null
         throw IllegalStateException("discoverServices() returned false")
       }
-      // flutter_blue_plus uses a 15 s discovery timeout; mirror it.
-      withTimeout(15.seconds) { deferred.await() }
+      // Single source of truth: BleTimings.discoveryTimeout (15 s, mirroring
+      // flutter_blue_plus) — the value used to be hardcoded here, so tuning
+      // the constant had no effect.
+      withTimeout(BleTimings.discoveryTimeout) { deferred.await() }
 
       val services = gatt.services
       log.ble(

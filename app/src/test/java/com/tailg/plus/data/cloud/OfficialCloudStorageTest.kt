@@ -44,7 +44,10 @@ class OfficialCloudStorageTest {
   }
 
   @Test
-  fun vehicleControlCacheLivesOnlyInSecurePreferences() = runTest {
+  fun vehicleControlCacheLivesOnlyInSecurePreferences() = kotlinx.coroutines.runBlocking {
+    // runBlocking, not runTest: loadSession() reads a real DataStore file and
+    // its read-timeout guard must run on the real clock (runTest's virtual
+    // time would fire the 5s timeout before the real IO resumes).
     val vehicle = OfficialVehicle.fromJson(
       mapOf(
         "imei" to "860000000000001",

@@ -25,6 +25,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -547,7 +548,7 @@ class OfficialMqttService(
                 override fun messageArrived(topic: String?, message: MqttMessage?) {
                     val payload = message?.payload ?: return
                     val raw = String(payload, Charsets.UTF_8)
-                    scope.launch { handleStatusPayload(raw) }
+                    enqueueStatusPayload(raw)
                 }
 
                 override fun deliveryComplete(token: IMqttDeliveryToken?) {
@@ -634,6 +635,45 @@ class OfficialMqttService(
     }
 
     // --- inbound status ----------------------------------------------------
+
+    /**
+     * Conflated queue decoupling Paho's callback thread from status handling.
+     * The old per-message `scope.launch` spawned an unbounded coroutine per
+     * frame of a broker burst while only the newest acc/defence state matters —
+     * a CONFLATED channel keeps exactly one pending payload and one consumer.
+     */
+    private val statusPayloads = Channel<String>(Channel.CONFLATED)
+
+    @Volatile private var statusConsumerStarted = false
+
+    private fun enqueueStatusPayload(raw: String) {
+        ensureStatusConsumer()
+        statusPayloads.trySend(raw)
+    }
+
+    private fun ensureStatusConsumer() {
+        if (statusConsumerStarted) return
+        synchronized(lock) {
+            if (statusConsumerStarted) return
+            statusConsumerStarted = true
+            scope.launch {
+                for (raw in statusPayloads) {
+                    try {
+                        handleStatusPayload(raw)
+                    } catch (e: CancellationException) {
+                        throw e
+                    } catch (e: Throwable) {
+                        // A malformed payload must not kill the single consumer.
+                        log.operation(
+                            "官方 MQTT 状态处理异常",
+                            detail = e.toString(),
+                            level = LogLevel.DEBUG,
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     /**
      * Parse status JSON and push ACC/defence into cloud vehicle state
@@ -835,6 +875,7 @@ class OfficialMqttService(
             _boundCloud = null
             _preconnectInFlight = false
         }
+        statusPayloads.close()
         lifecycleMutex.withLock { disconnectInternal() }
         scope.cancel()
     }

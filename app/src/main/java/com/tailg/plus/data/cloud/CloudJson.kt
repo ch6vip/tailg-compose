@@ -14,7 +14,8 @@ import com.squareup.moshi.Moshi
  * default missing keys), so round-trips are unaffected.
  */
 internal object CloudJson {
-    private val moshi: Moshi = Moshi.Builder().build()
+    /** Single shared plain-Moshi instance for the cloud module. */
+    internal val moshi: Moshi = Moshi.Builder().build()
     private val adapter: JsonAdapter<Any> = moshi.adapter(Any::class.java)
 
     fun encode(value: Any?): String = adapter.toJson(value)

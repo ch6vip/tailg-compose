@@ -48,7 +48,9 @@ class OfficialCloudApiClient(
         .writeTimeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         .build()
 
-    private val moshi = com.squareup.moshi.Moshi.Builder().build()
+    // Shared plain-Moshi instance (CloudJson owns it) — a second identical
+    // Moshi here used to duplicate built-in adapter setup for no benefit.
+    private val moshi: com.squareup.moshi.Moshi = CloudJson.moshi
 
     private var clock: () -> LocalDateTime = clock
 

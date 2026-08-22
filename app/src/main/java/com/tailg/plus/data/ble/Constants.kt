@@ -147,7 +147,11 @@ object BleTimings {
   val qgjSearchCountdown: Duration = 30.seconds
   val gpsSearchCountdown: Duration = 6.seconds
   val gattOperationTimeout: Duration = 30.seconds
-  val discoveryTimeout: Duration = 10.seconds
+  // Effective service-discovery budget. The Dart port documented 10s, but the
+  // connect pipeline has been waiting 15s in practice (slower Android TV /
+  // budget peripherals need the headroom); the constant now reflects that so
+  // tuning one place changes the real behavior.
+  val discoveryTimeout: Duration = 15.seconds
   val mtuTimeout: Duration = 5.seconds
 
   /**

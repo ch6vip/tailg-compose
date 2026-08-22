@@ -99,9 +99,4 @@ data class OfficialFenceData(
     }
 }
 
-private fun clean(value: Any?): String? {
-    if (value == null) return null
-    val text = value.toString().trim()
-    if (text.isEmpty() || text == "--" || text.lowercase() == "null") return null
-    return text
-}
+private fun clean(value: Any?): String? = cleanTextOrNull(value)

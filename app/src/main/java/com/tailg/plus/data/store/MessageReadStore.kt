@@ -60,7 +60,7 @@ class MessageReadStore(
     /** Dart `ensureLoaded()`: idempotent one-time load. */
     suspend fun ensureLoaded() {
         if (loaded) return
-        val prefs = context.messageReadStoreDataStore.data.first()
+        val prefs = withDataStoreReadTimeout { context.messageReadStoreDataStore.data.first() }
         _readIds.clear()
         _readIds.addAll(prefs[KEY_READ_IDS] ?: emptySet())
         _hiddenIds.clear()

@@ -124,7 +124,7 @@ fun ProfileMineScreen(
     }
   }
 
-  val nickname = remember(cloudState) {
+  val nickname = remember(signedIn, cloudState.userProfile, strLoginNow, strDefaultName) {
     if (!signedIn) strLoginNow
     else cloudState.userProfile?.displayName?.trim()?.ifEmpty { null } ?: strDefaultName
   }

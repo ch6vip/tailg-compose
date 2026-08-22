@@ -195,13 +195,7 @@ data class BatterySnapshot(
             return null
         }
 
-        private fun cleanText(value: String?): String? {
-            val text = value?.trim() ?: return null
-            // Official battery API may return "0" for 今日耗电 / 循环次数 — keep it.
-            if (text.isEmpty() || text == "--") return null
-            if (text.lowercase() == "null") return null
-            return text
-        }
+        private fun cleanText(value: String?): String? = cleanTextOrNull(value)
 
         /**
          * Display helper: empty/missing → fallback; keeps zero values.

@@ -117,7 +117,7 @@ class VehicleStore(
     }
 
     private suspend fun load() {
-        val prefs = context.vehicleStoreDataStore.data.first()
+        val prefs = withDataStoreReadTimeout { context.vehicleStoreDataStore.data.first() }
         _defaultVehicleId = normalizeId(prefs[KEY_DEFAULT_VEHICLE_ID])
         val rawProfiles = prefs[KEY_VEHICLES]
         val decodedVehicles = decodeVehicles(rawProfiles)

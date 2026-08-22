@@ -24,10 +24,11 @@ android {
 
         // Map tiles: optional Tianditu token (Gradle property `tiandituToken`),
         // mirroring the Dart TIANDITU_TOKEN dart-define; blank falls back to AutoNavi.
+        // Provider API so the configuration cache stays compatible.
         buildConfigField(
             "String",
             "TIANDITU_TOKEN",
-            "\"${(project.findProperty("tiandituToken") as String?)?.replace("\"", "") ?: ""}\"",
+            "\"${providers.gradleProperty("tiandituToken").orNull?.replace("\"", "") ?: ""}\"",
         )
         buildConfigField("boolean", "ALLOW_INSECURE_MQTT_TLS", "false")
 

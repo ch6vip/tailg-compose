@@ -76,7 +76,9 @@ class ReplicaFeatureStore(
 
     /** Dart `loadNfcKeys`. */
     suspend fun loadNfcKeys(): List<NfcKeyRecord> {
-        val raw = context.replicaFeatureStoreDataStore.data.first()[KEY_NFC_KEYS]
+        val raw = withDataStoreReadTimeout {
+            context.replicaFeatureStoreDataStore.data.first()
+        }[KEY_NFC_KEYS]
         return decodeList(raw) { json, fallbackNow ->
             NfcKeyRecord.fromJson(json, fallbackNow = fallbackNow)
         }
@@ -102,7 +104,9 @@ class ReplicaFeatureStore(
 
     /** Dart `loadFenceConfig`: `null` when absent or undecodable. */
     suspend fun loadFenceConfig(): FenceConfig? {
-        val raw = context.replicaFeatureStoreDataStore.data.first()[KEY_FENCE_CONFIG]
+        val raw = withDataStoreReadTimeout {
+            context.replicaFeatureStoreDataStore.data.first()
+        }[KEY_FENCE_CONFIG]
         val decoded = decodeMap(raw)
         if (decoded == null) return null
         return FenceConfig.fromJson(decoded, fallbackNow = clock())
@@ -133,7 +137,9 @@ class ReplicaFeatureStore(
 
     /** Dart `loadShareMembers`. */
     suspend fun loadShareMembers(): List<ShareMemberRecord> {
-        val raw = context.replicaFeatureStoreDataStore.data.first()[KEY_SHARE_MEMBERS]
+        val raw = withDataStoreReadTimeout {
+            context.replicaFeatureStoreDataStore.data.first()
+        }[KEY_SHARE_MEMBERS]
         return decodeList(raw) { json, fallbackNow ->
             ShareMemberRecord.fromJson(json, fallbackNow = fallbackNow)
         }

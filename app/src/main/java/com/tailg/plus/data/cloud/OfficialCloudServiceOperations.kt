@@ -113,7 +113,12 @@ internal class OfficialCloudOperationLogic(
     }
 
     suspend fun loginWithToken(rawToken: String, phone: String, userId: String) {
-        Timber.tag("TokenLogin").d("loginWithToken called, rawToken.len=${rawToken.length}, phone=$phone, userId=$userId")
+        // Masked even though Timber is DEBUG-only: raw phone/userId must not
+        // reach logcat on developer machines or recorded screen captures.
+        Timber.tag("TokenLogin").d(
+            "loginWithToken called, rawToken.len=${rawToken.length}, " +
+                "phone=${SensitiveValueMasker.phone(phone)}, userId=${SensitiveValueMasker.compact(userId)}",
+        )
         val token = normalizeAuthorizationToken(rawToken)
         Timber.tag("TokenLogin").d("normalized token.len=${token.length}")
         if (token.isEmpty()) {

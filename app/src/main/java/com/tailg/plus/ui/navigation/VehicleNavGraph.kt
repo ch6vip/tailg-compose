@@ -15,6 +15,7 @@ import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.ui.screens.AddVehicleScreen
+import com.tailg.plus.ui.screens.AdvancedDiagnosticsScreen
 import com.tailg.plus.ui.screens.BatteryDetailsScreen
 import com.tailg.plus.ui.screens.BindImeiScreen
 import com.tailg.plus.ui.screens.ControlScreen
@@ -250,6 +251,19 @@ fun NavGraphBuilder.vehicleNavGraph(
     }
     composable(
         Routes.DIAGNOSTIC,
+        arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
+    ) { entry ->
+        // Hub page (设备信息 / 日志 / 故障诊断入口) — AdvancedDiagnosticsScreen's
+        // KDoc always intended this route; the fault history page lives one
+        // level below at FAULT_DIAGNOSTIC so the 日志 viewer is reachable.
+        AdvancedDiagnosticsScreen(
+            vehicleRouteId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
+            onBack = { navController.popBackStack() },
+            onNavigate = { route -> navigateOrLogout(navController, route) },
+        )
+    }
+    composable(
+        Routes.FAULT_DIAGNOSTIC,
         arguments = listOf(navArgument(Routes.ARG_VEHICLE_ID) { type = NavType.StringType }),
     ) {
         DiagnosticScreen(onBack = { navController.popBackStack() })

@@ -209,7 +209,7 @@ fun AdvancedDiagnosticsScreen(
           icon = Lucide.stethoscope,
           title = stringResource(R.string.settings_fault_diagnostics),
           subtitle = stringResource(R.string.settings_fault_diagnostics_desc),
-          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
+          onClick = { onNavigate(Routes.faultDiagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
           icon = Lucide.fileText,

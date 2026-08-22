@@ -85,7 +85,16 @@ class OfficialCloudApiClient(
             try {
                 val requestBuilder = Request.Builder()
                     .url(config.resolve(path))
-                    .method(method, body?.let { CloudJson.encode(it).toRequestBody(JSON_MEDIA_TYPE) })
+                    .method(
+                        method,
+                        // Dart http.post tolerates a missing body; OkHttp throws
+                        // "POST must have a request body". Body-less non-GET
+                        // requests (getUserProfile / logout style) get an empty
+                        // payload like the Dart original.
+                        body?.let { CloudJson.encode(it).toRequestBody(JSON_MEDIA_TYPE) }
+                            ?: if (method.equals("GET", ignoreCase = true)) null
+                            else ByteArray(0).toRequestBody(),
+                    )
                 config.defaultHeaders.forEach { (name, value) -> requestBuilder.header(name, value) }
                 if (!token.isNullOrEmpty()) {
                     requestBuilder.header("Authorization", token)

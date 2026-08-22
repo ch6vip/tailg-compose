@@ -31,7 +31,9 @@ object Routes {
     const val VEHICLE_MESSAGE = "vehicle_message/{vehicleId}"
     const val VEHICLE_SETTINGS = "vehicle_settings/{vehicleId}"
     const val FIRMWARE_OTA = "firmware_ota/{vehicleId}"
+    // Hub page (设备信息 / 日志 / 协议检测入口); fault history lives one level below.
     const val DIAGNOSTIC = "diagnostic/{vehicleId}"
+    const val FAULT_DIAGNOSTIC = "fault_diagnostic/{vehicleId}"
     const val QGJ_SETTINGS = "qgj_settings/{vehicleId}"
     const val INDUCTION_SETTINGS = "induction_settings/{vehicleId}"
 
@@ -58,6 +60,7 @@ object Routes {
     fun vehicleSettings(vehicleId: String) = "vehicle_settings/$vehicleId"
     fun firmwareOta(vehicleId: String) = "firmware_ota/$vehicleId"
     fun diagnostic(vehicleId: String) = "diagnostic/$vehicleId"
+    fun faultDiagnostic(vehicleId: String) = "fault_diagnostic/$vehicleId"
     fun qgjSettings(vehicleId: String) = "qgj_settings/$vehicleId"
     fun inductionSettings(vehicleId: String) = "induction_settings/$vehicleId"
 

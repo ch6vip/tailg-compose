@@ -26,10 +26,14 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
@@ -146,6 +150,23 @@ class OfficialMqttService(
 
     private val _subscribedTopics = MutableStateFlow<List<String>>(emptyList())
     val subscribedTopics: StateFlow<List<String>> = _subscribedTopics.asStateFlow()
+
+    /**
+     * Status pushes that passed IMEI filtering, emitted after the pending
+     * command ACK/error bookkeeping and the ACC/defence cloud-state
+     * application have settled. Command confirmation waits on this — the
+     * official ControlFragment semantic: push-driven, zero HTTP polling.
+     *
+     * `replay = 1` closes the check-then-subscribe gap for waiters (a push
+     * arriving between a state check and `first()` is still delivered).
+     */
+    private val _statusPayloadEvents = MutableSharedFlow<OfficialMqttStatusPayload>(
+        replay = 1,
+        extraBufferCapacity = 1,
+        onBufferOverflow = BufferOverflow.DROP_OLDEST,
+    )
+    val statusPayloadEvents: SharedFlow<OfficialMqttStatusPayload> =
+        _statusPayloadEvents.asSharedFlow()
 
     @Volatile private var _client: MqttAsyncClient? = null
     @Volatile private var _connectedClientId: String? = null
@@ -715,8 +736,12 @@ class OfficialMqttService(
         ackMessage?.let { log.operation(it) }
 
         // Official also applies ACC/defence fields opportunistically on any status.
-        if (!payload.hasVehicleState) return
-        cloud?.applyMqttVehicleStatus(acc = payload.accInt, defenceStatus = payload.defenceStatusInt)
+        if (payload.hasVehicleState) {
+            cloud?.applyMqttVehicleStatus(acc = payload.accInt, defenceStatus = payload.defenceStatusInt)
+        }
+        // Wake push-driven confirmation waiters after the state/pending
+        // bookkeeping above settled so their re-check sees the new snapshot.
+        _statusPayloadEvents.tryEmit(payload)
     }
 
     // --- outbound commands -------------------------------------------------
@@ -793,16 +818,9 @@ class OfficialMqttService(
             )
             _lastSendPath = OfficialRemoteSendPath.MQTT
             log.operation("官方远程通道: MQTT", detail = "command=${api.apiName}")
-            // Keep a light HTTP refresh as secondary consistency (official uses
-            // MQTT status first; we still poll list state shortly after).
-            scope.launch {
-                try {
-                    delay(2_000)
-                    cloud.refreshVehicles(silent = true, force = true)
-                } catch (_: Throwable) {
-                    // Secondary consistency poll only; MQTT status remains source of truth.
-                }
-            }
+            // No post-send HTTP refresh here: the command is confirmed by the
+            // MQTT status push (see [statusPayloadEvents]); the caller's
+            // confirmation loop owns any lightweight fallback refresh.
             // Explicit channel tag so UI/logs can distinguish MQTT vs HTTP fallback.
             return "mqtt:success"
         } catch (e: Throwable) {

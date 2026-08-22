@@ -24,6 +24,7 @@ import io.mockk.verify
 import java.net.SocketException
 import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -45,7 +46,6 @@ class OfficialMqttServiceTest {
     every { cloud.currentState } returns OfficialCloudState.initial()
     every { cloud.applyMqttVehicleStatus(any(), any()) } just Runs
     coEvery { cloud.sendCommand(any()) } returns "success"
-    coEvery { cloud.refreshVehicles(any(), any(), any(), any()) } just Runs
   }
 
   @After
@@ -211,6 +211,52 @@ class OfficialMqttServiceTest {
       mqtt.handleStatusPayload("""{"imei":"another-imei","defenceStatus":"1"}""")
 
       assertEquals("lock", mqtt.pendingCommandApiName)
+      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any()) }
+    } finally {
+      mqtt.resetForTest()
+    }
+  }
+
+  // --- push-driven confirmation signal ------------------------------------
+
+  @Test
+  fun emitsStatusPayloadEventsForCurrentVehicleOnly() = runBlocking {
+    val mqtt = OfficialMqttService(defaultCloud = cloud)
+    try {
+      bindSignedIn(mqtt, "860000000000001")
+      mqtt.publishCommandOverride = { _, _, _ -> }
+
+      mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
+      // Another vehicle's push is filtered before any state application…
+      mqtt.handleStatusPayload("""{"imei":"another-imei","defenceStatus":"1"}""")
+      // …the current vehicle's push applies state and wakes confirmation waiters.
+      mqtt.handleStatusPayload("""{"imei":"860000000000001","ACC":"0","defenceStatus":"1"}""")
+
+      // replay = 1: the waiter that subscribes after the push still sees it
+      // (closes the check-then-subscribe gap in the confirmation loop).
+      val payload = mqtt.statusPayloadEvents.first()
+      assertEquals("0", payload.acc)
+      assertEquals("1", payload.defenceStatus)
+    } finally {
+      mqtt.resetForTest()
+    }
+  }
+
+  @Test
+  fun emitsStatusPayloadEventsWithoutVehicleState() = runBlocking {
+    val mqtt = OfficialMqttService(defaultCloud = cloud)
+    try {
+      bindSignedIn(mqtt, "860000000000001")
+      mqtt.publishCommandOverride = { _, _, _ -> }
+
+      mqtt.sendCommandPreferMqtt(CommandCode.FIND, cloud)
+      // Error-only payloads still wake waiters (pending-error bookkeeping ran).
+      mqtt.handleStatusPayload(
+        """{"imei":"860000000000001","defenceErrorStatus":3,"bikeSetSourceValue":3}""",
+      )
+
+      val payload = mqtt.statusPayloadEvents.first()
+      assertEquals(3, payload.defenceErrorStatus)
       verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any()) }
     } finally {
       mqtt.resetForTest()

@@ -11,6 +11,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -104,6 +105,17 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   val cloudService = vm.cloudService
   val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
 
+  // The nav scaffold consumes three fields only. Reading them through
+  // derivedStateOf keeps an unrelated cloudState emission (messages, travel,
+  // loading flags, battery refreshes …) from recomposing the whole Scaffold /
+  // bottom bar / NavHost — that double recomposition amplified every state
+  // change on the control page into a full-tree pass.
+  val navSignedIn by remember { derivedStateOf { cloudState.signedIn } }
+  val navSelectedVehicleKey by remember { derivedStateOf { cloudState.selectedVehicle?.key } }
+  val navVehicleRouteId by remember {
+    derivedStateOf { navSelectedVehicleKey?.takeIf { it.isNotBlank() } ?: "current" }
+  }
+
   // Bootstrap once: restore the persisted session, bind MQTT to the cloud state.
   var bootstrapped by remember { mutableStateOf(false) }
   LaunchedEffect(Unit) {
@@ -121,7 +133,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   }
 
   val startDestination = remember(bootstrapped) {
-    if (cloudState.signedIn) Routes.vehicleHome(cloudState.selectedVehicle?.key) else Routes.LOGIN
+    if (navSignedIn) Routes.vehicleHome(navSelectedVehicleKey) else Routes.LOGIN
   }
 
   val backStackEntry by navController.currentBackStackEntryAsState()
@@ -132,7 +144,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
     Routes.CONTROL,
     Routes.PROFILE_MINE,
   )
-  val vehicleRouteId = cloudState.selectedVehicle?.key?.takeIf { it.isNotBlank() } ?: "current"
+  val vehicleRouteId = navVehicleRouteId
 
   fun navigateBottomTab(route: String) {
     navController.navigate(route) {

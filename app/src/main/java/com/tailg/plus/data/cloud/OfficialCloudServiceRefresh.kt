@@ -133,22 +133,26 @@ internal class OfficialCloudRefreshLogic(
         refreshReplicaDetails: Boolean = true,
         force: Boolean = false,
         preferredVehicleKey: String? = null,
+        refreshDependents: Boolean = true,
     ) {
         val token = service.state.token
         if (token.isEmpty()) return
         val refreshKey = "vehicles"
         if (!force && silent && service.shouldUseRecentRefresh(refreshKey)) {
-            service.refreshVehicleDependents(refreshReplicaDetails)
+            if (refreshDependents) {
+                service.refreshVehicleDependents(refreshReplicaDetails)
+            }
             return
         }
         service.coalesceRefresh(refreshKey, silent, force) {
-            refreshVehiclesNow(silent, refreshReplicaDetails, refreshKey, token, preferredVehicleKey)
+            refreshVehiclesNow(silent, refreshReplicaDetails, refreshDependents, refreshKey, token, preferredVehicleKey)
         }
     }
 
     private suspend fun refreshVehiclesNow(
         silent: Boolean,
         refreshReplicaDetails: Boolean,
+        refreshDependents: Boolean,
         refreshKey: String,
         token: String,
         preferredVehicleKey: String?,
@@ -185,7 +189,9 @@ internal class OfficialCloudRefreshLogic(
             )
             service.applySelectedVehicleToLocalProfile()
             service.log.operation("官方车辆列表已刷新", detail = "count=${vehicles.size}")
-            service.refreshVehicleDependents(refreshReplicaDetails)
+            if (refreshDependents) {
+                service.refreshVehicleDependents(refreshReplicaDetails)
+            }
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
             if (!service.isCurrentSession(token)) return

@@ -52,6 +52,7 @@ import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.data.model.OfficialCloudCommand
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.mqtt.OfficialMqttService
+import com.tailg.plus.data.mqtt.OfficialMqttStatusPayload
 import com.tailg.plus.data.mqtt.OfficialRemoteSendPath
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
@@ -83,10 +84,26 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 
 private const val CONTROL_CONFIRM_TIMEOUT_MS = 8_000L
-private const val CONTROL_CONFIRM_POLL_DELAY_MS = 800L
+
+/**
+ * Official-parity confirmation window: phase 1 only waits for MQTT status
+ * pushes ([OfficialMqttService.statusPayloadEvents]) — zero HTTP requests,
+ * exactly what the official ControlFragment does. The HTTP fallback below
+ * only exists because the official app has no timeout story at all.
+ */
+private const val CONTROL_CONFIRM_PUSH_WINDOW_MS = 3_000L
+
+/** Fallback cadence: one lightweight carStatus-only refresh per interval. */
+private const val CONTROL_CONFIRM_FALLBACK_RETRY_MS = 3_000L
+
+/** Entry: dependents land one beat after the first-paint carStatus refresh. */
+private const val CONTROL_ENTRY_DEPENDENTS_DELAY_MS = 350L
+
 private const val CONTROL_COMMAND_DEBOUNCE_MS = 1_000L
 private const val CONTROL_COMMAND_SEND_DELAY_MS = 500L
 
@@ -130,51 +147,39 @@ fun ControlScreen(
   val commandVersion = ui.commandVersion
   val networkReady = ui.networkReady
 
-  // String resources cached for coroutine-lambda use.
+  // String resources cached for coroutine-lambda use. The per-command title
+  // maps are built inside sendCommand — once per command, not per recomposition.
   val strBusyHint = stringResource(R.string.control_busy_hint)
-  val strTooFrequent = stringResource(R.string.control_too_frequent)
-  val strUnavailableHint = stringResource(R.string.control_unavailable_hint)
-  val strVehicleChanged = stringResource(R.string.control_vehicle_changed)
-  val strChannelChanged = stringResource(R.string.control_channel_changed)
-  val strVehicleOrChannelChanged = stringResource(R.string.control_vehicle_or_channel_changed)
-  val strSeatUnsupported = stringResource(R.string.control_seat_unsupported)
-  val strVehicleUnknown = stringResource(R.string.control_vehicle_unknown)
   val strBleConnected = stringResource(R.string.control_ble_connected)
   val strBleNoAddress = stringResource(R.string.control_ble_no_address)
   val strBleConnecting = stringResource(R.string.control_ble_connecting)
   val strBleUnavailable = stringResource(R.string.control_ble_unavailable)
   val strBlePermission = stringResource(R.string.control_ble_permission)
-  val strBleConnectError = stringResource(R.string.control_ble_connect_error)
-  val strBleRetry = stringResource(R.string.control_ble_retry)
-  val strRetry = stringResource(R.string.control_retry)
 
   val strSuccessFormat = stringResource(R.string.control_success_format)
   val strFailureFormat = stringResource(R.string.control_failure_format)
   val strFailureDetailFormat = stringResource(R.string.control_failure_detail_format)
   val strUnconfirmedFormat = stringResource(R.string.control_unconfirmed_format)
   val strDisabledFormat = stringResource(R.string.control_disabled_format)
-  val strSuccessTitles = mapOf(
-    CommandCode.POWER_ON to stringResource(R.string.control_success_on),
-    CommandCode.POWER_OFF to stringResource(R.string.control_success_off),
-    CommandCode.LOCK to stringResource(R.string.control_success_lock),
-    CommandCode.UNLOCK to stringResource(R.string.control_success_unlock),
-    CommandCode.FIND to stringResource(R.string.control_success_find),
-    CommandCode.OPEN_SEAT to stringResource(R.string.control_success_seat),
-  )
-  val strSuccessSubtitles = mapOf(
-    CommandCode.POWER_ON to stringResource(R.string.control_subtitle_on),
-    CommandCode.POWER_OFF to stringResource(R.string.control_subtitle_off),
-    CommandCode.LOCK to stringResource(R.string.control_subtitle_lock),
-    CommandCode.UNLOCK to stringResource(R.string.control_subtitle_unlock),
-    CommandCode.FIND to stringResource(R.string.control_subtitle_find),
-    CommandCode.OPEN_SEAT to stringResource(R.string.control_subtitle_seat),
-  )
-  val strUnconfirmedTitles = mapOf(
-    CommandCode.POWER_ON to stringResource(R.string.control_unconfirmed_on),
-    CommandCode.POWER_OFF to stringResource(R.string.control_unconfirmed_off),
-    CommandCode.LOCK to stringResource(R.string.control_unconfirmed_lock),
-    CommandCode.UNLOCK to stringResource(R.string.control_unconfirmed_unlock),
-  )
+
+  // Per-command title copy. Plain strings at composition level; the maps are
+  // assembled inside sendCommand — once per command, not per recomposition.
+  val strSuccessOn = stringResource(R.string.control_success_on)
+  val strSuccessOff = stringResource(R.string.control_success_off)
+  val strSuccessLock = stringResource(R.string.control_success_lock)
+  val strSuccessUnlock = stringResource(R.string.control_success_unlock)
+  val strSuccessFind = stringResource(R.string.control_success_find)
+  val strSuccessSeat = stringResource(R.string.control_success_seat)
+  val strSubtitleOn = stringResource(R.string.control_subtitle_on)
+  val strSubtitleOff = stringResource(R.string.control_subtitle_off)
+  val strSubtitleLock = stringResource(R.string.control_subtitle_lock)
+  val strSubtitleUnlock = stringResource(R.string.control_subtitle_unlock)
+  val strSubtitleFind = stringResource(R.string.control_subtitle_find)
+  val strSubtitleSeat = stringResource(R.string.control_subtitle_seat)
+  val strUnconfirmedOn = stringResource(R.string.control_unconfirmed_on)
+  val strUnconfirmedOff = stringResource(R.string.control_unconfirmed_off)
+  val strUnconfirmedLock = stringResource(R.string.control_unconfirmed_lock)
+  val strUnconfirmedUnlock = stringResource(R.string.control_unconfirmed_unlock)
 
   val locationService = viewModel.locationService
 
@@ -214,9 +219,18 @@ fun ControlScreen(
   val signedIn = cloudState.signedIn
   val hasVehicle = cloudVehicle != null
 
-  val controlAvailability = remember(cloudState, bleState, busy, controlChannel, networkReady) {
+  // Narrow cloud identity: the resolvers below only read signedIn /
+  // selectedVehicle / localVehicleLinks. Remembering the control-cloud view
+  // on those keys keeps an unrelated cloudState emission (messages, travel,
+  // loading flags) from producing fresh availability instances — children
+  // then keep their inputs and skip.
+  val controlCloudState = remember(cloudState.signedIn, cloudVehicle, cloudState.localVehicleLinks) {
+    cloudState.asControlCloudState()
+  }
+
+  val controlAvailability = remember(controlCloudState, bleState, busy, controlChannel, networkReady) {
     ControlChannelResolver.resolve(
-      cloudState = cloudState.asControlCloudState(),
+      cloudState = controlCloudState,
       bleReady = connectionManager.isProtocolLoggedIn,
       bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
       defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -240,9 +254,9 @@ fun ControlScreen(
   // Shared busy-free base for the per-command routes below — resolving it
   // once avoids four identical ControlChannelResolver.resolve() passes per
   // recomposition (each keyed remember block used to re-run the same resolve).
-  val baseAvailability = remember(cloudState, bleState, controlChannel, networkReady) {
+  val baseAvailability = remember(controlCloudState, bleState, controlChannel, networkReady) {
     ControlChannelResolver.resolve(
-      cloudState = cloudState.asControlCloudState(),
+      cloudState = controlCloudState,
       bleReady = connectionManager.isProtocolLoggedIn,
       bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
       defaultVehicleId = vehicleStore.defaultVehicle?.id,
@@ -291,19 +305,38 @@ fun ControlScreen(
   }
 
   val distanceUnit = LocalDistanceUnitPreference.current
-  val lastRideVisuals = remember(cloudState, distanceUnit) {
+  val lastRideVisuals = remember(cloudState.travelDays, distanceUnit) {
     lastRideVisuals(cloudState, distanceUnit)
   }
   val commandActivities = remember(commandVersion) { commandLog.entries }
 
-  // Silent refresh on first composition.
+  // Silent refresh on first composition. Official parity: first paint needs
+  // carStatus + messages only (the entrance fade runs uncontended); the
+  // battery/location/fence/today dependents land one beat later — the delayed
+  // pass early-paths into the dependents-only refresh while the "vehicles"
+  // recent-success TTL holds, and falls back to a full refresh if stage one
+  // failed.
   LaunchedEffect(Unit) {
     if (cloudService.currentState.signedIn) {
       try {
-        cloudService.refreshVehicles(silent = true, refreshReplicaDetails = true)
-        cloudService.refreshMessages(silent = true)
+        cloudService.refreshVehicles(
+          silent = true,
+          refreshReplicaDetails = false,
+          refreshDependents = false,
+        )
       } catch (e: Exception) {
         log.operation("Cyber 首页静默刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+      }
+      try {
+        cloudService.refreshMessages(silent = true)
+      } catch (e: Exception) {
+        log.operation("Cyber 首页消息静默刷新失败", detail = e.toString(), level = LogLevel.WARNING)
+      }
+      delay(CONTROL_ENTRY_DEPENDENTS_DELAY_MS)
+      try {
+        cloudService.refreshVehicles(silent = true, refreshReplicaDetails = true)
+      } catch (e: Exception) {
+        log.operation("Cyber 首页依赖数据刷新失败", detail = e.toString(), level = LogLevel.WARNING)
       }
     }
     mqttService.preconnectForCloud(cloudService)
@@ -341,7 +374,14 @@ fun ControlScreen(
       if (preferBle) {
         connectionManager.refreshBikeState()
       } else {
-        cloudService.refreshVehicles(silent = true, refreshReplicaDetails = false, force = true)
+        // Official `updateCarControlInfo`: one carStatus request, no dependent
+        // cascade — battery/BMS/location refreshes never belonged here.
+        cloudService.refreshVehicles(
+          silent = true,
+          refreshReplicaDetails = false,
+          force = true,
+          refreshDependents = false,
+        )
       }
     } catch (e: Exception) {
       log.operation("Cyber 控车后确认车辆状态失败", detail = e.toString(), level = LogLevel.WARNING)
@@ -349,9 +389,13 @@ fun ControlScreen(
   }
 
   /**
-   * Port of Dart `_waitForCommandConfirmation`: a cloud publish is only
-   * "done" once the MQTT pending command clears or ACC/defence reaches the
-   * expected post-command state (and changed from the baseline).
+   * Port of Dart `_waitForCommandConfirmation` with the official App's
+   * push-driven model applied (official `ControlFragment.mqttPublish` +
+   * `messageArrived`): phase 1 waits for MQTT status pushes — zero HTTP.
+   * A publish is only "done" once the MQTT pending command clears or
+   * ACC/defence reaches the expected post-command state (and changed from the
+   * baseline). Phase 2 is our bounded safety net the official app lacks: a
+   * lightweight carStatus-only refresh every [CONTROL_CONFIRM_FALLBACK_RETRY_MS].
    */
   suspend fun waitForCommandConfirmation(
     command: CommandCode,
@@ -386,13 +430,18 @@ fun ControlScreen(
     // Monotonic clock — wall-clock jumps (user adjusts system time) must not
     // stretch or truncate the confirmation window.
     val startedAt = SystemClock.elapsedRealtime()
-    while (true) {
-      if (mqttService.pendingCommandError != null) return false
-      val mqttAcked = ControlCommandConfirmation.mqttPendingAcknowledged(
-        pendingAtSend = mqttPendingAtSend,
-        pendingNow = mqttService.pendingCommandApiName,
-      )
-      if (needsMqttResponse && mqttAcked) {
+
+    fun mqttAckedNow(): Boolean = ControlCommandConfirmation.mqttPendingAcknowledged(
+      pendingAtSend = mqttPendingAtSend,
+      pendingNow = mqttService.pendingCommandApiName,
+    )
+
+    // Snapshot check. For commands that only need the MQTT response, only the
+    // ACK (plus the same-vehicle guard) confirms — poll-loop semantics before
+    // the push-first rewrite never state-confirmed those either.
+    fun confirmedNow(mqttAcked: Boolean): Boolean {
+      if (needsMqttResponse) {
+        if (!mqttAcked) return false
         return ControlCommandConfirmation.guard.allows(
           context = com.tailg.plus.domain.control.ControlCommandConfirmationContext(
             transport = transport,
@@ -401,12 +450,7 @@ fun ControlScreen(
           currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
         )
       }
-      if (needsMqttResponse) {
-        if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
-        delay(CONTROL_CONFIRM_POLL_DELAY_MS)
-        continue
-      }
-      val confirmed = ControlCommandConfirmation.isConfirmed(
+      return ControlCommandConfirmation.isConfirmed(
         command = command,
         transport = transport,
         expectedOfficialVehicleKey = expectedOfficialVehicleKey,
@@ -415,26 +459,41 @@ fun ControlScreen(
         current = vehicleStateSnapshot(),
         mqttAcked = mqttAcked,
       )
-      if (confirmed) return true
+    }
+
+    // Phase 1 — official behavior: wait for the MQTT status push, zero HTTP.
+    // `statusPayloadEvents` fires after the push applied ACC/defence to the
+    // cloud state and settled the pending-command bookkeeping, so the
+    // re-check above always sees the pushed snapshot. The `!== lastPush`
+    // guard consumes at most one replay-cached push (closing the
+    // check-then-subscribe gap) without hot-spinning on the cached instance:
+    // every live push is a fresh payload from tryParse.
+    val pushDeadline = startedAt + CONTROL_CONFIRM_PUSH_WINDOW_MS
+    var lastPush: OfficialMqttStatusPayload? = null
+    while (true) {
+      if (mqttService.pendingCommandError != null) return false
+      if (confirmedNow(mqttAckedNow())) return true
+      val waitMs = pushDeadline - SystemClock.elapsedRealtime()
+      if (waitMs <= 0) break
+      val push = withTimeoutOrNull(waitMs) {
+        mqttService.statusPayloadEvents.first { it !== lastPush }
+      }
+      if (push == null) break
+      lastPush = push
+    }
+
+    // Phase 2 — bounded fallback the official app lacks: one lightweight
+    // carStatus-only refresh per retry (no battery/BMS/location cascade).
+    while (true) {
+      if (mqttService.pendingCommandError != null) return false
       if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
       refreshStateForConfirmation()
       if (mqttService.pendingCommandError != null) return false
-      val mqttAckedAfterRefresh = ControlCommandConfirmation.mqttPendingAcknowledged(
-        pendingAtSend = mqttPendingAtSend,
-        pendingNow = mqttService.pendingCommandApiName,
-      )
-      val confirmedAfterRefresh = ControlCommandConfirmation.isConfirmed(
-        command = command,
-        transport = transport,
-        expectedOfficialVehicleKey = expectedOfficialVehicleKey,
-        currentOfficialVehicleKey = cloudService.currentState.selectedVehicle?.key,
-        baseline = baseline,
-        current = vehicleStateSnapshot(),
-        mqttAcked = mqttAckedAfterRefresh,
-      )
-      if (confirmedAfterRefresh) return true
-      if (SystemClock.elapsedRealtime() - startedAt > CONTROL_CONFIRM_TIMEOUT_MS) return false
-      delay(CONTROL_CONFIRM_POLL_DELAY_MS)
+      if (confirmedNow(mqttAckedNow())) return true
+      // Sleep only the remaining budget so busy never outlives the window.
+      val remainingMs = CONTROL_CONFIRM_TIMEOUT_MS - (SystemClock.elapsedRealtime() - startedAt)
+      if (remainingMs <= 0) return false
+      delay(minOf(CONTROL_CONFIRM_FALLBACK_RETRY_MS, remainingMs))
     }
   }
 
@@ -515,6 +574,29 @@ fun ControlScreen(
     val baseline = vehicleStateSnapshot()
     val activityId = commandLog.start(cmd, "${cmd.label}中…", "指令已发送，等待回执")
     viewModel.bumpCommandVersion()
+    // Built once per command instead of per recomposition of this screen.
+    val strSuccessTitles = mapOf(
+      CommandCode.POWER_ON to strSuccessOn,
+      CommandCode.POWER_OFF to strSuccessOff,
+      CommandCode.LOCK to strSuccessLock,
+      CommandCode.UNLOCK to strSuccessUnlock,
+      CommandCode.FIND to strSuccessFind,
+      CommandCode.OPEN_SEAT to strSuccessSeat,
+    )
+    val strSuccessSubtitles = mapOf(
+      CommandCode.POWER_ON to strSubtitleOn,
+      CommandCode.POWER_OFF to strSubtitleOff,
+      CommandCode.LOCK to strSubtitleLock,
+      CommandCode.UNLOCK to strSubtitleUnlock,
+      CommandCode.FIND to strSubtitleFind,
+      CommandCode.OPEN_SEAT to strSubtitleSeat,
+    )
+    val strUnconfirmedTitles = mapOf(
+      CommandCode.POWER_ON to strUnconfirmedOn,
+      CommandCode.POWER_OFF to strUnconfirmedOff,
+      CommandCode.LOCK to strUnconfirmedLock,
+      CommandCode.UNLOCK to strUnconfirmedUnlock,
+    )
     scope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)

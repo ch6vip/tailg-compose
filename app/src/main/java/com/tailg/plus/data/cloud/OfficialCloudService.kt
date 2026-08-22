@@ -206,11 +206,13 @@ class OfficialCloudService(
         refreshReplicaDetails: Boolean = true,
         force: Boolean = false,
         preferredVehicleKey: String? = null,
+        refreshDependents: Boolean = true,
     ) = refreshLogic.refreshVehicles(
         silent = silent,
         refreshReplicaDetails = refreshReplicaDetails,
         force = force,
         preferredVehicleKey = preferredVehicleKey,
+        refreshDependents = refreshDependents,
     )
 
     suspend fun fetchGaragePage(
@@ -508,7 +510,17 @@ class OfficialCloudService(
 
     internal fun refreshVehiclesAfterCommand(command: CommandCode) {
         runSilentRefresh(
-            { refreshLogic.refreshVehicles(silent = true, refreshReplicaDetails = true, force = true, preferredVehicleKey = null) },
+            {
+                // Official `updateCarControlInfo`: one carStatus request, no
+                // dependent cascade — the confirmation loop owns consistency.
+                refreshLogic.refreshVehicles(
+                    silent = true,
+                    refreshReplicaDetails = false,
+                    force = true,
+                    preferredVehicleKey = null,
+                    refreshDependents = false,
+                )
+            },
             failureMessage = "官方云端指令后刷新状态失败: ${command.label}",
         )
     }

@@ -73,4 +73,21 @@ class MapTileConfigTest {
     }
     assertFalse(points[0] == points[1])
   }
+
+  @Test
+  fun hangzhouWebMercatorStaysOnExpectedZoom15Tile() {
+    val tile = MapTileConfig.webMercatorLocation(30.2741, 120.1551, zoom = 15)
+    assertEquals(15, tile.zoom)
+    assertTrue("tileX=${tile.tileX}", tile.tileX in 27000..28000)
+    assertTrue("tileY=${tile.tileY}", tile.tileY in 13000..14000)
+    assertTrue(tile.fractionalX in 0.0..1.0)
+    assertTrue(tile.fractionalY in 0.0..1.0)
+  }
+
+  @Test
+  fun equatorPrimeMeridianZoom3() {
+    val tile = MapTileConfig.webMercatorLocation(0.0, 0.0, zoom = 3)
+    assertEquals(4, tile.tileX)
+    assertEquals(4, tile.tileY)
+  }
 }

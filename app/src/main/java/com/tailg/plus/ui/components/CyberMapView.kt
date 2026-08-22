@@ -99,6 +99,8 @@ private class MapOverlayState(
   var trackVisible = false
   var fenceVisible = false
   var pinVisible = false
+  var dataKey: String? = null
+  var tilesPaused: Boolean = false
 
   /** Re-apply visibility after a mutation so the map overlay list stays canonical. */
   fun sync(mapView: MapView) {
@@ -138,6 +140,8 @@ fun CyberMapView(
   trackPoints: List<GeoPoint> = emptyList(),
   initialZoom: Double = 16.0,
   showVehiclePin: Boolean = true,
+  interactive: Boolean = true,
+  tilesPaused: Boolean = false,
 ) {
   val context = LocalContext.current
   val lifecycleOwner = LocalLifecycleOwner.current
@@ -191,7 +195,7 @@ fun CyberMapView(
   DisposableEffect(lifecycleOwner) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
-        Lifecycle.Event.ON_RESUME -> mapView.onResume()
+        Lifecycle.Event.ON_RESUME -> if (!overlayState.tilesPaused) mapView.onResume()
         Lifecycle.Event.ON_PAUSE -> mapView.onPause()
         else -> Unit
       }
@@ -211,10 +215,24 @@ fun CyberMapView(
         mapView.also { mv -> labelProvider?.let { mv.overlays.add(TilesOverlay(it, context)) } }
       },
       update = { view ->
+        view.setMultiTouchControls(interactive)
+        if (tilesPaused != overlayState.tilesPaused) {
+          overlayState.tilesPaused = tilesPaused
+          if (tilesPaused) view.onPause() else view.onResume()
+        }
+
         val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
+        val hasTrack = trackPoints.size >= 2
+        val trackKey = if (hasTrack) {
+          "${trackPoints.size}|${trackPoints.first().latitude},${trackPoints.first().longitude}|${trackPoints.last().latitude},${trackPoints.last().longitude}"
+        } else {
+          null
+        }
+        val dataKey = "$latitude|$longitude|$fenceRadiusMeters|$fenceEnabled|$showVehiclePin|$trackKey"
+        if (dataKey != overlayState.dataKey) {
+        overlayState.dataKey = dataKey
 
         // Track polyline with white casing (Dart: 5px green over 3px white border).
-        val hasTrack = trackPoints.size >= 2
         if (hasTrack) {
           overlayState.trackCasing.setPoints(trackPoints)
           overlayState.trackLine.setPoints(trackPoints)
@@ -246,11 +264,6 @@ fun CyberMapView(
 
         // Camera moves only when the target itself changes (Dart initialCenter /
         // CameraFit semantics); recompositions must not snap the view back.
-        val trackKey = if (hasTrack) {
-          "${trackPoints.size}|${trackPoints.first().latitude},${trackPoints.first().longitude}|${trackPoints.last().latitude},${trackPoints.last().longitude}"
-        } else {
-          null
-        }
         when {
           trackKey != null && camera.trackKey != trackKey -> {
             camera.trackKey = trackKey
@@ -269,6 +282,7 @@ fun CyberMapView(
           }
         }
         camera.initialized = true
+        }
       },
     )
     if (latitude == null || longitude == null) {

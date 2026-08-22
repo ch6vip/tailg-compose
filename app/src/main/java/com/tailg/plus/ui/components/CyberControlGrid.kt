@@ -2,7 +2,6 @@ package com.tailg.plus.ui.components
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -86,11 +85,11 @@ fun CyberControlGrid(
         modifier = Modifier.weight(1f),
         onTap = onFind,
       )
-      BoxWithConstraints(modifier = Modifier.weight(1.8f), contentAlignment = Alignment.Center) {
+      Box(modifier = Modifier.weight(1.8f), contentAlignment = Alignment.Center) {
         SlidePowerButton(
           isPowered = powered,
           onSlide = onPowerToggle,
-          trackWidth = maxWidth.coerceAtMost(160.dp),
+          trackWidth = 160.dp,
           enabled = powerAvailability.enabled,
           busy = busy,
           unavailableReason = powerAvailability.disabledReason,
@@ -172,8 +171,9 @@ private fun CircleKey(
       enabled = true,
       shape = CircleShape,
       background = if (available) CyberHomeColors.card else CyberHomeColors.cardMuted,
-      shadowElevation = 6.dp,
-      shadowColor = CyberHomeColors.actionShadow,
+      shadowElevation = 0.dp,
+      borderWidth = 1.dp,
+      borderColor = CyberHomeColors.line,
       semanticsLabel = if (available) {
         label
       } else if (unavailableReason.isEmpty()) {

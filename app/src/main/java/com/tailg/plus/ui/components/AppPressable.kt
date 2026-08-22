@@ -103,12 +103,18 @@ fun AppPressable(
         scaleX = scale
         scaleY = scale
       }
-      .shadow(
-        elevation = elevation,
-        shape = shape,
-        clip = false,
-        ambientColor = Color.Transparent,
-        spotColor = spot,
+      .then(
+        if (elevation > 0.dp) {
+          Modifier.shadow(
+            elevation = elevation,
+            shape = shape,
+            clip = false,
+            ambientColor = Color.Transparent,
+            spotColor = spot,
+          )
+        } else {
+          Modifier
+        },
       )
       .clip(shape)
       .background(bg)

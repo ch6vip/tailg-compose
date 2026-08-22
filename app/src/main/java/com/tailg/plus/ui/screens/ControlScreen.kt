@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import android.os.SystemClock
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.width
@@ -8,20 +9,33 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.rememberScrollableState
+import androidx.compose.foundation.gestures.scrollable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -53,20 +67,21 @@ import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.CollapsingHeaderState
 import com.tailg.plus.ui.components.CyberControlGrid
+import com.tailg.plus.ui.components.CyberHeaderCollapsedHeight
 import com.tailg.plus.ui.components.CyberHeaderExpandedHeight
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
 import com.tailg.plus.ui.components.OfficialBleChipState
-import com.tailg.plus.ui.components.VehicleControlGateBanner
 import com.tailg.plus.ui.components.VehicleControlHomeGate
 import com.tailg.plus.ui.components.VehicleControlHomeGateKind
 import com.tailg.plus.ui.components.VehicleSwitchSheet
-import com.tailg.plus.ui.components.rememberCyberCollapseFraction
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
+import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -648,11 +663,55 @@ fun ControlScreen(
     showNearFieldHint = false,
   )
 
-  val listState = rememberLazyListState()
-  val measuredCollapseFraction = rememberCyberCollapseFraction(listState, maxExtent = CyberHeaderExpandedHeight)
-  val headerIsFirstItem = gateKind == VehicleControlHomeGateKind.None ||
-    gateKind == VehicleControlHomeGateKind.NearField
-  val collapseFraction = if (headerIsFirstItem) measuredCollapseFraction else 0f
+  val scrollState = rememberScrollState()
+  val density = LocalDensity.current
+  val collapseRangePx = with(density) {
+    (CyberHeaderExpandedHeight - CyberHeaderCollapsedHeight).toPx()
+  }
+  val collapseState = remember { CollapsingHeaderState(collapseRangePx) }
+  SideEffect { collapseState.updateRange(collapseRangePx) }
+  val headerScrollableState = rememberScrollableState { delta ->
+    collapseState.consumeScrollableDelta(delta, scrollState::dispatchRawDelta)
+  }
+  val configuration = LocalConfiguration.current
+  val viewportKey = configuration.orientation to configuration.screenWidthDp
+
+  val latestSendCommand = rememberUpdatedState { cmd: CommandCode -> sendCommand(cmd) }
+  val latestSendPowerToggle = rememberUpdatedState { sendPowerToggle() }
+  val latestSendArmToggle = rememberUpdatedState { sendArmToggle() }
+  val latestOnNavigate = rememberUpdatedState(onNavigate)
+  val latestBusy = rememberUpdatedState(busy)
+  val latestVehicleCount = rememberUpdatedState(cloudState.vehicles.size)
+  val latestOpenVehicleHeader = rememberUpdatedState {
+    when {
+      latestBusy.value -> {
+        scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
+      }
+      latestVehicleCount.value > 1 -> viewModel.setShowVehicleSwitchSheet(true)
+      else -> latestOnNavigate.value(Routes.OFFICIAL_CLOUD)
+    }
+    Unit
+  }
+  val latestEnsureNearFieldLink = rememberUpdatedState { auto: Boolean ->
+    scope.launch { ensureNearFieldLink(auto) }
+    Unit
+  }
+  val onTitleTap = remember { { latestOpenVehicleHeader.value() } }
+  val onBatteryTap = remember { { latestOnNavigate.value(Routes.batteryDetails("current")) } }
+  val onBleChipTap = remember { { latestEnsureNearFieldLink.value(false) } }
+  val onMessages = remember { { latestOnNavigate.value(Routes.vehicleMessage("current")) } }
+  val onChannelTap = remember { { viewModel.setShowChannelSheet(true) } }
+  val onFind = remember { { latestSendCommand.value(CommandCode.FIND) } }
+  val onPowerToggle = remember {
+    val action: suspend () -> Unit = { latestSendPowerToggle.value() }
+    action
+  }
+  val onArmToggle = remember { { latestSendArmToggle.value() } }
+  val onSettings = remember { { latestOnNavigate.value(Routes.vehicleSettings("current")) } }
+  val onSeat = remember { { latestSendCommand.value(CommandCode.OPEN_SEAT) } }
+  val onNfc = remember { { latestOnNavigate.value(Routes.OFFICIAL_REPLICA) } }
+  val onMapTap = remember { { latestOnNavigate.value(Routes.location("current")) } }
+  val onRideStatsTap = remember { { latestOnNavigate.value(Routes.rideStats("current")) } }
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -660,50 +719,67 @@ fun ControlScreen(
     contentWindowInsets = WindowInsets.statusBars,
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
   ) { padding ->
-    LazyColumn(
-      state = listState,
+    Box(
       modifier = Modifier
         .fillMaxSize()
-        .padding(padding),
+        .padding(padding)
+        .clipToBounds(),
     ) {
-      if (!headerIsFirstItem) {
-        item {
-          Column {
-            when (gateKind) {
-              VehicleControlHomeGateKind.SignedOut -> VehicleControlGateBanner(
-                title = stringResource(R.string.control_need_login),
-                actionLabel = stringResource(R.string.control_login_action),
-                onAction = { onNavigate(Routes.LOGIN) },
-              )
-              VehicleControlHomeGateKind.Loading -> {
-                VehicleControlGateBanner(
-                  title = "正在同步官方车辆…",
-                  actionLabel = stringResource(R.string.control_syncing_action),
-                  busy = true,
-                  onAction = {},
-                )
-                Spacer(Modifier.height(18.dp))
-                CyberHomeSkeleton()
-              }
-              VehicleControlHomeGateKind.Error -> VehicleControlGateBanner(
-                title = cloudState.error?.trim()?.ifEmpty { null } ?: "车辆同步失败，请重试",
-                actionLabel = stringResource(R.string.control_retry_action),
-                onAction = { handleRefresh() },
-              )
-              VehicleControlHomeGateKind.NoVehicle -> VehicleControlGateBanner(
-                title = "暂无车辆，请先同步官方车辆",
-                actionLabel = stringResource(R.string.control_add_vehicle_action),
-                onAction = { onNavigate(Routes.ADD_VEHICLE) },
-              )
-              VehicleControlHomeGateKind.NearField, VehicleControlHomeGateKind.None -> {}
+      key(viewportKey) {
+        Column(
+          modifier = Modifier
+            .fillMaxSize()
+            .padding(top = CyberHeaderCollapsedHeight)
+            .offset {
+              IntOffset(0, (collapseState.rangePx - collapseState.offsetPx).roundToInt())
             }
+            .nestedScroll(collapseState.listConnection)
+            .verticalScroll(scrollState),
+        ) {
+          Spacer(Modifier.height(18.dp))
+          CyberControlGrid(
+            powered = isPowerOn,
+            armed = isArmed,
+            busy = busy,
+            activeCommand = activeCommand?.toBleCommandCode(),
+            findAvailability = findAvailability,
+            powerAvailability = powerAvailability,
+            armAvailability = armAvailability,
+            seatAvailability = seatAvailability,
+            onFind = onFind,
+            onPowerToggle = onPowerToggle,
+            onArmToggle = onArmToggle,
+            onSettings = onSettings,
+            onSeat = onSeat,
+            onNfc = onNfc,
+          )
+          Spacer(Modifier.height(32.dp))
+          CyberMapStatsRow(
+            location = location,
+            address = locationTitle(location),
+            todayKm = todayRideLabel(cloudState, distanceUnit),
+            totalKm = totalMileageLabel(cloudVehicle, distanceUnit),
+            lastDistance = lastRideVisuals.first,
+            lastDuration = lastRideVisuals.second,
+            onMapTap = onMapTap,
+            onRideStatsTap = onRideStatsTap,
+          )
+          if (commandActivities.isNotEmpty()) {
+            Spacer(Modifier.height(16.dp))
+            CyberRecentCommands(commands = commandActivities)
           }
+          Spacer(Modifier.height(24.dp))
         }
       }
-      // Collapsing vehicle header.
-      item {
         CyberVehicleHeader(
-          collapseFraction = collapseFraction,
+          modifier = Modifier
+            .align(Alignment.TopCenter)
+            .fillMaxWidth()
+            .scrollable(
+              state = headerScrollableState,
+              orientation = Orientation.Vertical,
+            ),
+          collapseState = collapseState,
           vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
           rangeText = rangeLabel(battery, distanceUnit),
           carPhoto = cloudVehicle?.carPhoto ?: "",
@@ -715,63 +791,20 @@ fun ControlScreen(
           powered = isPowerOn,
           bleChip = bleChipState,
           channelStatus = controlChannelStatus,
-          onTitleTap = {
-            // Dart `_openVehicleHeader`: switch sheet when multiple vehicles,
-            // else the official cloud page.
-            if (busy) {
-              scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
-            } else if (cloudState.vehicles.size > 1) {
-              viewModel.setShowVehicleSwitchSheet(true)
-            } else {
-              onNavigate(Routes.OFFICIAL_CLOUD)
-            }
-          },
-          onBatteryTap = { onNavigate(Routes.batteryDetails("current")) },
-          onBleChipTap = {
-            scope.launch { ensureNearFieldLink() }
-          },
-          onMessages = { onNavigate(Routes.vehicleMessage("current")) },
-          onChannelTap = { viewModel.setShowChannelSheet(true) },
+          onTitleTap = onTitleTap,
+          onBatteryTap = onBatteryTap,
+          onBleChipTap = onBleChipTap,
+          onMessages = onMessages,
+          onChannelTap = onChannelTap,
         )
-      }
-      // Control grid + map stats + recent commands.
-      item {
-        Column {
-          Spacer(Modifier.height(18.dp))
-          CyberControlGrid(
-            powered = isPowerOn,
-            armed = isArmed,
-            busy = busy,
-            activeCommand = activeCommand?.toBleCommandCode(),
-            findAvailability = findAvailability,
-            powerAvailability = powerAvailability,
-            armAvailability = armAvailability,
-            seatAvailability = seatAvailability,
-            onFind = { sendCommand(CommandCode.FIND) },
-            onPowerToggle = { sendPowerToggle() },
-            onArmToggle = { sendArmToggle() },
-            onSettings = { onNavigate(Routes.vehicleSettings("current")) },
-            onSeat = { sendCommand(CommandCode.OPEN_SEAT) },
-            onNfc = { onNavigate(Routes.OFFICIAL_REPLICA) },
-          )
-          Spacer(Modifier.height(32.dp))
-          CyberMapStatsRow(
-            location = location,
-            address = locationTitle(location),
-            todayKm = todayRideLabel(cloudState, distanceUnit),
-            totalKm = totalMileageLabel(cloudVehicle, distanceUnit),
-            lastDistance = lastRideVisuals.first,
-            lastDuration = lastRideVisuals.second,
-            onMapTap = { onNavigate(Routes.location("current")) },
-            onRideStatsTap = { onNavigate(Routes.rideStats("current")) },
-          )
-          if (commandActivities.isNotEmpty()) {
-            Spacer(Modifier.height(16.dp))
-            CyberRecentCommands(commands = commandActivities)
-          }
-          Spacer(Modifier.height(24.dp))
-        }
-      }
+      // Gate overlay (banner / loading skeleton) above the stable list.
+      CyberControlGateOverlay(
+        gateKind = gateKind,
+        error = cloudState.error,
+        onRetry = { handleRefresh() },
+        onLogin = { onNavigate(Routes.LOGIN) },
+        onAddVehicle = { onNavigate(Routes.ADD_VEHICLE) },
+      )
     }
   }
 

@@ -58,4 +58,40 @@ object MapTileConfig {
       .replace("{y}", y.toString())
       .replace("{z}", zoom.toString())
   }
+
+  /**
+   * Web-Mercator tile for a WGS84 point. Used by the control-home mini map
+   * so that page can show a static preview instead of a live MapView.
+   */
+  fun webMercatorLocation(latitude: Double, longitude: Double, zoom: Int): WebMercatorLocation {
+    val z = zoom.coerceIn(3, 18)
+    val n = 1 shl z
+    val wrappedX = ((longitude + 180.0) / 360.0 * n).let { x ->
+      val mod = x % n
+      if (mod < 0) mod + n else mod
+    }
+    val latRad = Math.toRadians(latitude.coerceIn(-85.05112878, 85.05112878))
+    val mercatorY = (
+      1.0 - kotlin.math.ln(kotlin.math.tan(latRad) + 1.0 / kotlin.math.cos(latRad)) / Math.PI
+    ) / 2.0 * n
+    val clampedY = mercatorY.coerceIn(0.0, (n - 1).toDouble())
+    val tileX = kotlin.math.floor(wrappedX).toInt().coerceIn(0, n - 1)
+    val tileY = kotlin.math.floor(clampedY).toInt().coerceIn(0, n - 1)
+    return WebMercatorLocation(
+      tileX = tileX,
+      tileY = tileY,
+      zoom = z,
+      fractionalX = wrappedX - tileX,
+      fractionalY = clampedY - tileY,
+    )
+  }
 }
+
+data class WebMercatorLocation(
+  val tileX: Int,
+  val tileY: Int,
+  val zoom: Int,
+  val fractionalX: Double,
+  val fractionalY: Double,
+)
+

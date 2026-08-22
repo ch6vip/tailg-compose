@@ -12,7 +12,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
+import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -38,7 +44,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
 import okhttp3.Request
-import kotlin.math.min
 
 /**
  * Port of `lib/widgets/vehicle_stage.dart` — fallback vehicle illustration.
@@ -164,14 +169,13 @@ private val HeadlightPath = Path().apply {
   close()
 }
 
-/** Draws the 340×172 vehicle illustration, centered and aspect-scaled. */
+/** Draws the 340x172 vehicle illustration, centered and aspect-scaled. */
 fun DrawScope.drawVehicleStage(batteryLevel: Float) {
-  val s = min(size.width / 340f, size.height / 172f)
-  val ox = (size.width - 340f * s) / 2f
-  val oy = (size.height - 172f * s) / 2f
-
-  translate(left = ox, top = oy) {
-    scale(scaleX = s, scaleY = s) {
+  val transform = vehicleStageTransform(size.width, size.height) ?: return
+  // Pivot must be origin: Compose scale() defaults to the canvas center, which
+  // on xxhdpi (s>2) pushes the bike into the left edge - the cold-start flash.
+  translate(left = transform.originX, top = transform.originY) {
+    scale(scaleX = transform.scale, scaleY = transform.scale, pivot = Offset.Zero) {
       drawFloor()
       drawBrandMark()
       drawVehicle(batteryLevel)
@@ -345,8 +349,12 @@ private fun quadPath(x1: Float, y1: Float, cx: Float, cy: Float, x2: Float, y2: 
 
 /**
  * Wrapper for the vehicle stage with proper sizing (Dart `VehicleStage`).
- * The painter is always drawn; when the official asset is copied later,
- * swap the Canvas for an `Image(painterResource(...))`.
+ * Remote `carPhoto` values stay empty until decoded so the vector fallback
+ * cannot flash at a wrong offset; failed or empty URLs use the local painter.
+ * Drawing is also skipped while the box is still a leftover landscape width
+ * (rotation) so the left half of the bike cannot appear as a rear-wheel sliver.
+ * The ready check runs in draw, not composition, so collapse constraint
+ * changes do not rebuild the image loader.
  */
 @Composable
 fun VehicleStage(
@@ -355,12 +363,29 @@ fun VehicleStage(
   height: Dp = 200.dp,
   imageUrl: String? = null,
 ) {
+  val density = LocalDensity.current
+  val viewportWidthPx = with(density) {
+    LocalConfiguration.current.screenWidthDp.dp.toPx()
+  }
+  val expectedHeightPx = with(density) { height.toPx() }
   // Dart officialHorizontalPadding = 20.0
   Box(
     modifier = modifier
       .fillMaxWidth()
       .height(height)
-      .padding(horizontal = 20.dp),
+      .padding(horizontal = 20.dp)
+      .clipToBounds()
+      .drawWithContent {
+        val ready = vehicleStageLayoutReady(
+          widthPx = size.width,
+          heightPx = size.height,
+          viewportWidthPx = viewportWidthPx,
+          expectedHeightPx = expectedHeightPx,
+        )
+        if (ready) {
+          drawContent()
+        }
+      },
   ) {
     VehicleImageOrFallback(
       imageUrl = imageUrl,
@@ -370,6 +395,12 @@ fun VehicleStage(
   }
 }
 
+private sealed interface VehicleImageLoad {
+  data object Pending : VehicleImageLoad
+  data class Ready(val bitmap: Bitmap) : VehicleImageLoad
+  data object Fallback : VehicleImageLoad
+}
+
 @Composable
 internal fun VehicleImageOrFallback(
   imageUrl: String?,
@@ -377,28 +408,34 @@ internal fun VehicleImageOrFallback(
   modifier: Modifier = Modifier,
 ) {
   val normalizedUrl = imageUrl?.trim().orEmpty()
-  val bitmap by produceState<Bitmap?>(initialValue = null, key1 = normalizedUrl) {
-    value = loadVehicleImage(normalizedUrl)
+  val remote = isRemoteVehicleImageUrl(normalizedUrl)
+  val load by produceState<VehicleImageLoad>(
+    initialValue = if (remote) VehicleImageLoad.Pending else VehicleImageLoad.Fallback,
+    key1 = normalizedUrl,
+  ) {
+    value = loadVehicleImage(normalizedUrl)?.let { VehicleImageLoad.Ready(it) }
+      ?: VehicleImageLoad.Fallback
   }
-  val imageBitmap = bitmap?.asImageBitmap()
-  if (imageBitmap != null) {
-    Image(
-      bitmap = imageBitmap,
-      contentDescription = null,
-      contentScale = ContentScale.Fit,
-      modifier = modifier,
-    )
-  } else {
-    Canvas(modifier = modifier) {
+  when (val current = load) {
+    VehicleImageLoad.Pending -> Box(modifier)
+    is VehicleImageLoad.Ready -> {
+      val imageBitmap = remember(current.bitmap) { current.bitmap.asImageBitmap() }
+      Image(
+        bitmap = imageBitmap,
+        contentDescription = null,
+        contentScale = ContentScale.Fit,
+        alignment = Alignment.Center,
+        modifier = modifier.clipToBounds(),
+      )
+    }
+    VehicleImageLoad.Fallback -> Canvas(modifier = modifier.clipToBounds()) {
       drawVehicleStage(batteryLevel)
     }
   }
 }
 
 private suspend fun loadVehicleImage(url: String): Bitmap? {
-  if (!url.startsWith("https://", ignoreCase = true) &&
-    !url.startsWith("http://", ignoreCase = true)
-  ) {
+  if (!isRemoteVehicleImageUrl(url)) {
     return null
   }
   return withContext(Dispatchers.IO) {

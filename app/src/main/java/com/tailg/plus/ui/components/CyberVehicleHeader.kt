@@ -9,10 +9,8 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.scaleOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -22,7 +20,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -31,22 +28,24 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -56,19 +55,21 @@ import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
-import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
+import kotlin.math.roundToInt
 
 /**
  * Port of `lib/widgets/cyber_vehicle_header.dart` — collapsing header for the
  * Cyber control home.
  *
  * The Dart `SliverPersistentHeaderDelegate` collapses between
- * `minExtent = 152` and `maxExtent = expandedExtent`; this port exposes a
- * [collapseFraction] (0 = expanded, 1 = collapsed) so any scroll source can
- * drive it. [rememberCyberCollapseFraction] derives it from a [LazyListState]
- * whose **first item is the header** (same usage as the Dart sliver).
+ * `minExtent = 152` and `maxExtent = expandedExtent` with
+ * `SliverPersistentHeader(pinned: true)`. Compose has no sliver protocol,
+ * so a [CollapsingHeaderState] + nested scroll is the equivalent: the header
+ * stays pinned, shrinks in place, and list content does not recompose per
+ * collapse pixel.
  *
  * Token mapping: `CyberHomeColors.pageBg/card/control/primary/primarySoft/
  * ink/inkSecondary/inkMuted/inkFaint/warning/danger/actionShadow` → the
@@ -94,9 +95,21 @@ internal fun cyberHeaderHeight(collapseFraction: Float): Dp {
     (CyberHeaderExpandedHeight - CyberHeaderCollapsedHeight) * progress
 }
 
+private fun Modifier.collapseLayerVisible(visible: () -> Boolean): Modifier =
+  layout { measurable, constraints ->
+    if (!visible()) {
+      layout(0, 0) {}
+    } else {
+      val placeable = measurable.measure(constraints)
+      layout(placeable.width, placeable.height) {
+        placeable.place(0, 0)
+      }
+    }
+  }
+
 @Composable
 fun CyberVehicleHeader(
-  collapseFraction: Float,
+  collapseState: CollapsingHeaderState,
   vehicleName: String,
   rangeText: String,
   carPhoto: String,
@@ -115,16 +128,28 @@ fun CyberVehicleHeader(
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
 ) {
-  val progress = collapseFraction.coerceIn(0f, 1f)
-  val expandedOpacity = (1f - progress * 1.8f).coerceIn(0f, 1f)
-  val compactOpacity = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
-  val headerHeight = cyberHeaderHeight(progress)
+  val density = LocalDensity.current
+  val expandedPx = with(density) { CyberHeaderExpandedHeight.toPx() }
+  val collapsedPx = with(density) { CyberHeaderCollapsedHeight.toPx() }
+  // Thresholds only: reading fraction in composition would rebuild VehicleStage
+  // every collapse pixel. Opacity/height are applied in layout/draw instead.
+  val expandedInteractive by remember(collapseState) {
+    derivedStateOf { collapseState.fraction <= 0.278f }
+  }
+  val compactInteractive by remember(collapseState) {
+    derivedStateOf { collapseState.fraction >= 0.71f }
+  }
+  val showCollapsedShadow by remember(collapseState) {
+    derivedStateOf { collapseState.fraction > 0.95f }
+  }
 
-  // Entrance fade: when this item first composes (e.g., the loading gate
-  // above it is removed), the LazyColumn can measure it once with transient
-  // constraints and the Canvas vehicle illustration flashes at a wrong
-  // offset for a single frame. Starting transparent hides that frame; the
-  // header then fades in fully laid out.
+  // Entrance fade (secondary defense): the loading gate now renders as an
+  // overlay, so the home list structure never changes and this header
+  // is not re-measured on gate clear (the primary fix for the illustration
+  // flashing at a wrong offset). This fade still covers a first composition
+  // measured with transient constraints (e.g. entering the page directly
+  // with no gate at all) and smooths the page entrance; starting transparent
+  // hides any such frame before the header fades in fully laid out.
   var headerAppeared by remember { mutableStateOf(false) }
   val enterAlpha by animateFloatAsState(
     targetValue = if (headerAppeared) 1f else 0f,
@@ -133,14 +158,40 @@ fun CyberVehicleHeader(
   )
   LaunchedEffect(Unit) { headerAppeared = true }
 
+  // Self-healing remeasure after rotation: the window can keep geometry
+  // measured with mid-rotation constraints (landscape width shown in
+  // a portrait viewport = left half of the bike / rear wheel). Tick immediately
+  // on viewport change rather than waiting for the entrance fade, then again
+  // after the window insets settle. Reading [relayoutTick] in measure
+  // invalidates layout only — no recomposition, so the photo loader survives.
+  val configuration = LocalConfiguration.current
+  val viewportKey = configuration.orientation to configuration.screenWidthDp
+  var relayoutTick by remember { mutableFloatStateOf(0f) }
+  LaunchedEffect(viewportKey) {
+    relayoutTick += 1f
+    delay(64)
+    relayoutTick += 1f
+    delay(200)
+    relayoutTick += 1f
+  }
+
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .height(headerHeight)
       .graphicsLayer { alpha = enterAlpha }
+      .layout { measurable, constraints ->
+        relayoutTick // measure-invalidation key; see comment above
+        val height = (expandedPx - collapseState.offsetPx)
+          .roundToInt()
+          .coerceIn(collapsedPx.roundToInt(), expandedPx.roundToInt())
+        val placeable = measurable.measure(
+          constraints.copy(minHeight = height, maxHeight = height),
+        )
+        layout(placeable.width, height) { placeable.place(0, 0) }
+      }
       .background(CyberHomeColors.pageBg)
       .then(
-        if (progress > 0.95f) {
+        if (showCollapsedShadow) {
           Modifier.shadow(
             elevation = 8.dp,
             shape = RoundedCornerShape(bottomStart = AppRadii.md, bottomEnd = AppRadii.md),
@@ -154,16 +205,22 @@ fun CyberVehicleHeader(
       ),
   ) {
     // Expanded hero layer.
-    // Dart `IgnorePointer(ignoring: expandedOpacity < 0.5)`: Compose alpha()
+    // Dart IgnorePointer(ignoring: expandedOpacity < 0.5): Compose alpha()
     // does not block hit testing, so gate the layer's clickable subtree with
-    // the `interactive` parameter. Both layers stay composed so their
+    // the interactive parameter. Both layers stay composed so VehicleStage is
+    // not disposed on collapse. Layout reports 0 size when a layer is fully
+    // faded so the overlay on top cannot eat hits. Opacity is draw-phase only.
     // The explicit parent height above mirrors SliverPersistentHeader's
     // min/max extents; matchParentSize children do not participate in Box
     // measurement on their own.
     Box(
       modifier = Modifier
         .matchParentSize()
-        .alpha(expandedOpacity),
+        .collapseLayerVisible { collapseState.fraction < 0.56f }
+        .graphicsLayer {
+          val progress = collapseState.fraction
+          alpha = (1f - progress * 1.8f).coerceIn(0f, 1f)
+        },
     ) {
       CyberHeroHeader(
         vehicleName = vehicleName,
@@ -177,7 +234,7 @@ fun CyberVehicleHeader(
         powered = powered,
         bleChip = bleChip,
         channelStatus = channelStatus,
-        interactive = expandedOpacity >= 0.5f,
+        interactive = expandedInteractive,
         onTitleTap = onTitleTap,
         onBatteryTap = onBatteryTap,
         onBleChipTap = onBleChipTap,
@@ -189,7 +246,11 @@ fun CyberVehicleHeader(
     Box(
       modifier = Modifier
         .matchParentSize()
-        .alpha(compactOpacity),
+        .collapseLayerVisible { collapseState.fraction > 0.42f }
+        .graphicsLayer {
+          val progress = collapseState.fraction
+          alpha = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
+        },
     ) {
       CyberTopBar(
         vehicleName = vehicleName,
@@ -202,7 +263,7 @@ fun CyberVehicleHeader(
         powered = powered,
         bleChip = bleChip,
         channelStatus = channelStatus,
-        interactive = compactOpacity >= 0.5f,
+        interactive = compactInteractive,
         onTitleTap = onTitleTap,
         onBatteryTap = onBatteryTap,
         onBleChipTap = onBleChipTap,
@@ -211,32 +272,6 @@ fun CyberVehicleHeader(
       )
     }
   }
-}
-
-/** Collapse fraction from a LazyColumn whose first item is the header. */
-@Composable
-fun rememberCyberCollapseFraction(
-  listState: LazyListState,
-  minExtent: Dp = CyberHeaderCollapsedHeight,
-  maxExtent: Dp,
-): Float {
-  val density = LocalDensity.current
-  val collapseRangePx = with(density) {
-    (maxExtent - minExtent).toPx().coerceAtLeast(1f)
-  }
-  var fraction by remember { mutableFloatStateOf(0f) }
-  LaunchedEffect(listState, collapseRangePx) {
-    snapshotFlow {
-      if (listState.firstVisibleItemIndex == 0) {
-        listState.firstVisibleItemScrollOffset.toFloat() / collapseRangePx
-      } else {
-        1f
-      }
-    }.collect { value ->
-      fraction = value.coerceIn(0f, 1f)
-    }
-  }
-  return fraction
 }
 
 @Composable
@@ -392,11 +427,13 @@ private fun CyberHeroHeader(
       channelStatus = channelStatus,
       onChannelTap = if (interactive) onChannelTap else null,
     )
-    // Vehicle illustration
+    // Vehicle illustration. Clip so a first-frame overflow cannot cover
+    // the range/status row above (the left-edge wheel flash).
     Box(
       modifier = Modifier
         .weight(1f)
-        .fillMaxWidth(),
+        .fillMaxWidth()
+        .clipToBounds(),
       contentAlignment = Alignment.Center,
     ) {
       VehicleStage(
@@ -422,8 +459,7 @@ private fun HeroAction(
     onClick = if (interactive) onClick else null,
     shape = RoundedCornerShape(AppRadii.lg),
     background = if (primary) CyberHomeColors.primary else CyberHomeColors.card,
-    shadowElevation = 6.dp,
-    shadowColor = CyberHomeColors.actionShadow,
+    shadowElevation = 0.dp,
     semanticsLabel = label,
   ) {
     Box(
@@ -458,19 +494,17 @@ private fun CyberTopBar(
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
 ) {
-  BoxWithConstraints(
+  val contentWidth = (LocalConfiguration.current.screenWidthDp - 40).dp
+  val actionColumnWidth = (contentWidth * 0.48f)
+    .coerceAtMost(160.dp)
+    .coerceAtLeast(112.dp)
+    .coerceAtMost(contentWidth)
+  Row(
     modifier = Modifier
       .fillMaxSize()
       .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 6.dp),
+    verticalAlignment = Alignment.Top,
   ) {
-    val actionColumnWidth = (maxWidth * 0.48f)
-      .coerceAtMost(160.dp)
-      .coerceAtLeast(112.dp)
-      .coerceAtMost(maxWidth)
-    Row(
-      modifier = Modifier.fillMaxSize(),
-      verticalAlignment = Alignment.Top,
-    ) {
       // Left: vehicle name + range + status line (Dart Column layout)
       Column(
         modifier = Modifier.weight(1f),
@@ -565,7 +599,6 @@ private fun CyberTopBar(
       }
     }
   }
-}
 
 @Composable
 private fun CyberStatusLine(

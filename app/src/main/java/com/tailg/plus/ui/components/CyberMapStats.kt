@@ -1,10 +1,11 @@
 package com.tailg.plus.ui.components
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -17,12 +18,17 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.shadow
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -37,6 +43,10 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
+import java.net.HttpURLConnection
+import java.net.URL
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Port of `lib/widgets/cyber_map_stats.dart` — map + ride-stats card row.
@@ -70,59 +80,47 @@ fun CyberMapStatsRow(
   onMapTap: () -> Unit,
   onRideStatsTap: () -> Unit,
 ) {
-  BoxWithConstraints(
-    modifier = modifier.padding(horizontal = 20.dp),
-  ) {
-    val stacked = maxWidth < 420.dp
-    val mapCard: @Composable () -> Unit = {
-      Box(
-        modifier = Modifier
-          .fillMaxWidth()
-          .shadow(
-            elevation = 6.dp,
-            shape = RoundedCornerShape(AppRadii.sheet),
-            clip = false,
-            ambientColor = Color.Transparent,
-            spotColor = CyberHomeColors.actionShadow,
-          ),
-      ) {
-        MiniMap(
-          location = location,
-          address = address,
-          height = if (stacked) 210.dp else 260.dp,
-          onMapTap = onMapTap,
-        )
-      }
+  val stacked = LocalConfiguration.current.screenWidthDp < 420
+  val mapCard: @Composable () -> Unit = {
+    Box(modifier = Modifier.fillMaxWidth()) {
+      MiniMap(
+        location = location,
+        address = address,
+        height = if (stacked) 210.dp else 260.dp,
+        onMapTap = onMapTap,
+      )
     }
-    val rideCard: @Composable () -> Unit = {
-      AppPressable(
-        onClick = onRideStatsTap,
-        shape = RoundedCornerShape(AppRadii.sheet),
-        semanticsLabel = stringResource(R.string.map_stats_view_ride),
-        shadowElevation = 6.dp,
-        shadowColor = CyberHomeColors.actionShadow,
-      ) {
-        RideCard(
-          height = if (stacked) 216.dp else 260.dp,
-          todayKm = todayKm,
-          totalKm = totalKm,
-          lastDistance = lastDistance,
-          lastDuration = lastDuration,
-        )
-      }
+  }
+  val rideCard: @Composable () -> Unit = {
+    AppPressable(
+      onClick = onRideStatsTap,
+      shape = RoundedCornerShape(AppRadii.sheet),
+      semanticsLabel = stringResource(R.string.map_stats_view_ride),
+      shadowElevation = 0.dp,
+    ) {
+      RideCard(
+        height = if (stacked) 216.dp else 260.dp,
+        todayKm = todayKm,
+        totalKm = totalKm,
+        lastDistance = lastDistance,
+        lastDuration = lastDuration,
+      )
     }
-    if (stacked) {
-      Column(modifier = Modifier.fillMaxWidth()) {
-        mapCard()
-        Spacer(Modifier.height(12.dp))
-        rideCard()
-      }
-    } else {
-      Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top) {
-        Box(modifier = Modifier.weight(1f)) { mapCard() }
-        Spacer(Modifier.width(12.dp))
-        Box(modifier = Modifier.weight(1f)) { rideCard() }
-      }
+  }
+  if (stacked) {
+    Column(modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth()) {
+      mapCard()
+      Spacer(Modifier.height(12.dp))
+      rideCard()
+    }
+  } else {
+    Row(
+      modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+      verticalAlignment = Alignment.Top,
+    ) {
+      Box(modifier = Modifier.weight(1f)) { mapCard() }
+      Spacer(Modifier.width(12.dp))
+      Box(modifier = Modifier.weight(1f)) { rideCard() }
     }
   }
 }
@@ -151,12 +149,13 @@ private fun MiniMap(
       .clip(RoundedCornerShape(AppRadii.sheet))
       .background(CyberHomeColors.mapPlaceholder),
   ) {
-    CyberMapView(
-      latitude = if (hasPin) lat else null,
-      longitude = if (hasPin) lng else null,
-      modifier = Modifier.matchParentSize(),
-    )
-    // The AndroidView consumes gestures, so re-surface the card tap on top.
+    if (hasPin && lat != null && lng != null) {
+      MiniMapPreview(
+        latitude = lat,
+        longitude = lng,
+        modifier = Modifier.matchParentSize(),
+      )
+    }
     Box(
       modifier = Modifier
         .matchParentSize()
@@ -324,5 +323,60 @@ private fun Metric(
       modifier = Modifier.fillMaxWidth(),
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
     )
+  }
+}
+
+@Composable
+private fun MiniMapPreview(
+  latitude: Double,
+  longitude: Double,
+  modifier: Modifier = Modifier,
+) {
+  val zoom = 15
+  val tile = remember(latitude, longitude) {
+    MapTileConfig.webMercatorLocation(latitude, longitude, zoom)
+  }
+  val url = remember(tile) {
+    MapTileConfig.resolveTileUrl(
+      template = MapTileConfig.baseUrlTemplate(),
+      x = tile.tileX,
+      y = tile.tileY,
+      zoom = tile.zoom,
+    )
+  }
+  val bitmap by produceState<ImageBitmap?>(initialValue = null, url) {
+    value = withContext(Dispatchers.IO) { loadMiniMapTile(url) }
+  }
+  val image = bitmap
+  if (image != null) {
+    Image(
+      bitmap = image,
+      contentDescription = null,
+      contentScale = ContentScale.Crop,
+      alignment = BiasAlignment(
+        horizontalBias = (tile.fractionalX * 2.0 - 1.0).toFloat(),
+        verticalBias = (tile.fractionalY * 2.0 - 1.0).toFloat(),
+      ),
+      modifier = modifier,
+    )
+  }
+}
+
+private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
+  return withContext(Dispatchers.IO) {
+    runCatching {
+      val connection = URL(url).openConnection() as HttpURLConnection
+      connection.connectTimeout = 4_000
+      connection.readTimeout = 4_000
+      connection.instanceFollowRedirects = true
+      connection.setRequestProperty("User-Agent", "tailg-plus")
+      try {
+        connection.inputStream.use { stream ->
+          BitmapFactory.decodeStream(stream)?.asImageBitmap()
+        }
+      } finally {
+        connection.disconnect()
+      }
+    }.getOrNull()
   }
 }

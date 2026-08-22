@@ -22,16 +22,12 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.graphics.asComposeRenderEffect
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -54,8 +50,9 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  *   same-named [CyberHomeColors] tokens; `AppRadii.pill` → [AppRadii.pill].
  * - `AppShadows.cyberNavShadow` → [Modifier.shadow] with
  *   [CyberHomeColors.actionShadow] spot (no dedicated nav-shadow token).
- * - Dart `BackdropFilter.blur(24)` → [Modifier.blur] with
- *   [MotionPolicy.reduceMotion] gating (blur is expensive under reduce-motion).
+ * - Dart `BackdropFilter.blur(24)` is omitted on Android: live backdrop blur
+ *   of the scrolling control page is a fling-jank source, so the bar uses
+ *   [CyberHomeColors.navSurface] only.
  *
  * Icons: `Lucide.service` → `Icons.Filled.GridView`; `Lucide.vehicle` →
  * `Icons.Filled.DirectionsBike`; `Lucide.mine` → `Icons.Filled.Person`.
@@ -64,7 +61,6 @@ object VoidOrbitalNav {
   const val barHeightDp = 64
 }
 
-@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun VoidOrbitalNav(
   currentIndex: Int,
@@ -73,22 +69,7 @@ fun VoidOrbitalNav(
   onVehicle: () -> Unit,
   onMine: () -> Unit,
 ) {
-  val reduceMotion = MotionPolicy.reduceMotion()
   val haptics = LocalHapticFeedback.current
-  // Dart BackdropFilter.blur(sigma 24): RenderEffect blurs the backdrop
-  // behind this layer; skipped on < API 31 and under reduce-motion. The blur
-  // parameters are constant, so build the effect once instead of on every
-  // layer update (this bar is hosted on every top-level screen).
-  val navBlur = remember {
-    if (android.os.Build.VERSION.SDK_INT >= 31) {
-      android.graphics.RenderEffect.createBlurEffect(
-        24f, 24f, android.graphics.Shader.TileMode.CLAMP,
-      ).asComposeRenderEffect()
-    } else {
-      null
-    }
-  }
-
   val shape = RoundedCornerShape(AppRadii.pill)
 
   // Dart: EdgeInsets.fromLTRB(24, 0, 24, 8 + bottomInset * 0.45).
@@ -118,13 +99,7 @@ fun VoidOrbitalNav(
         modifier = Modifier
           .matchParentSize()
           .clip(shape)
-          .background(CyberHomeColors.navSurface)
-          .graphicsLayer {
-            if (!reduceMotion) {
-              renderEffect = navBlur
-              alpha = 0.99f
-            }
-          },
+          .background(CyberHomeColors.navSurface),
       )
       // Border layer drawn on its own Box so the 1dp white stroke is not
       // clipped by the rounded clip (Dart BoxDecoration border + borderRadius).

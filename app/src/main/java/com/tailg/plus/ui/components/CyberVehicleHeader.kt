@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.components
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -32,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -41,6 +43,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -117,10 +120,24 @@ fun CyberVehicleHeader(
   val compactOpacity = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
   val headerHeight = cyberHeaderHeight(progress)
 
+  // Entrance fade: when this item first composes (e.g., the loading gate
+  // above it is removed), the LazyColumn can measure it once with transient
+  // constraints and the Canvas vehicle illustration flashes at a wrong
+  // offset for a single frame. Starting transparent hides that frame; the
+  // header then fades in fully laid out.
+  var headerAppeared by remember { mutableStateOf(false) }
+  val enterAlpha by animateFloatAsState(
+    targetValue = if (headerAppeared) 1f else 0f,
+    animationSpec = tween(durationMillis = 180),
+    label = "cyberHeaderEnter",
+  )
+  LaunchedEffect(Unit) { headerAppeared = true }
+
   Box(
     modifier = modifier
       .fillMaxWidth()
       .height(headerHeight)
+      .graphicsLayer { alpha = enterAlpha }
       .background(CyberHomeColors.pageBg)
       .then(
         if (progress > 0.95f) {

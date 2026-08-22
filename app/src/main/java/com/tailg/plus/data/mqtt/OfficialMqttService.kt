@@ -17,6 +17,7 @@ import java.security.cert.X509Certificate
 import java.util.concurrent.TimeoutException
 import javax.net.ssl.SSLContext
 import javax.net.ssl.SSLException
+import javax.net.ssl.SSLSocketFactory
 import javax.net.ssl.TrustManager
 import javax.net.ssl.X509TrustManager
 import kotlinx.coroutines.CancellationException
@@ -517,13 +518,9 @@ class OfficialMqttService(
                 userName = mqUser
                 this.password = mqPass.toCharArray()
                 if (parsed.security == MqttTransportSecurity.TLS) {
-                    // Official MqttUtil installs a trust-all path for non-KKS/YJ
-                    // SSL brokers. Keep it disabled by default even in Debug;
-                    // developers must explicitly pass -PallowInsecureMqttTls=true.
-                    if (com.tailg.plus.BuildConfig.DEBUG &&
-                        com.tailg.plus.BuildConfig.ALLOW_INSECURE_MQTT_TLS
-                    ) {
-                        socketFactory = trustAllSslContext.socketFactory
+                    val socketFactoryOverride = tlsSocketFactoryFor(parsed.host)
+                    if (socketFactoryOverride != null) {
+                        socketFactory = socketFactoryOverride
                     }
                 }
             }
@@ -883,11 +880,38 @@ class OfficialMqttService(
     // --- ssl ---------------------------------------------------------------
 
     /**
-     * Trust-all SSL context for the non-KKS/YJ brokers (official MqttUtil
-     * installs the same trust-all path for model types other than 1/2).
-     *
-     * Debug opt-in only (`-PallowInsecureMqttTls=true`). Release and normal
-     * Debug builds use the JVM default SSLSocketFactory / system trust store.
+     * Official TLS broker hosts whose certificates are private-CA self-signed
+     * (observed: CN=c18_ex_base_pro.tailgdd.com served on www.tailgdd.com:6668
+     * with an untrusted chain). System validation always fails against them,
+     * which is why the official MqttUtil installs a trust-all path. We align
+     * with official behavior but scope it to these hosts only — any other
+     * endpoint keeps strict default validation.
+     */
+    private val OFFICIAL_TLS_HOSTS = setOf("www.tailgdd.com")
+
+    /**
+     * [SSLSocketFactory] override for a TLS broker host: official alignment
+     * for [OFFICIAL_TLS_HOSTS], the Debug `ALLOW_INSECURE_MQTT_TLS` escape
+     * hatch for arbitrary hosts, null (= strict system validation) otherwise.
+     */
+    private fun tlsSocketFactoryFor(host: String): SSLSocketFactory? = when {
+        host.lowercase() in OFFICIAL_TLS_HOSTS -> {
+            log.operation(
+                "官方 MQTT TLS 信任策略",
+                detail = "host=$host 按官方 MqttUtil 行为跳过系统证书校验" +
+                    "(官方端点为私有 CA 自签证书)",
+                level = LogLevel.WARNING,
+            )
+            trustAllSslContext.socketFactory
+        }
+        com.tailg.plus.BuildConfig.DEBUG && com.tailg.plus.BuildConfig.ALLOW_INSECURE_MQTT_TLS ->
+            trustAllSslContext.socketFactory
+        else -> null
+    }
+
+    /**
+     * Trust-all SSL context backing [tlsSocketFactoryFor]. Debug opt-in only
+     * (`-PallowInsecureMqttTls=true`) for non-official hosts.
      */
     private val trustAllSslContext: SSLContext by lazy {
         val trustAll = object : X509TrustManager {

@@ -29,13 +29,17 @@ CI 使用 Temurin 17；本机若默认是更新的 JDK，请设置 `JAVA_HOME` �
 ./gradlew assembleDebug testDebugUnitTest lintDebug
 ```
 
-如确需兼容证书异常的测试 MQTT Broker，可仅在 Debug 构建中显式启用：
+官方 C18 TLS broker（`www.tailgdd.com:6668`）使用私有 CA 自签证书（实测
+CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然失败——
+官方 App 的 MqttUtil 正是为此安装了信任路径。本客户端对**官方 broker 主机**
+默认对齐该行为（跳过系统证书校验，日志中显式记录警告），其他任何主机仍走
+严格校验。如确需在 Debug 构建中连接任意自签名测试 Broker，可显式启用：
 
 ```bash
 ./gradlew assembleDebug -PallowInsecureMqttTls=true
 ```
 
-该开关会跳过 MQTT 服务端证书校验，不应在日常构建或不可信网络中使用。
+该开关仅影响非官方主机的调试场景，不应在日常构建或不可信网络中使用。
 
 注意：官方 KKS/YJ 车型协议固定使用 `tcp://www.tailgdd.com:1883`，当前客户端
 无法仅靠本地改动把它升级为 TLS；连接日志和诊断报告会明确标记为

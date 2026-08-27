@@ -150,6 +150,33 @@ fun CyberMapView(
   val labelTemplate = remember { MapTileConfig.annotationUrlTemplate() }
   val strVehicleLocation = stringResource(R.string.map_view_vehicle_location)
 
+  val hasCenter = latitude != null && longitude != null
+
+  // No coordinate → nothing to show: skip creating the osmdroid MapView
+  // entirely. osmdroid initialization is heavy (thread pools, bitmap pool,
+  // tile cache) and the official app only ever mounts its map (AMap) when it
+  // has a location to render — the placeholder is a plain static view.
+  if (!hasCenter && trackPoints.size < 2) {
+    Box(modifier = modifier) {
+      Box(
+        modifier = Modifier
+          .matchParentSize()
+          .background(CyberHomeColors.mapPlaceholder.copy(alpha = 0.86f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+          LucideIcon(icon = Lucide.map, size = 40.dp, color = CyberHomeColors.inkFaint)
+          Spacer(Modifier.height(6.dp))
+          androidx.compose.material3.Text(
+            text = stringResource(R.string.map_view_no_location),
+            style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+          )
+        }
+      }
+    }
+    return
+  }
+
   // Tiles providers own thread pools: create once, detach once. Rebuilding
   // them per recomposition would leak threads/bitmats.
   val labelProvider = remember(labelTemplate) {
@@ -285,22 +312,5 @@ fun CyberMapView(
         }
       },
     )
-    if (latitude == null || longitude == null) {
-      Box(
-        modifier = Modifier
-          .matchParentSize()
-          .background(CyberHomeColors.mapPlaceholder.copy(alpha = 0.86f)),
-        contentAlignment = Alignment.Center,
-      ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
-          LucideIcon(icon = Lucide.map, size = 40.dp, color = CyberHomeColors.inkFaint)
-          Spacer(Modifier.height(6.dp))
-          androidx.compose.material3.Text(
-            text = stringResource(R.string.map_view_no_location),
-            style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-          )
-        }
-      }
-    }
   }
 }

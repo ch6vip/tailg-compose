@@ -2071,14 +2071,51 @@ class ConnectionManager(
     _token = null
   }
 
-  /** Port of Dart `_publishBikeState`. */
+  /**
+   * Port of Dart `_publishBikeState`, with a field-level debounce aligned to
+   * how the official app splits state across separate LiveDatas
+   * (`getBikeState()` / `getPowerState()` / `capacityDataState` …).
+   *
+   * The QGJ heartbeat polls `feb3` every second and re-derives a full
+   * `BikeState` each time; without a debounce, the jittery `voltage` field
+   * (a float from the wire) would re-emit a new state object once a second
+   * and re-trigger the whole control-page recomposition graph. We only
+   * re-publish when a *user-visible* field actually crossed its threshold:
+   * - lock/power/mute/faults — boolean transitions always publish;
+   * - voltage — publish only when it moved by at least 0.5V from the last
+   *   published value (still keeps the UI battery figure honest, absorbs
+   *   wire noise);
+   * - battery percent — integer, publishes on any change (rare).
+   */
   private fun publishBikeState(state: BikeState?) {
-    if (state == _lastPublishedBikeState) return
+    if (state == null) {
+      clearBikeState()
+      return
+    }
+    val last = _lastPublishedBikeState
+    if (last != null && state.matchesDebounced(last)) return
     _latestBikeState = state
     _lastPublishedBikeState = state
     if (!_disposed) {
       _bikeState.value = state
     }
+  }
+
+  /** True when [other] differs from this only in fields below the publish threshold. */
+  private fun BikeState.matchesDebounced(other: BikeState): Boolean {
+    if (isLocked != other.isLocked) return false
+    if (isPowerOn != other.isPowerOn) return false
+    if (isMuted != other.isMuted) return false
+    if (batteryPercent != other.batteryPercent) return false
+    if (faultMotor != other.faultMotor) return false
+    if (faultController != other.faultController) return false
+    if (faultBrake != other.faultBrake) return false
+    if (faultLowVoltage != other.faultLowVoltage) return false
+    val v = voltage ?: return true
+    val ov = other.voltage ?: return true
+    // 0.5V hysteresis on the wire voltage — below this the state is
+    // considered unchanged (no new StateFlow emission, no recomposition).
+    return kotlin.math.abs(v - ov) < 0.5
   }
 
   /** Port of Dart `_clearBikeState`. */

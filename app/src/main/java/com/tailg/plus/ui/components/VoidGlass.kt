@@ -35,8 +35,15 @@ import com.tailg.plus.ui.theme.AppRadii
  */
 
 /**
- * VoidGlassCard — 玻璃态卡片组件（毛玻璃 + 能量色发光边框 + 内嵌微光）。
+ * VoidGlassCard — 玻璃态卡片组件（半透明 + 能量色发光边框 + 内嵌微光）。
  * Dart `borderRadius` default 20 → [AppRadii.lg]; `padding` default 18 kept as Dart value.
+ *
+ * **Performance note**: the original port applied `Modifier.blur(blurSigma)`
+ * (live backdrop blur) on every card. The official 3.5.9 app is View-based
+ * and renders these cards as plain translucent fills — no live blur — so
+ * [blurSigma] is now only used when [blur] is explicitly enabled (defaults to
+ * false). The default path is a static translucent panel, which keeps the
+ * glass look without re-rasterizing the backdrop on every frame.
  */
 @Composable
 fun VoidGlassCard(
@@ -44,6 +51,7 @@ fun VoidGlassCard(
   contentPadding: PaddingValues = PaddingValues(18.dp),
   borderRadius: Dp = AppRadii.lg,
   blurSigma: Dp = 12.dp,
+  blur: Boolean = false,
   glowColor: Color = AppColorsDark.energyGreen,
   glowOpacity: Float = 0.15f,
   borderColor: Color = AppColorsDark.textPrimary.copy(alpha = 0.13f), // VoidColors.hairline
@@ -58,7 +66,7 @@ fun VoidGlassCard(
   val clipModifier = if (clipContent) Modifier.clip(shape) else Modifier
 
   val base = modifier
-    .blur(blurSigma)
+    .then(if (blur) Modifier.blur(blurSigma) else Modifier)
     .shadow(
       elevation = 24.dp,
       shape = shape,
@@ -99,12 +107,17 @@ fun VoidGlassCard(
  * VoidGlassPanel — 全宽玻璃面板，用于页面 section 容器（仅底部 hairline）。
  * Dart `blurSigma` default 8; fill `0x0AFFFFFF` → [AppColorsDark.textPrimary].copy(alpha = 0.04f);
  * border `0x1AFFFFFF` → [AppColorsDark.textPrimary].copy(alpha = 0.1f).
+ *
+ * Same perf note as [VoidGlassCard]: live backdrop blur is disabled by
+ * default (official-app parity); [blur] opts back in when a screen truly
+ * needs the frosted look.
  */
 @Composable
 fun VoidGlassPanel(
   modifier: Modifier = Modifier,
   contentPadding: PaddingValues = PaddingValues(horizontal = 20.dp, vertical = 18.dp),
   blurSigma: Dp = 8.dp,
+  blur: Boolean = false,
   glowColor: Color = AppColorsDark.energyGreen,
   glowOpacity: Float = 0.10f,
   content: @Composable () -> Unit,
@@ -113,7 +126,7 @@ fun VoidGlassPanel(
   val edge = AppColorsDark.textPrimary.copy(alpha = 0.1f)
   Box(
     modifier = modifier
-      .blur(blurSigma)
+      .then(if (blur) Modifier.blur(blurSigma) else Modifier)
       .background(fill)
       .border(width = 0.5.dp, color = edge, shape = RoundedCornerShape(0.dp))
       .padding(contentPadding),

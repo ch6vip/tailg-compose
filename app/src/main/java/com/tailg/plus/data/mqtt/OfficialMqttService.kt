@@ -232,8 +232,20 @@ class OfficialMqttService(
             disconnect()
             return
         }
+        // Only preconnect when the *session identity* (vehicle key / user) or
+        // the connectable address actually changed. The official app connects
+        // lazily (MqttUtil.connect is invoked on command send / explicit
+        // trigger), and every cloud-state emission here used to re-run
+        // preconnect (config assembly + IMEI derivation + lock + logging)
+        // even for unrelated refreshes (loading flags, messages, battery).
+        val sessionKey = vehicle.key + "|" + state.userId
+        if (sessionKey == _lastSessionKey) return
+        _lastSessionKey = sessionKey
         preconnect(vehicle = vehicle, userId = state.userId)
     }
+
+    /** Identity of the cloud session the MQTT link is bound to (vehicle+user). */
+    @Volatile private var _lastSessionKey: String? = null
 
     // --- preconnect / retry -----------------------------------------------
 
@@ -862,6 +874,7 @@ class OfficialMqttService(
             _cloudJob = null
             _boundCloud = null
             _preconnectInFlight = false
+            _lastSessionKey = null
         }
         publishCommandOverride = null
         _pendingCommandApiName = null

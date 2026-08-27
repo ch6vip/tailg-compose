@@ -1,5 +1,9 @@
 package com.tailg.plus.ui.components
 
+import android.graphics.Bitmap
+import android.graphics.Canvas as NativeCanvas
+import android.graphics.Color as NativeColor
+import android.graphics.Paint
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -11,6 +15,8 @@ import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asAndroidBitmap
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.graphics.toArgb
 import com.tailg.plus.ui.theme.AppColorsDark
@@ -29,6 +35,18 @@ import kotlin.random.Random
  *
  * Token mapping: `VoidColors.energy` → [AppColorsDark.energyGreen]
  * (light-mode callers pass [AppColorsDark.primaryDark] explicitly, as Dart did).
+ *
+ * ## Performance (mobile jank fixes)
+ *
+ * The original port allocated a new `Paint` + `BlurMaskFilter` per particle
+ * per frame — 48+ native blur allocations every 16ms, which is pure
+ * software-blur churn on the GPU/CPU and a top frame-time offender on
+ * mid-range devices. This rewrite:
+ * - renders the glow halo once into a small cached [Bitmap] sprite
+ *   ([glowSprite] / [glowSpritePaint]) and blits it per particle with a
+ *   single shared [Paint];
+ * - reuses one `Paint` per frame for the core circles;
+ * - culls connection-line pairs that are not within the draw threshold.
  */
 
 private class Particle(
@@ -41,6 +59,34 @@ private class Particle(
   val pulsePeriod: Float,
   val opacity: Float,
 )
+
+// ── Shared draw resources ──────────────────────────────────────────────────
+
+/**
+ * One-time 48×48 glow sprite (energy-colored radial gradient with a soft
+ * edge). Drawn via `drawBitmap` per particle instead of per-frame
+ * `BlurMaskFilter` — the expensive blur runs exactly once at class-load time.
+ */
+private val glowSprite: Bitmap by lazy {
+  val size = 48
+  val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+  val canvas = NativeCanvas(bmp)
+  val center = size / 2f
+  val paint = Paint(Paint.ANTI_ALIAS_FLAG)
+  for (i in 6 downTo 1) {
+    val alpha = (0.10f * (7 - i) * 255f).toInt().coerceIn(0, 255)
+    paint.color = NativeColor.argb(alpha, 0x2F, 0xE0, 0xA6) // energy green base
+    val radius = center * i / 6f
+    canvas.drawCircle(center, center, radius, paint)
+  }
+  bmp
+}
+
+/** Shared paint for blitting [glowSprite]; tinted via alpha on the layer. */
+private val glowSpritePaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+
+/** Shared paint for the core circles (color set per frame, no allocation). */
+private val corePaint: Paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
 /**
  * Volumetric particle field — animated, reactive, immersive (60fps Canvas).
@@ -82,11 +128,19 @@ fun VoidParticleField(
     }
   }
 
+  val sprite = remember { glowSprite.asImageBitmap() }
+  val spriteAndroid = remember(sprite) { sprite.asAndroidBitmap() }
+  val coreArgb = energyColor.toArgb()
+
   Canvas(modifier = modifier) {
     val w = size.width
     val h = size.height
     val ms = elapsedMs
+    val canvas = drawContext.canvas.nativeCanvas
 
+    corePaint.color = coreArgb
+
+    // ── Pass 1: advance particles + draw glow/core ────────────────────────
     for (p in particles) {
       // Drift (~60fps step, same as Dart dt * 60).
       p.x += p.speedX * scale
@@ -118,27 +172,34 @@ fun VoidParticleField(
       val px = p.x * w
       val py = p.y * h
 
-      // Glow halo (native blur like Dart MaskFilter.blur(NORMAL, 8)).
-      val glowPaint = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG).apply {
-        color = energyColor.copy(alpha = alpha * 0.3f).toArgb()
-        maskFilter = android.graphics.BlurMaskFilter(8f, android.graphics.BlurMaskFilter.Blur.NORMAL)
-      }
-      drawContext.canvas.nativeCanvas.drawCircle(px, py, drawSize * 3f, glowPaint)
+      // Glow halo — cached sprite blit with per-particle alpha (the blur was
+      // hoisted into [glowSprite] at class-load time; zero per-frame allocs).
+      val haloSize = drawSize * 6f
+      corePaint.alpha = (alpha * 0.28f * 255f).toInt().coerceIn(0, 255)
+      canvas.drawBitmap(
+        spriteAndroid,
+        null,
+        android.graphics.RectF(px - haloSize / 2f, py - haloSize / 2f, px + haloSize / 2f, py + haloSize / 2f),
+        glowSpritePaint,
+      )
 
       // Core.
-      drawCircle(color = energyColor.copy(alpha = alpha * 0.9f), radius = drawSize * 0.8f, center = Offset(px, py))
+      corePaint.alpha = (alpha * 0.9f * 255f).toInt().coerceIn(0, 255)
+      canvas.drawCircle(px, py, drawSize * 0.8f, corePaint)
     }
 
-    // Subtle connection lines between nearby particles (Dart step of 2).
+    // ── Pass 2: subtle connection lines (culled to threshold, step of 2) ──
     val threshold = 0.08f
+    val thresholdSq = threshold * threshold
     for (i in particles.indices step 2) {
+      val a = particles[i]
       for (j in i + 1 until particles.size step 2) {
-        val a = particles[i]
         val b = particles[j]
         val dx = a.x - b.x
         val dy = a.y - b.y
-        val dist = sqrt(dx * dx + dy * dy)
-        if (dist < threshold) {
+        val distSq = dx * dx + dy * dy
+        if (distSq < thresholdSq) {
+          val dist = sqrt(distSq)
           val alpha = (1f - dist / threshold) * 0.12f
           drawLine(
             color = energyColor.copy(alpha = alpha),

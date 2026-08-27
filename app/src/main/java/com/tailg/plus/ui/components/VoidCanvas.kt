@@ -110,27 +110,59 @@ fun VoidCanvas(
       )
     }
     // Top-right energy nebula (Dart top: -80, right: -60).
+    // Replaced the 60dp `Modifier.blur` (a per-frame RenderEffect blur of a
+    // 280dp region) with an equal-looking radial-gradient circle: the blur is
+    // baked into the gradient stops, so the draw is a single cheap fill.
     Box(
       modifier = Modifier
         .align(Alignment.TopEnd)
         .offset(x = 60.dp, y = (-80).dp)
-        .size(280.dp)
-        .blur(60.dp)
-        .background(glow, CircleShape),
-    )
+        .size(280.dp),
+    ) {
+      Canvas(modifier = Modifier.matchParentSize()) {
+        drawCircle(
+          brush = Brush.radialGradient(
+            colors = listOf(
+              glow.copy(alpha = 0.55f),
+              glow.copy(alpha = 0.12f),
+              glow.copy(alpha = 0f),
+            ),
+            center = Offset(size.width / 2f, size.height / 2f),
+            radius = size.width / 2f,
+          ),
+          radius = size.width / 2f,
+          center = Offset(size.width / 2f, size.height / 2f),
+        )
+      }
+    }
     // Bottom-left cooler nebula (Dart bottom: 80, left: -100).
     Box(
       modifier = Modifier
         .align(Alignment.BottomStart)
         .offset(x = (-100).dp, y = 80.dp)
-        .size(320.dp)
-        .blur(60.dp)
-        .background(blob2, CircleShape),
-    )
-    // Fine grain noise overlay (deterministic Random(7), low-opacity dots).
-    // Positions are precomputed once in normalized space — re-rolling up to
-    // 220 RNG draws on every draw pass was pure per-frame waste; the visual
-    // output is byte-identical (same seed, same order, same count formula).
+        .size(320.dp),
+    ) {
+      Canvas(modifier = Modifier.matchParentSize()) {
+        drawCircle(
+          brush = Brush.radialGradient(
+            colors = listOf(
+              blob2.copy(alpha = 0.5f),
+              blob2.copy(alpha = 0.10f),
+              blob2.copy(alpha = 0f),
+            ),
+            center = Offset(size.width / 2f, size.height / 2f),
+            radius = size.width / 2f,
+          ),
+          radius = size.width / 2f,
+          center = Offset(size.width / 2f, size.height / 2f),
+        )
+      }
+    }
+    // Fine grain noise overlay — rendered once into an offscreen layer and
+    // re-used every frame. The previous version re-drew 40-220 circles on
+    // every frame pass; the pattern is static, so a single cached layer is
+    // byte-identical and costs one blit per frame instead of N draw calls.
+    // Positions are precomputed once in normalized space.
     val grainPoints = remember {
       val rnd = Random(7)
       List(220) { Offset(rnd.nextFloat(), rnd.nextFloat()) }
@@ -138,21 +170,47 @@ fun VoidCanvas(
     Canvas(modifier = Modifier.matchParentSize()) {
       val count = (size.width * size.height / 1800).toInt().coerceIn(40, 220)
       val grainColor = AppColorsDark.textPrimary.copy(alpha = 0.03f) // Dart 0x08FFFFFF grain
-      for (i in 0 until count) {
-        val p = grainPoints[i]
-        drawCircle(
-          color = grainColor,
-          radius = 0.6f,
-          center = Offset(p.x * size.width, p.y * size.height),
+      // Draw the static grain into a cached bitmap the first time this size
+      // is seen, then blit it — no per-frame circle draws.
+      val key = "${size.width.toInt()}x${size.height.toInt()}"
+      val cached = grainCache.getOrPut(key) {
+        val bmp = android.graphics.Bitmap.createBitmap(
+          size.width.toInt(),
+          size.height.toInt(),
+          android.graphics.Bitmap.Config.ARGB_8888,
         )
+        val c = android.graphics.Canvas(bmp)
+        val p = android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG)
+        p.color = grainColor.toArgb()
+        for (i in 0 until count) {
+          val pt = grainPoints[i]
+          c.drawCircle(pt.x * size.width, pt.y * size.height, 0.6f, p)
+        }
+        bmp
       }
+      drawContext.canvas.nativeCanvas.drawBitmap(cached, 0f, 0f, null)
     }
     Box(modifier = Modifier.matchParentSize(), content = content)
   }
 }
 
+/** Static offscreen grain cache keyed by pixel size (bounded). */
+private val grainCache = object : LinkedHashMap<String, android.graphics.Bitmap>(4, 0.75f, true) {
+  override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, android.graphics.Bitmap>?): Boolean =
+    size > 2
+}
+
 /**
  * Frosted glass panel with hairline edge (VoidGlass in void_canvas.dart).
+ *
+ * **Performance note**: the Dart `BackdropFilter(blur)` maps to a Compose
+ * `Modifier.blur`, but a live backdrop blur over scrolling content forces the
+ * whole region behind the panel to be re-rasterized + blurred every frame
+ * (the same fling-jank source the official app avoids — the official app is
+ * View-based and uses plain translucent fills, no live blur). The official
+ * 3.5.9 decompiled sources contain no BackdropFilter equivalent on the home
+ * control page; we follow that: [blur] is kept as an opt-in that defaults to
+ * off, and the glass look comes from the translucent fill + hairline border.
  */
 @Composable
 fun VoidGlass(
@@ -160,7 +218,7 @@ fun VoidGlass(
   contentPadding: PaddingValues = PaddingValues(18.dp),
   radius: Dp = AppRadii.lg,
   border: Boolean = true,
-  blur: Boolean = true,
+  blur: Boolean = false,
   glow: Boolean = false,
   color: Color? = null,
   content: @Composable () -> Unit,
@@ -198,6 +256,10 @@ fun VoidGlass(
     .then(if (border) Modifier.border(1.dp, edge, shape) else Modifier)
     .padding(contentPadding)
 
+  // `blur` is now opt-in and rarely used; the default path (blur = false)
+  // renders a static translucent panel (official-app parity, no per-frame
+  // backdrop blur). When explicitly requested we still apply it, but that is
+  // no longer the hot path of any shipped screen.
   Box(modifier = if (blur) panelModifier.blur(18.dp) else panelModifier) {
     content()
   }

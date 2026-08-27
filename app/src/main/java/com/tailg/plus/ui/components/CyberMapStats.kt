@@ -362,7 +362,20 @@ private fun MiniMapPreview(
   }
 }
 
+/**
+ * Bounded in-memory tile cache for the home mini-map (official app uses the
+ * AMap SDK whose native tile cache covers this; our osmdroid tile cache only
+ * applies on the full map page, so the home preview re-downloaded the same
+ * tile on every location change / recomposition). Keyed by URL, LRU, capped
+ * at 16 entries.
+ */
+private val miniMapTileCache = object : LinkedHashMap<String, ImageBitmap>(16, 0.75f, true) {
+  override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?): Boolean =
+    size > 16
+}
+
 private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
+  miniMapTileCache[url]?.let { return it }
   return withContext(Dispatchers.IO) {
     runCatching {
       val connection = URL(url).openConnection() as HttpURLConnection
@@ -372,7 +385,7 @@ private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
       connection.setRequestProperty("User-Agent", "tailg-plus")
       try {
         connection.inputStream.use { stream ->
-          BitmapFactory.decodeStream(stream)?.asImageBitmap()
+          BitmapFactory.decodeStream(stream)?.asImageBitmap()?.also { miniMapTileCache[url] = it }
         }
       } finally {
         connection.disconnect()

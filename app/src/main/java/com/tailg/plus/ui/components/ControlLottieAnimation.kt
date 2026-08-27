@@ -8,7 +8,6 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.LottieConstants
 import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import com.airbnb.lottie.compose.rememberLottieComposition
 
@@ -25,6 +24,15 @@ import com.airbnb.lottie.compose.rememberLottieComposition
  *
  * Backed by `com.airbnb.android:lottie-compose` 6.6.4 (declared in
  * `gradle/libs.versions.toml`).
+ *
+ * **Playback parity with the official app**: `ControlFragment` plays these
+ * animations as one-shot feedback and calls `cancelAnimation()` when the
+ * command settles (`lavControlStart.playAnimation()` → result → `cancel`).
+ * It never loops them indefinitely. This helper therefore plays once
+ * (`iterations = 1`): a perpetual loop on a control-page keyframe animation
+ * would keep the Lottie renderer (its own render loop) awake for the whole
+ * page lifetime, which is exactly the kind of always-on animation work the
+ * official app avoids. Callers that need a loop can pass `iterations`.
  */
 enum class ControlPowerLottieKind { Start, Stop, Loading }
 
@@ -43,6 +51,7 @@ fun ControlPowerLottie(
   kind: ControlPowerLottieKind,
   modifier: Modifier = Modifier,
   size: Dp = 120.dp,
+  iterations: Int = 1,
 ) {
   val asset = when (kind) {
     ControlPowerLottieKind.Loading -> ControlPowerLottieAssets.LOADING
@@ -52,7 +61,10 @@ fun ControlPowerLottie(
   val composition by rememberLottieComposition(LottieCompositionSpec.Asset(asset))
   val progress by animateLottieCompositionAsState(
     composition = composition,
-    iterations = LottieConstants.IterateForever,
+    // Official ControlFragment semantics: one-shot feedback animation, then
+    // the view is cancelled/cleared. A forever-loop here would keep the
+    // renderer busy for the whole page lifetime (jank + battery).
+    iterations = iterations,
   )
   LottieAnimation(
     composition = composition,

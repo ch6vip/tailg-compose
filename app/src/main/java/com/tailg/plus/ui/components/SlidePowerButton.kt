@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -46,13 +45,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.compose.ui.unit.IntOffset
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 /**
  * Port of `lib/widgets/slide_power_button.dart` — official-like bidirectional
@@ -116,6 +113,12 @@ fun SlidePowerButton(
   val currentIsPowered by rememberUpdatedState(isPowered)
   val currentCanSlide by rememberUpdatedState(canSlide)
 
+  // Drag position rendered through a graphicsLayer reading snapshot state:
+  // while the user drags, writing `dragPositionPx` must NOT recompose the
+  // whole button subtree every pixel. `Modifier.graphicsLayer` reads the
+  // snapshot value in the draw phase only, so dragging stays on the render
+  // thread. When not dragging, `thumbAnimPx` animates the same value for the
+  // spring-back/snap.
   val thumbAnimPx by animateFloatAsState(
     targetValue = dragPositionPx,
     animationSpec = if (dragging || awaitingResult) tween(0) else tween(AppMotion.micro, easing = AppMotion.pressCurve),
@@ -231,12 +234,17 @@ fun SlidePowerButton(
         }
       }
 
-      // Thumb.
+      // Thumb — positioned via graphicsLayer reading the snapshot state so
+      // dragging never recomposes the subtree per pixel: `graphicsLayer`
+      // observes `dragPositionPx` in the draw phase only (no composition
+      // pass), while `thumbAnimPx` drives the non-drag snap/spring animation.
       Box(
         modifier = Modifier
           .align(Alignment.CenterStart)
-          .offset { IntOffset(thumbAnimPx.roundToInt(), 0) }
-          .graphicsLayer { translationX = shakeX.value }
+          .graphicsLayer {
+            translationX = if (dragging || awaitingResult) dragPositionPx else thumbAnimPx
+            this.translationX += shakeX.value
+          }
           .size(ThumbSize.dp)
           .background(CyberHomeColors.card, CircleShape)
           .border(1.dp, CyberHomeColors.line, CircleShape)

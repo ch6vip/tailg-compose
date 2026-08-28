@@ -54,8 +54,13 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatterySnapshot
+import com.tailg.plus.data.model.OfficialBatteryInfo
+import com.tailg.plus.data.model.OfficialCloudMessage
 import com.tailg.plus.data.model.OfficialCloudMessageCategory
+import com.tailg.plus.data.model.OfficialUserProfile
+import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.store.MessageReadStore
 import com.tailg.plus.ui.components.AppPressable
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -73,6 +78,8 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.util.SensitiveValueMasker
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -96,7 +103,31 @@ fun ProfileMineScreen(
   val messageReadStore = remember { MessageReadStore(context) }
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this tab reads login identity (signedIn / phone /
+  // userProfile / selectedVehicle), the vehicle list, and battery+messages for
+  // the header. Collecting the whole `stateFlow` made every unrelated emission
+  // (travel refresh, loading flips, location updates) recompose this always-
+  // present bottom tab. `map`+`distinctUntilChanged` (remembered, per
+  // ControlScreen) drops emissions that leave this read set unchanged.
+  val profileProjection = remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        ProfileCloudSlice(
+          signedIn = state.signedIn,
+          phone = state.phone,
+          userProfile = state.userProfile,
+          vehicles = state.vehicles,
+          selectedVehicle = state.selectedVehicle,
+          batteryInfo = state.batteryInfo,
+          vehicleMessages = state.vehicleMessages,
+          systemMessages = state.systemMessages,
+        )
+      }
+      .distinctUntilChanged()
+  }
+  val cloudState by profileProjection.collectAsStateWithLifecycle(
+    initialValue = ProfileCloudSlice.from(cloudService.currentState),
+  )
   val unreadCount by messageReadStore.unreadCount.collectAsStateWithLifecycle()
 
   var showLogoutSheet by remember { mutableStateOf(false) }
@@ -745,4 +776,33 @@ private fun EditNicknameDialog(
       TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
     },
   )
+}
+
+/**
+ * The slice of [OfficialCloudState] this bottom tab reads. A plain data class
+ * so `distinctUntilChanged` compares by value: travel/location/loading-only
+ * emissions are dropped before they can recompose this always-present tab.
+ */
+private data class ProfileCloudSlice(
+  val signedIn: Boolean,
+  val phone: String,
+  val userProfile: OfficialUserProfile?,
+  val vehicles: List<OfficialVehicle>,
+  val selectedVehicle: OfficialVehicle?,
+  val batteryInfo: OfficialBatteryInfo?,
+  val vehicleMessages: List<OfficialCloudMessage>,
+  val systemMessages: List<OfficialCloudMessage>,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): ProfileCloudSlice = ProfileCloudSlice(
+      signedIn = state.signedIn,
+      phone = state.phone,
+      userProfile = state.userProfile,
+      vehicles = state.vehicles,
+      selectedVehicle = state.selectedVehicle,
+      batteryInfo = state.batteryInfo,
+      vehicleMessages = state.vehicleMessages,
+      systemMessages = state.systemMessages,
+    )
+  }
 }

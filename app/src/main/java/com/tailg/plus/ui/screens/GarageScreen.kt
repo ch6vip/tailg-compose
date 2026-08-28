@@ -63,6 +63,7 @@ import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSkeleton
@@ -77,6 +78,8 @@ import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -100,7 +103,30 @@ fun GarageScreen(
 ) {
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection: this screen only reads the checked-in fields
+  // (signedIn / vehicles / token / selectedVehicle / phone). Collecting the
+  // whole `stateFlow` here made every unrelated cloud emission — batteryInfo
+  // loading flips, message arrival, travel refresh — recompose the entire
+  // garage page (the default first tab) including its vehicle list.
+  // `map`+`distinctUntilChanged` collapses emissions that leave the read set
+  // unchanged; the chain is remembered so lint's FlowOperatorInvokedInComposition
+  // stays satisfied (same pattern as ControlScreen).
+  val garageProjection = remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        GarageCloudSlice(
+          signedIn = state.signedIn,
+          vehicles = state.vehicles,
+          token = state.token,
+          selectedVehicle = state.selectedVehicle,
+          phone = state.phone,
+        )
+      }
+      .distinctUntilChanged()
+  }
+  val cloudState by garageProjection.collectAsStateWithLifecycle(
+    initialValue = GarageCloudSlice.from(cloudService.currentState),
+  )
 
 
   var searchQuery by remember { mutableStateOf("") }
@@ -1243,5 +1269,29 @@ private fun GarageVehicleCodeSheet(
         style = TextStyle(fontSize = 14.sp, color = CyberHomeColors.inkSecondary),
       )
     }
+  }
+}
+
+/**
+ * The gallery this screen reads from [OfficialCloudState]. A plain data class
+ * so `distinctUntilChanged` can compare by value: an emission that changes
+ * only battery/message/travel fields produces an equal slice and is dropped
+ * before it can recompose the garage page.
+ */
+private data class GarageCloudSlice(
+  val signedIn: Boolean,
+  val vehicles: List<OfficialVehicle>,
+  val token: String,
+  val selectedVehicle: OfficialVehicle?,
+  val phone: String,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): GarageCloudSlice = GarageCloudSlice(
+      signedIn = state.signedIn,
+      vehicles = state.vehicles,
+      token = state.token,
+      selectedVehicle = state.selectedVehicle,
+      phone = state.phone,
+    )
   }
 }

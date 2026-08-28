@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.data.model.OfficialCloudMessage
 import com.tailg.plus.data.model.OfficialCloudMessageCategory
@@ -69,6 +70,8 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.util.formatMonthDayMinuteText
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.Instant
 import java.time.LocalDateTime
@@ -98,7 +101,26 @@ fun VehicleMessageScreen(
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val log = rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this screen reads only the message list and the
+  // signed-in flag. The raw `stateFlow` re-emits on battery/location/travel
+  // refreshes too; collecting it whole used to recompose this page (and its
+  // list) on every such emission. `map`+`distinctUntilChanged` (remembered,
+  // per ControlScreen) drops emissions that leave the read set unchanged.
+  val messageProjection = remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        MessageCloudSlice(
+          signedIn = state.signedIn,
+          vehicleMessages = state.vehicleMessages,
+          systemMessages = state.systemMessages,
+          messagesError = state.messagesError,
+        )
+      }
+      .distinctUntilChanged()
+  }
+  val cloudState by messageProjection.collectAsStateWithLifecycle(
+    initialValue = MessageCloudSlice.from(cloudService.currentState),
+  )
 
   var activeTab by remember { mutableIntStateOf(0) }
   var loading by remember { mutableStateOf(false) }
@@ -859,5 +881,26 @@ private fun MessageDetailSheet(
         Text(stringResource(R.string.msg_got_it))
       }
     }
+  }
+}
+
+/**
+ * The slice of [OfficialCloudState] this screen reads. A plain data class so
+ * `distinctUntilChanged` compares by value: battery/location/travel emissions
+ * that leave the message set unchanged are dropped before recomposing the page.
+ */
+private data class MessageCloudSlice(
+  val signedIn: Boolean,
+  val vehicleMessages: List<OfficialCloudMessage>,
+  val systemMessages: List<OfficialCloudMessage>,
+  val messagesError: String?,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): MessageCloudSlice = MessageCloudSlice(
+      signedIn = state.signedIn,
+      vehicleMessages = state.vehicleMessages,
+      systemMessages = state.systemMessages,
+      messagesError = state.messagesError,
+    )
   }
 }

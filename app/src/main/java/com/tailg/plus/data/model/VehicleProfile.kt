@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import java.time.Instant
 
 /**
@@ -22,6 +23,7 @@ enum class VehicleProtocol(val value: String, val label: String) {
     }
 }
 
+@Immutable
 data class VehicleProfile(
     val id: String,
     val name: String,

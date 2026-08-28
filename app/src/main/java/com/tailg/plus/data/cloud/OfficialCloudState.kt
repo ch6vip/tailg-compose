@@ -1,5 +1,6 @@
 package com.tailg.plus.data.cloud
 
+import androidx.compose.runtime.Immutable
 import com.tailg.plus.data.model.OfficialBatteryInfo
 import com.tailg.plus.data.model.OfficialBmsInfo
 import com.tailg.plus.data.model.OfficialCloudMessage
@@ -73,6 +74,7 @@ object OfficialCloudMessages {
  * keeps the Dart sentinel semantics: a parameter omitted (default sentinel)
  * preserves the current value, while an explicitly passed `null` clears it.
  */
+@Immutable
 data class OfficialCloudState(
     val initialized: Boolean,
     val token: String,

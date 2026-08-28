@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.tailg.plus.util.formatFixed
 import java.time.Instant
 import kotlin.math.ceil
@@ -22,6 +23,7 @@ enum class BatteryDataSource(val label: String) {
     BMS_RESERVED("官方字段预留"),
 }
 
+@Immutable
 data class BatterySnapshot(
     val percent: Int?,
     val voltage: Double?,

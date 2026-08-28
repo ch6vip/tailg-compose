@@ -1,5 +1,6 @@
 package com.tailg.plus.domain.control
 
+import androidx.compose.runtime.Immutable
 import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.model.OfficialVehicle
 
@@ -38,6 +39,7 @@ interface ControlCloudState {
   fun linkedLocalVehicleId(officialVehicleKey: String): String?
 }
 
+@Immutable
 data class ControlChannelAvailability(
   val channel: OfficialControlChannel,
   val officialDecision: OfficialControlRouteDecision?,

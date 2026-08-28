@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -32,6 +33,7 @@ enum class OfficialCloudCommand(val apiName: String, val commandCode: CommandCod
     }
 }
 
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialVehicle(
     val imei: String = "",

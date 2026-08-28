@@ -385,7 +385,12 @@ private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
       connection.setRequestProperty("User-Agent", "tailg-plus")
       try {
         connection.inputStream.use { stream ->
-          BitmapFactory.decodeStream(stream)?.asImageBitmap()?.also { miniMapTileCache[url] = it }
+          val options = BitmapFactory.Options().apply {
+            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+          }
+          BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap()?.also {
+            miniMapTileCache[url] = it
+          }
         }
       } finally {
         connection.disconnect()

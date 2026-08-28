@@ -119,6 +119,10 @@ fun VoidParticleField(
   var elapsedMs by remember { mutableFloatStateOf(0f) }
   val loopsEnabled = enableAnimation && MotionPolicy.loopsEnabled()
 
+  // Avoid running full particle animation if particle count is 0 or loops are disabled.
+  // Also pre-allocate RectF to avoid per-particle allocations in the draw loop.
+  val rectF = remember { android.graphics.RectF() }
+
   LaunchedEffect(loopsEnabled) {
     if (!loopsEnabled) return@LaunchedEffect
     while (true) {
@@ -164,11 +168,10 @@ fun VoidParticleField(
         }
       }
 
-      // Pulse opacity (same formula as Dart).
-      val pulse = sin(ms * (2f * kotlin.math.PI.toFloat() / p.pulsePeriod) + p.phase)
+      val pulse = sin(ms * (2f * Math.PI.toFloat() / p.pulsePeriod) + p.phase).toFloat()
       val norm = (pulse + 1f) / 2f
       val alpha = (0.4f + 0.6f * norm) * p.opacity
-      val drawSize = p.size * (0.8f + 0.2f * norm)
+      val drawSize = (p.size * (0.8f + 0.2f * norm)).toFloat()
       val px = p.x * w
       val py = p.y * h
 
@@ -176,10 +179,12 @@ fun VoidParticleField(
       // hoisted into [glowSprite] at class-load time; zero per-frame allocs).
       val haloSize = drawSize * 6f
       corePaint.alpha = (alpha * 0.28f * 255f).toInt().coerceIn(0, 255)
+      val halfHalo = haloSize / 2f
+      rectF.set(px - halfHalo, py - halfHalo, px + halfHalo, py + halfHalo)
       canvas.drawBitmap(
         spriteAndroid,
         null,
-        android.graphics.RectF(px - haloSize / 2f, py - haloSize / 2f, px + haloSize / 2f, py + haloSize / 2f),
+        rectF,
         glowSpritePaint,
       )
 

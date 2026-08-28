@@ -144,25 +144,32 @@ fun ControlScreen(
   // raw `stateFlow` re-emits on every refresh field (messages, travel,
   // batteryInfoLoading…); collecting the whole state here made any unrelated
   // emission restart this entire composable. `map`+`distinctUntilChanged`
-  // collapses emissions that leave the read set unchanged.
-  val cloudState by cloudService.stateFlow
-    .map { state ->
-      CloudScreenState(
-        signedIn = state.signedIn,
-        selectedVehicle = state.selectedVehicle,
-        selectedVehicleKey = state.selectedVehicle?.key,
-        vehicles = state.vehicles,
-        batteryInfo = state.batteryInfo,
-        vehicleLocation = state.vehicleLocation,
-        localVehicleLinks = state.localVehicleLinks,
-        travelDays = state.travelDays,
-        todayRideMileage = state.todayRideMileage,
-        loading = state.loading,
-        error = state.error,
-      )
-    }
-    .distinctUntilChanged()
-    .collectAsStateWithLifecycle(initialValue = CloudScreenState.from(cloudService.currentState))
+  // collapses emissions that leave the read set unchanged. The operator chain
+  // is remembered (not rebuilt per recomposition) so lint's
+  // FlowOperatorInvokedInComposition check stays satisfied and the flow
+  // instance is stable across recompositions.
+  val cloudProjection = remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        CloudScreenState(
+          signedIn = state.signedIn,
+          selectedVehicle = state.selectedVehicle,
+          selectedVehicleKey = state.selectedVehicle?.key,
+          vehicles = state.vehicles,
+          batteryInfo = state.batteryInfo,
+          vehicleLocation = state.vehicleLocation,
+          localVehicleLinks = state.localVehicleLinks,
+          travelDays = state.travelDays,
+          todayRideMileage = state.todayRideMileage,
+          loading = state.loading,
+          error = state.error,
+        )
+      }
+      .distinctUntilChanged()
+  }
+  val cloudState by cloudProjection.collectAsStateWithLifecycle(
+    initialValue = CloudScreenState.from(cloudService.currentState),
+  )
   val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
   val bleBikeState by connectionManager.bikeStateFlow.collectAsStateWithLifecycle()
   val mqttLinkState by mqttService.linkState.collectAsStateWithLifecycle()

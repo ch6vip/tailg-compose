@@ -39,19 +39,10 @@ jobs:
             caches
             wrapper
 
-      # Cache Android SDK packages (platforms, build-tools) so setup-android
-      # does not re-download them on every run. The key hashes the version
-      # catalogs / build scripts so a toolchain bump invalidates the cache
-      # instead of silently reusing stale SDK packages forever.
-      - name: Cache Android SDK
-        uses: actions/cache@v4
-        with:
-          path: |
-            ${{ runner.os == 'Linux' && '~/.android' || '' }}
-            /usr/local/lib/android/sdk
-          key: android-sdk-${{ runner.os }}-${{ hashFiles('gradle/libs.versions.toml', 'app/build.gradle.kts') }}
-          restore-keys: |
-            android-sdk-${{ runner.os }}-
+      # NOTE: no Android SDK cache here on purpose. The runner image already
+      # ships platforms/build-tools, and caching the whole /usr/local/lib/android/sdk
+      # only burned hundreds of MB of cache budget while spamming
+      # "tar: Cannot change mode: Operation not permitted" on every restore.
 
       - name: Assemble + unit tests + lint
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug --stacktrace
@@ -60,6 +51,10 @@ jobs:
       - name: Assemble release (unsigned minify)
         run: ./gradlew assembleRelease --stacktrace
 
+      # Each run used to leave ~34 MB of APK + reports behind with the default
+      # 90-day retention, which blew through the 500 MB artifact quota after
+      # ~15 pushes ("Failed to CreateArtifact: Artifact storage quota has been
+      # hit"). Cap retention and compress so usage stays roughly flat.
       - name: Upload debug APK
         if: success()
         continue-on-error: true
@@ -67,6 +62,8 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
+          compression-level: 9
 
       # Always publish reports (even on failure) so CI reds are debuggable
       # without reproducing locally.
@@ -81,3 +78,5 @@ jobs:
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
           if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 9

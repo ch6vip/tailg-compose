@@ -42,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
@@ -54,6 +55,8 @@ import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -75,7 +78,18 @@ fun VehicleSettingsScreen(
   onAddVehicle: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
-  val state by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this screen reads only the selected vehicle and
+  // the signed-in flag. Collecting the whole `stateFlow` made every unrelated
+  // emission (battery refresh, messages, travel) recompose this page; the
+  // remembered `map`+`distinctUntilChanged` chain drops such emissions.
+  val settingsSlice by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state -> SettingsCloudSlice(state.signedIn, state.selectedVehicle) }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = SettingsCloudSlice(
+    cloudService.currentState.signedIn,
+    cloudService.currentState.selectedVehicle,
+  ))
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
   val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
@@ -94,10 +108,10 @@ fun VehicleSettingsScreen(
         .padding(padding),
     ) {
       CyberPageHeader(title = stringResource(R.string.vehicle_settings_title), onBack = onBack)
-      val vehicle = state.selectedVehicle
+      val vehicle = settingsSlice.selectedVehicle
       if (vehicle == null) {
         SettingsEmptyState(
-          signedIn = state.signedIn,
+          signedIn = settingsSlice.signedIn,
           onAddVehicle = onAddVehicle,
           modifier = Modifier.weight(1f),
         )
@@ -149,7 +163,7 @@ fun VehicleSettingsScreen(
   }
 
   if (showUnbindDialog) {
-    val vehicle = state.selectedVehicle
+    val vehicle = settingsSlice.selectedVehicle
     if (vehicle != null) {
       UnbindConfirmDialog(
         vehicleName = vehicle.displayName,
@@ -479,3 +493,13 @@ private fun UnbindConfirmDialog(
     },
   )
 }
+
+/**
+ * The slice of [OfficialCloudState] this screen reads. A plain data class so
+ * `distinctUntilChanged` compares by value: emissions that leave the selected
+ * vehicle and signed-in flag unchanged are dropped before recomposition.
+ */
+private data class SettingsCloudSlice(
+  val signedIn: Boolean,
+  val selectedVehicle: OfficialVehicle?,
+)

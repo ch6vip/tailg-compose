@@ -56,6 +56,7 @@ import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
@@ -75,6 +76,8 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.SmsCountdown
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import timber.log.Timber
 
@@ -105,7 +108,19 @@ fun LoginScreen(
   val clipboard = entryPoint.clipboardText()
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsStateWithLifecycle()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — the login page only reads the signed-in flag
+  // and the global loading flag. Collecting the whole `stateFlow` made any
+  // cloud emission (battery/messages/travel refreshes from a background
+  // session) recompose the login form; the remembered
+  // `map`+`distinctUntilChanged` chain drops such emissions.
+  val loginSlice by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state -> LoginCloudSlice(state.signedIn, state.loading) }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = LoginCloudSlice(
+    cloudService.currentState.signedIn,
+    cloudService.currentState.loading,
+  ))
 
   // String resources resolved once in the composition so they can be used
   // from coroutine lambdas below (stringResource is @Composable-only).
@@ -133,14 +148,14 @@ fun LoginScreen(
   // safety net: the submit handlers call onSignedIn() directly after success
   // (matching the Dart original), but this catches cases where signedIn
   // changes from outside the handlers (e.g. session restore).
-  LaunchedEffect(cloudState.signedIn, busy) {
-    if (!navigated && cloudState.signedIn && !busy) {
+  LaunchedEffect(loginSlice.signedIn, busy) {
+    if (!navigated && loginSlice.signedIn && !busy) {
       navigated = true
       onSignedIn(null)
     }
   }
 
-  val loading = busy || cloudState.loading
+  val loading = busy || loginSlice.loading
   val normalizedPhone = OfficialCloudLoginValidator.compactPhone(phone)
   val validPhone = OfficialCloudLoginValidator.isValidPhone(normalizedPhone)
   val validSms = OfficialCloudLoginValidator.isValidSmsCode(smsCode.trim())
@@ -553,3 +568,13 @@ private fun FieldLabel(text: String) {
     style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkSecondary),
   )
 }
+
+/**
+ * The slice of [OfficialCloudState] the login page reads. A plain data class
+ * so `distinctUntilChanged` compares by value: emissions that leave the
+ * signed-in / loading flags unchanged are dropped before recomposition.
+ */
+private data class LoginCloudSlice(
+  val signedIn: Boolean,
+  val loading: Boolean,
+)

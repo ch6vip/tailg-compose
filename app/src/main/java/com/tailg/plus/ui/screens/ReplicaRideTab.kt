@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
+import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogCategory
 import com.tailg.plus.log.LogService
@@ -45,6 +46,8 @@ import com.tailg.plus.ui.theme.AppSpacing
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.formatDateText
 import com.tailg.plus.util.formatDateMinuteText
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 
 /**
  * Ride-record page of [OfficialReplicaScreen] (Dart RideRecordPage).
@@ -57,11 +60,22 @@ internal fun RideRecordTab(
   vehicleStore: VehicleStore,
   log: LogService,
 ) {
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this tab reads only the signed-in flag and the
+  // selected vehicle. Collecting the whole `stateFlow` made every unrelated
+  // cloud emission recompose the tab; the remembered `map`+`distinctUntilChanged`
+  // chain drops such emissions.
+  val rideSlice by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state -> RideCloudSlice(state.signedIn, state.selectedVehicle) }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = RideCloudSlice(
+    cloudService.currentState.signedIn,
+    cloudService.currentState.selectedVehicle,
+  ))
   val vehicles by vehicleStore.vehiclesFlow.collectAsStateWithLifecycle()
   val vehicle = vehicleStore.defaultVehicle
   val location = vehicle?.lastLocation
-  val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
+  val cloudVehicle = if (rideSlice.signedIn) rideSlice.selectedVehicle else null
   val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: stringResource(R.string.replica_unbound)
   val logs = remember(log) {
     log.byCategory(LogCategory.OPERATION).takeLast(12).reversed()
@@ -170,3 +184,14 @@ internal fun RideRecordTab(
     }
   }
 }
+
+/**
+ * The slice of [OfficialCloudState] this tab reads. A plain data class so
+ * `distinctUntilChanged` compares by value: emissions that leave the
+ * signed-in flag and selected vehicle unchanged are dropped before
+ * recomposition.
+ */
+private data class RideCloudSlice(
+  val signedIn: Boolean,
+  val selectedVehicle: OfficialVehicle?,
+)

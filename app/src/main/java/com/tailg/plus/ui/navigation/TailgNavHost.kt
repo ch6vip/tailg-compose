@@ -31,7 +31,10 @@ import com.tailg.plus.ui.components.VoidOrbitalNav
 import com.tailg.plus.ui.screens.MainViewModel
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
+import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.preferences.AppLanguagePreference
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import timber.log.Timber
 import java.util.Locale
 
@@ -103,15 +106,28 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudService = vm.cloudService
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — the nav scaffold only needs signed-in status and
+  // the selected vehicle key. Collecting the whole `stateFlow` here used to
+  // recompose the entire scaffold / bottom bar / NavHost on EVERY cloud
+  // emission (messages, travel, loading flips, battery refreshes). The
+  // remembered `map`+`distinctUntilChanged` chain (per ControlScreen) drops
+  // emissions that leave these two fields unchanged.
+  val navCloudSlice by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state -> NavCloudSlice(state.signedIn, state.selectedVehicle?.key) }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = NavCloudSlice(
+    cloudService.currentState.signedIn,
+    cloudService.currentState.selectedVehicle?.key,
+  ))
 
   // The nav scaffold consumes three fields only. Reading them through
   // derivedStateOf keeps an unrelated cloudState emission (messages, travel,
   // loading flags, battery refreshes …) from recomposing the whole Scaffold /
   // bottom bar / NavHost — that double recomposition amplified every state
   // change on the control page into a full-tree pass.
-  val navSignedIn by remember { derivedStateOf { cloudState.signedIn } }
-  val navSelectedVehicleKey by remember { derivedStateOf { cloudState.selectedVehicle?.key } }
+  val navSignedIn by remember { derivedStateOf { navCloudSlice.signedIn } }
+  val navSelectedVehicleKey by remember { derivedStateOf { navCloudSlice.selectedVehicleKey } }
   val navVehicleRouteId by remember {
     derivedStateOf { navSelectedVehicleKey?.takeIf { it.isNotBlank() } ?: "current" }
   }
@@ -214,3 +230,14 @@ private fun TailgNavHostContent(vm: MainViewModel) {
     }
   }
 }
+
+/**
+ * The slice of [OfficialCloudState] the nav scaffold reads. A plain data
+ * class so `distinctUntilChanged` compares by value: any emission that leaves
+ * signed-in status and the selected vehicle key unchanged is dropped before
+ * the scaffold / bottom bar / NavHost recompose.
+ */
+private data class NavCloudSlice(
+  val signedIn: Boolean,
+  val selectedVehicleKey: String?,
+)

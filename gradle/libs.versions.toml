@@ -28,6 +28,7 @@ androidxTestCore = "1.6.1"
 androidxTestExtJunit = "1.2.1"
 espresso = "3.6.1"
 mockk = "1.13.14"
+profileinstaller = "1.4.1"
 
 [libraries]
 # AndroidX core
@@ -95,6 +96,10 @@ paho-mqtt = { group = "org.eclipse.paho", name = "org.eclipse.paho.client.mqttv3
 
 # Logging
 timber = { group = "com.jakewharton.timber", name = "timber", version.ref = "timber" }
+
+# Baseline profile (startup AOT): profileinstaller embeds the profile in the
+# APK and installs it on first run so the JIT/AOT warms the startup path.
+androidx-profileinstaller = { group = "androidx.profileinstaller", name = "profileinstaller", version.ref = "profileinstaller" }
 
 # Test
 junit = { group = "junit", name = "junit", version.ref = "junit" }

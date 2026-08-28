@@ -81,6 +81,15 @@ android {
     }
 }
 
+// Compose compiler metrics: emit per-file recomposition counts and composable
+// sizes to build/compose_compiler. Watch these in CI to catch regressions
+// (a screen silently growing its recomposition scope shows up here before it
+// becomes jank on device). Reports are debug-only artifacts; they do not ship.
+composeCompiler {
+    reportsDestination = layout.buildDirectory.dir("compose_compiler")
+    metricsDestination = layout.buildDirectory.dir("compose_compiler")
+}
+
 dependencies {
     // AndroidX core
     implementation(libs.androidx.core.ktx)
@@ -144,6 +153,10 @@ dependencies {
 
     // Logging
     implementation(libs.timber)
+
+    // Baseline profile — ships the startup profile in the APK and applies it
+    // on first launch (see src/main/baseline-prof.txt).
+    implementation(libs.androidx.profileinstaller)
 
     // Unit tests
     testImplementation(libs.junit)

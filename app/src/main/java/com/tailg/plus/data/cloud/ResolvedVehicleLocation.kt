@@ -1,5 +1,6 @@
 package com.tailg.plus.data.cloud
 
+import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.model.OfficialVehicleLocation
 import com.tailg.plus.data.model.VehicleLocation
 import com.tailg.plus.data.model.VehicleProfile
@@ -57,8 +58,35 @@ fun resolveVehicleLocation(
     cloudState: OfficialCloudState,
     localVehicle: VehicleProfile?,
     allowCloudMetadataWithoutCoordinate: Boolean = false,
+): ResolvedVehicleLocation? = resolveVehicleLocation(
+    vehicleLocation = cloudState.vehicleLocation,
+    officialVehicle = cloudState.selectedVehicle,
+    localVehicle = localVehicle,
+    allowCloudMetadataWithoutCoordinate = allowCloudMetadataWithoutCoordinate,
+)
+
+/**
+ * [CloudScreenState] overload used by the control home's narrowed projection —
+ * identical priority chain, driven by the two fields that projection carries.
+ */
+internal fun resolveVehicleLocation(
+    cloudState: com.tailg.plus.ui.screens.CloudScreenState,
+    localVehicle: VehicleProfile?,
+    allowCloudMetadataWithoutCoordinate: Boolean = false,
+): ResolvedVehicleLocation? = resolveVehicleLocation(
+    vehicleLocation = cloudState.vehicleLocation,
+    officialVehicle = cloudState.selectedVehicle,
+    localVehicle = localVehicle,
+    allowCloudMetadataWithoutCoordinate = allowCloudMetadataWithoutCoordinate,
+)
+
+private fun resolveVehicleLocation(
+    vehicleLocation: OfficialVehicleLocation?,
+    officialVehicle: OfficialVehicle?,
+    localVehicle: VehicleProfile?,
+    allowCloudMetadataWithoutCoordinate: Boolean,
 ): ResolvedVehicleLocation? {
-    val cloudLocation: OfficialVehicleLocation? = cloudState.vehicleLocation
+    val cloudLocation: OfficialVehicleLocation? = vehicleLocation
     if (cloudLocation != null) {
         val cloudLat = cloudLocation.latitude
         val cloudLng = cloudLocation.longitude
@@ -87,7 +115,6 @@ fun resolveVehicleLocation(
         }
     }
 
-    val officialVehicle = cloudState.selectedVehicle
     val vehicleLat = officialVehicle?.latitude?.toDoubleOrNull()
     val vehicleLng = officialVehicle?.longitude?.toDoubleOrNull()
     if (vehicleLat != null &&

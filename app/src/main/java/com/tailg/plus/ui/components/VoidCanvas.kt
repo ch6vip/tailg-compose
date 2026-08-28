@@ -163,20 +163,29 @@ fun VoidCanvas(
     // every frame pass; the pattern is static, so a single cached layer is
     // byte-identical and costs one blit per frame instead of N draw calls.
     // Positions are precomputed once in normalized space.
+    //
+    // The cached layer is rendered at 1/4 resolution (1/16 the pixels) and
+    // blitted scaled up. Grain is high-frequency noise; upscaling it 4x is
+    // visually indistinguishable from a full-res layer (the dots are sub-pixel
+    // alpha anyway) while the per-frame blit bandwidth drops ~16x — the same
+    // trick games use for cheap film grain.
     val grainPoints = remember {
       val rnd = Random(7)
       List(220) { Offset(rnd.nextFloat(), rnd.nextFloat()) }
     }
     Canvas(modifier = Modifier.matchParentSize()) {
-      val count = (size.width * size.height / 1800).toInt().coerceIn(40, 220)
       val grainColor = AppColorsDark.textPrimary.copy(alpha = 0.03f) // Dart 0x08FFFFFF grain
+      val grainW = (size.width / GRAIN_SCALE_DOWN).toInt().coerceAtLeast(1)
+      val grainH = (size.height / GRAIN_SCALE_DOWN).toInt().coerceAtLeast(1)
+      val count = (grainW * grainH / (1800 / (GRAIN_SCALE_DOWN * GRAIN_SCALE_DOWN))).toInt()
+        .coerceIn(10, 220)
       // Draw the static grain into a cached bitmap the first time this size
       // is seen, then blit it — no per-frame circle draws.
-      val key = "${size.width.toInt()}x${size.height.toInt()}"
+      val key = "${grainW}x$grainH"
       val cached = grainCache.getOrPut(key) {
         val bmp = android.graphics.Bitmap.createBitmap(
-          size.width.toInt(),
-          size.height.toInt(),
+          grainW,
+          grainH,
           android.graphics.Bitmap.Config.ARGB_8888,
         )
         val c = android.graphics.Canvas(bmp)
@@ -184,15 +193,23 @@ fun VoidCanvas(
         p.color = grainColor.toArgb()
         for (i in 0 until count) {
           val pt = grainPoints[i]
-          c.drawCircle(pt.x * size.width, pt.y * size.height, 0.6f, p)
+          c.drawCircle(pt.x * grainW, pt.y * grainH, 0.6f, p)
         }
         bmp
       }
-      drawContext.canvas.nativeCanvas.drawBitmap(cached, 0f, 0f, null)
+      drawContext.canvas.nativeCanvas.drawBitmap(
+        cached,
+        null,
+        android.graphics.Rect(0, 0, size.width.toInt(), size.height.toInt()),
+        null,
+      )
     }
     Box(modifier = Modifier.matchParentSize(), content = content)
   }
 }
+
+/** Grain layer is rasterized at 1/4 linear resolution; blit scales it up. */
+private const val GRAIN_SCALE_DOWN = 4
 
 /** Static offscreen grain cache keyed by pixel size (bounded). */
 private val grainCache = object : LinkedHashMap<String, android.graphics.Bitmap>(4, 0.75f, true) {
@@ -268,6 +285,10 @@ fun VoidGlass(
 /**
  * Kinetic battery ring — progress arc with pulsing glow.
  * `percent` 0–100; color tiers: <15 red, <35 amber, else energy green.
+ *
+ * [animate] gates the breathing glow: when false (e.g. reduce-motion, or a
+ * static display) the ring renders at a fixed mid-pulse with no infinite
+ * transition keeping the frame loop alive.
  */
 @Composable
 fun VoidEnergyRing(
@@ -277,9 +298,10 @@ fun VoidEnergyRing(
   stroke: Dp = 8.dp,
   label: String? = null,
   sublabel: String? = null,
+  animate: Boolean = true,
 ) {
   val p = percent.coerceIn(0f, 100f)
-  val loops = MotionPolicy.loopsEnabled()
+  val loops = animate && MotionPolicy.loopsEnabled()
   val transition = rememberInfiniteTransition(label = "energyRing")
   val pulse by transition.animateFloat(
     initialValue = 0f,

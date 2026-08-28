@@ -101,7 +101,7 @@ fun VehicleSwitchSheet(
           .fillMaxWidth()
           .heightIn(max = 480.dp),
       ) {
-        items(vehicles, key = { it.key }) { vehicle ->
+        items(vehicles, key = { it.key }, contentType = { "vehicle-switch" }) { vehicle ->
           VehicleTile(
             vehicle = vehicle,
             selected = vehicle.key == selectedKey,

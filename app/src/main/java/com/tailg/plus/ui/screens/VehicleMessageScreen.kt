@@ -293,7 +293,7 @@ fun VehicleMessageScreen(
             contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 4.dp, bottom = 28.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp),
           ) {
-            items(tabMessages, key = { it.id }) { message ->
+            items(tabMessages, key = { it.id }, contentType = { "vehicle-message" }) { message ->
               val read = message.id in readIds
               MessageCard(
                 message = message,

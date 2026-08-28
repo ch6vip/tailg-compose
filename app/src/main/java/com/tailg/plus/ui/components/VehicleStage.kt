@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
@@ -39,6 +40,8 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.ui.theme.AppColors
 import com.tailg.plus.ui.theme.AppColorsLight
+import com.tailg.plus.util.BitmapMemoryCache
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -86,6 +89,102 @@ private val vehicleImageClient by lazy {
 }
 
 private const val MAX_VEHICLE_IMAGE_BYTES = 5L * 1024L * 1024L
+
+private const val VEHICLE_IMAGE_CACHE_PREFIX = "vehicle-photo:"
+
+/**
+ * In-flight deduplication for vehicle photos. The garage list renders several
+ * cards at once and multiple cards often share the same car-photo URL (same
+ * model). Without this, N visible cards fired N identical network requests;
+ * the first caller wins and every concurrent caller awaits the same
+ * [kotlinx.coroutines.CompletableDeferred] (ComicPlus_Pure's
+ * `pageLoadsInFlight` pattern).
+ */
+private val vehicleImageLoadsInFlight =
+  ConcurrentHashMap<String, kotlinx.coroutines.CompletableDeferred<Bitmap?>>()
+
+/** Bounded decode: read bounds first, sample down to the target, then cache. */
+private suspend fun loadVehicleImage(url: String): Bitmap? {
+  if (!isRemoteVehicleImageUrl(url)) {
+    return null
+  }
+  val cacheKey = VEHICLE_IMAGE_CACHE_PREFIX + url
+  BitmapMemoryCache.get(cacheKey)?.let { return it }
+  // Join an in-flight load for the same URL instead of starting a second
+  // network request. The deferred completes when the FIRST caller's fetch
+  // settles; every concurrent caller awaits the same instance, so the network
+  // hit happens exactly once per URL per eviction window.
+  vehicleImageLoadsInFlight[url]?.let { return it.await() }
+  val deferred = kotlinx.coroutines.CompletableDeferred<Bitmap?>()
+  val existing = vehicleImageLoadsInFlight.putIfAbsent(url, deferred)
+  if (existing != null) return existing.await()
+  try {
+    val decoded = withContext(Dispatchers.IO) {
+      runCatching {
+        val request = Request.Builder().url(url).get().build()
+        vehicleImageClient.newCall(request).execute().use { response ->
+          val body = response.body ?: return@use null
+          val declared = body.contentLength()
+          if (!response.isSuccessful ||
+            (declared >= 0 && declared > MAX_VEHICLE_IMAGE_BYTES)
+          ) {
+            return@use null
+          }
+          // Read the bounded body once into memory (guarded by the byte cap
+          // above), then decode twice from the array: bounds pass + sampled
+          // pass. A single InputStream cannot be decoded twice — the bounds
+          // pass consumes the stream and network streams are not rewindable.
+          val bytes = body.bytes()
+          if (bytes.isEmpty() || bytes.size > MAX_VEHICLE_IMAGE_BYTES) return@use null
+          decodeVehicleImageSampled(bytes)
+        }
+      }.getOrNull()?.also { bitmap ->
+        BitmapMemoryCache.put(cacheKey, bitmap)
+      }
+    }
+    deferred.complete(decoded)
+    return decoded
+  } catch (error: Throwable) {
+    deferred.complete(null)
+    throw error
+  } finally {
+    vehicleImageLoadsInFlight.remove(url, deferred)
+  }
+}
+
+/**
+ * Decode a bitmap byte array bounded to [MAX_VEHICLE_IMAGE_WIDTH] x
+ * [MAX_VEHICLE_IMAGE_HEIGHT]. `inJustDecodeBounds` reads the header without
+ * allocating, then `inSampleSize` (largest power of two that still covers the
+ * target) is applied. The sampled decode is then scaled once to the exact
+ * target — the same two-stage approach ComicPlus_Pure uses per page, with
+ * [android.graphics.Bitmap.Config.RGB_565] when the source has no alpha so
+ * memory stays at half of ARGB_8888.
+ */
+internal fun decodeVehicleImageSampled(bytes: ByteArray): Bitmap? {
+  if (bytes.isEmpty()) return null
+  val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+  BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+  if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+  val sampleSize = vehicleImageSampleSize(bounds.outWidth, bounds.outHeight)
+  val hasAlpha = bounds.outConfig == android.graphics.Bitmap.Config.ARGB_8888 ||
+    bounds.outConfig == android.graphics.Bitmap.Config.ALPHA_8 ||
+    bounds.outConfig == android.graphics.Bitmap.Config.RGBA_F16
+  val decodeOptions = BitmapFactory.Options().apply {
+    inSampleSize = sampleSize
+    inPreferredConfig =
+      if (hasAlpha) android.graphics.Bitmap.Config.ARGB_8888
+      else android.graphics.Bitmap.Config.RGB_565
+  }
+  val sampled = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, decodeOptions) ?: return null
+  if (sampled.width <= MAX_VEHICLE_IMAGE_WIDTH && sampled.height <= MAX_VEHICLE_IMAGE_HEIGHT) {
+    return sampled
+  }
+  val target = vehicleImageTargetSize(sampled.width, sampled.height)
+  val scaled = Bitmap.createScaledBitmap(sampled, target.first, target.second, true)
+  if (scaled !== sampled) sampled.recycle()
+  return scaled
+}
 
 // Static draw resources — geometry/brushes are fixed viewBox coordinates, so
 // they are built once and shared read-only by every draw pass (the garage
@@ -409,6 +508,9 @@ internal fun VehicleImageOrFallback(
 ) {
   val normalizedUrl = imageUrl?.trim().orEmpty()
   val remote = isRemoteVehicleImageUrl(normalizedUrl)
+  // Register the shared trim callbacks lazily (idempotent) so the cache works
+  // even when this composable is exercised outside the Application path.
+  LocalContext.current.applicationContext.let(BitmapMemoryCache::register)
   val load by produceState<VehicleImageLoad>(
     initialValue = if (remote) VehicleImageLoad.Pending else VehicleImageLoad.Fallback,
     key1 = normalizedUrl,
@@ -431,25 +533,5 @@ internal fun VehicleImageOrFallback(
     VehicleImageLoad.Fallback -> Canvas(modifier = modifier.clipToBounds()) {
       drawVehicleStage(batteryLevel)
     }
-  }
-}
-
-private suspend fun loadVehicleImage(url: String): Bitmap? {
-  if (!isRemoteVehicleImageUrl(url)) {
-    return null
-  }
-  return withContext(Dispatchers.IO) {
-    runCatching {
-      val request = Request.Builder().url(url).get().build()
-      vehicleImageClient.newCall(request).execute().use { response ->
-        val body = response.body ?: return@use null
-        if (!response.isSuccessful ||
-          (body.contentLength() >= 0 && body.contentLength() > MAX_VEHICLE_IMAGE_BYTES)
-        ) {
-          return@use null
-        }
-        body.byteStream().use(BitmapFactory::decodeStream)
-      }
-    }.getOrNull()
   }
 }

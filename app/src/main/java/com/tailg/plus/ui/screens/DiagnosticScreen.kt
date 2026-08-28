@@ -138,7 +138,7 @@ fun DiagnosticScreen(
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = androidx.compose.foundation.layout.PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 24.dp),
         ) {
-          items(history, key = { it.time.toString() + it.rawByte }) { record ->
+          items(history, key = { it.time.toString() + it.rawByte }, contentType = { "diagnostic-record" }) { record ->
             DiagnosticRecordCard(record)
           }
         }

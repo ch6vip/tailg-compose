@@ -46,6 +46,21 @@ class OfficialCloudApiClient(
         // beyond the per-call budget below.
         .readTimeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         .writeTimeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
+        // Bounded connection pool: a single-user app talks to one official
+        // host, so 2 idle keep-alive connections are plenty. The default pool
+        // keeps 5 alive for 5 minutes; trimming to 2 cuts idle sockets while
+        // still covering concurrent carStatus+battery refreshes.
+        .connectionPool(okhttp3.ConnectionPool(2, 2, TimeUnit.MINUTES))
+        // Same-host concurrency guard: the official host throttles aggressive
+        // clients; 2 parallel requests per host keeps the silent refresh +
+        // dependents cascade from self-racing while staying well under the
+        // server's abuse threshold.
+        .dispatcher(
+            okhttp3.Dispatcher().apply {
+                maxRequests = 8
+                maxRequestsPerHost = 2
+            },
+        )
         .build()
 
     // Shared plain-Moshi instance (CloudJson owns it) — a second identical
@@ -104,7 +119,9 @@ class OfficialCloudApiClient(
 
                 val response = withContext(Dispatchers.IO) { call.execute() }
                 try {
-                    val text = withContext(Dispatchers.IO) { response.body?.string() ?: "" }
+                    val text = withContext(Dispatchers.IO) {
+                        readBodyLimited(response.body)
+                    }
                     val decoded = decodeBodyForStatus(
                         text = text,
                         path = path,
@@ -203,6 +220,39 @@ class OfficialCloudApiClient(
         }
         // Unreachable — the loop always returns or throws.
         throw IllegalStateException("Unreachable")
+    }
+
+    /**
+     * Read a bounded UTF-8 response body. `ResponseBody.string()` buffers the
+     * entire untrusted payload before the caller can enforce a size; a
+     * malicious/defective endpoint could otherwise pin memory with a huge
+     * body (ComicPlus_Pure applies the same guard via `readStringLimited`).
+     * The stream is drained in chunks and aborts as soon as the cap is
+     * exceeded, so even a lying `Content-Length` cannot over-allocate.
+     */
+    private fun readBodyLimited(body: okhttp3.ResponseBody?): String {
+        if (body == null) return ""
+        val declared = body.contentLength()
+        if (declared >= 0 && declared > MAX_RESPONSE_BODY_BYTES) {
+            throw OfficialCloudApiException("服务器返回数据过大")
+        }
+        body.byteStream().use { input ->
+            val output = java.io.ByteArrayOutputStream(
+                if (declared in 1..MAX_RESPONSE_BODY_BYTES) declared.toInt() else 8192,
+            )
+            val buffer = ByteArray(8192)
+            var total = 0
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                total += read
+                if (total > MAX_RESPONSE_BODY_BYTES) {
+                    throw OfficialCloudApiException("服务器返回数据过大")
+                }
+                output.write(buffer, 0, read)
+            }
+            return output.toString(Charsets.UTF_8.name())
+        }
     }
 
     private suspend fun decodeBodyForStatus(
@@ -345,5 +395,8 @@ class OfficialCloudApiClient(
 
     private companion object {
         val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+
+        /** Official cloud JSON responses are small; 8 MiB is a generous cap. */
+        const val MAX_RESPONSE_BODY_BYTES = 8L * 1024L * 1024L
     }
 }

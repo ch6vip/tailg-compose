@@ -339,7 +339,7 @@ fun GarageScreen(
             contentPadding = PaddingValues(start = 20.dp, end = 20.dp, bottom = 24.dp),
             verticalArrangement = Arrangement.spacedBy(18.dp),
           ) {
-            items(vehicles, key = { it.key }) { vehicle ->
+            items(vehicles, key = { it.key }, contentType = { "vehicle" }) { vehicle ->
               val isUsing = vehicle.isUsing || (cloudState.selectedVehicle?.let { sel ->
                 sel.carId.isNotEmpty() && vehicle.carId == sel.carId
               } ?: false)

@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.components
 
+import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.util.BitmapMemoryCache
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 import java.net.HttpURLConnection
@@ -363,19 +365,16 @@ private fun MiniMapPreview(
 }
 
 /**
- * Bounded in-memory tile cache for the home mini-map (official app uses the
- * AMap SDK whose native tile cache covers this; our osmdroid tile cache only
- * applies on the full map page, so the home preview re-downloaded the same
- * tile on every location change / recomposition). Keyed by URL, LRU, capped
- * at 16 entries.
+ * Bounded in-memory tile cache for the home mini-map. Now routed through the
+ * shared [BitmapMemoryCache] (heap-aware LRU + onTrimMemory) instead of a
+ * private 16-entry map, so tiles and vehicle photos draw from one global
+ * budget and the OS trims both under pressure.
  */
-private val miniMapTileCache = object : LinkedHashMap<String, ImageBitmap>(16, 0.75f, true) {
-  override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, ImageBitmap>?): Boolean =
-    size > 16
-}
+private const val MINI_MAP_TILE_CACHE_PREFIX = "mini-map-tile:"
 
 private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
-  miniMapTileCache[url]?.let { return it }
+  val cacheKey = MINI_MAP_TILE_CACHE_PREFIX + url
+  BitmapMemoryCache.get(cacheKey)?.let { return it.asImageBitmap() }
   return withContext(Dispatchers.IO) {
     runCatching {
       val connection = URL(url).openConnection() as HttpURLConnection
@@ -384,17 +383,41 @@ private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
       connection.instanceFollowRedirects = true
       connection.setRequestProperty("User-Agent", "tailg-plus")
       try {
-        connection.inputStream.use { stream ->
-          val options = BitmapFactory.Options().apply {
-            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
-          }
-          BitmapFactory.decodeStream(stream, null, options)?.asImageBitmap()?.also {
-            miniMapTileCache[url] = it
-          }
-        }
+        val bytes = connection.inputStream.use { it.readBytes() }
+        if (bytes.isEmpty()) return@runCatching null
+        val decoded = decodeMiniMapTile(bytes)
+        if (decoded != null) BitmapMemoryCache.put(cacheKey, decoded)
+        decoded?.asImageBitmap()
       } finally {
         connection.disconnect()
       }
     }.getOrNull()
   }
 }
+
+/**
+ * Decode a mini-map tile bounded to the home preview slot (~256px). Tiles are
+ * 256x256 already, but a scaled/retina tile source can exceed that; sampling
+ * keeps the decode allocation small and identical to what the preview shows.
+ * [android.graphics.Bitmap.Config.RGB_565] matches the previous decode and
+ * halves memory vs ARGB_8888 (map tiles carry no alpha).
+ */
+internal fun decodeMiniMapTile(bytes: ByteArray): Bitmap? {
+  if (bytes.isEmpty()) return null
+  val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+  BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+  if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+  var sampleSize = 1
+  while (bounds.outWidth / (sampleSize * 2) >= MINI_MAP_TILE_TARGET_PX ||
+    bounds.outHeight / (sampleSize * 2) >= MINI_MAP_TILE_TARGET_PX
+  ) {
+    sampleSize *= 2
+  }
+  val options = BitmapFactory.Options().apply {
+    inSampleSize = sampleSize
+    inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+  }
+  return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+}
+
+private const val MINI_MAP_TILE_TARGET_PX = 256

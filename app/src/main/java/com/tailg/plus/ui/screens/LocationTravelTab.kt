@@ -129,7 +129,7 @@ internal fun TravelTab(
       records.isEmpty() -> item {
         EmptyCard(icon = Lucide.route, title = stringResource(R.string.location_travel_no_data), subtitle = stringResource(R.string.location_travel_no_data_hint))
       }
-      else -> itemsIndexed(dateGroups, key = { index, day -> day.travelDate.ifEmpty { "day-$index" } }) { _, day ->
+      else -> itemsIndexed(dateGroups, key = { index, day -> day.travelDate.ifEmpty { "day-$index" } }, contentType = { _, _ -> "travel-day" }) { _, day ->
         Spacer(Modifier.height(10.dp))
         TravelDayCard(
           day = day,

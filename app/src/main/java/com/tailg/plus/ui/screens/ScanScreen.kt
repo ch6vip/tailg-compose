@@ -66,6 +66,7 @@ import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.components.MotionPolicy
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
@@ -414,16 +415,27 @@ private fun bleScanPermissionArray(): Array<String> {
 
 @Composable
 private fun RadarWidget(scanning: Boolean) {
-  val transition = rememberInfiniteTransition(label = "radar")
-  val sweep by transition.animateFloat(
-    initialValue = 0f,
-    targetValue = 360f,
-    animationSpec = infiniteRepeatable(
-      animation = tween(durationMillis = 2000, easing = LinearEasing),
-      repeatMode = RepeatMode.Restart,
-    ),
-    label = "radarSweep",
-  )
+  // The infinite sweep transition is only created while actually scanning.
+  // Previously the transition ran forever regardless of [scanning], keeping a
+  // per-frame animation alive on a page that may sit idle with the radar
+  // static — exactly the kind of always-on work the official app avoids.
+  val animated = scanning && MotionPolicy.loopsEnabled()
+  val sweep: Float
+  if (animated) {
+    val transition = rememberInfiniteTransition(label = "radar")
+    val s by transition.animateFloat(
+      initialValue = 0f,
+      targetValue = 360f,
+      animationSpec = infiniteRepeatable(
+        animation = tween(durationMillis = 2000, easing = LinearEasing),
+        repeatMode = RepeatMode.Restart,
+      ),
+      label = "radarSweep",
+    )
+    sweep = s
+  } else {
+    sweep = 0f
+  }
   val activeSweep = if (scanning) sweep else 0f
 
   Box(

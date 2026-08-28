@@ -57,6 +57,7 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.formatLogClockTime
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -74,6 +75,7 @@ import com.tailg.plus.R
  * which needs an [OfficialCloudService] + [VehicleStore]; those are
  * constructed once via `remember` from the current [android.content.Context].
  */
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 fun LogScreen(
   onBack: () -> Unit,
@@ -99,9 +101,13 @@ fun LogScreen(
   var listGeneration by remember { mutableIntStateOf(0) }
   var showClearDialog by remember { mutableStateOf(false) }
 
-  // Subscribe to LogService.changes so the list refreshes when new entries arrive.
+  // Subscribe to LogService.changes so the list refreshes when new entries
+  // arrive. Debounced: a BLE handshake can emit dozens of log lines per
+  // second, and each bump rebuilds the whole LazyColumn — coalescing bursts
+  // into one refresh per quiet window keeps the page smooth (same principle
+  // as ComicPlus_Pure's throttled list updates).
   LaunchedEffect(log) {
-    log.changes.collectLatest { listGeneration++ }
+    log.changes.debounce(LOG_REFRESH_DEBOUNCE_MS).collectLatest { listGeneration++ }
   }
 
 
@@ -189,7 +195,7 @@ fun LogScreen(
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
         ) {
-          items(entries.asReversed(), key = { it.time.toString() + it.message.hashCode() }) { entry ->
+          items(entries.asReversed(), key = { it.time.toString() + it.message.hashCode() }, contentType = { "log-entry" }) { entry ->
             LogTile(entry = entry)
           }
         }
@@ -197,6 +203,9 @@ fun LogScreen(
     }
   }
 }
+
+/** Coalesce log bursts into one list refresh per quiet window. */
+private const val LOG_REFRESH_DEBOUNCE_MS = 120L
 
 /** Dart `_LogTile`: time + level dot + message/detail. */
 @Composable

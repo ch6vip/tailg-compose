@@ -116,6 +116,32 @@ fun VoidParticleField(
       )
     }
   }
+
+  // Static connection graph, computed once from the initial normalized
+  // positions. The previous implementation re-ran the full O(n²) pair scan
+  // (plus a `energyColor.copy(alpha)` allocation per hit) on every frame of
+  // the 60fps loop — with 48 particles that is ~576 distance computations per
+  // frame. Drift is slow enough that the initial-neighbourhood edges stay
+  // visually coherent for the whole field lifetime, so drawing the fixed
+  // edge set each frame is O(E) with zero per-frame allocations.
+  val connectionPairs = remember(particles) {
+    val thresholdSq = PARTICLE_LINK_THRESHOLD * PARTICLE_LINK_THRESHOLD
+    val pairs = ArrayList<Pair<Int, Int>>()
+    for (i in particles.indices step 2) {
+      val a = particles[i]
+      for (j in i + 1 until particles.size step 2) {
+        val b = particles[j]
+        val dx = a.x - b.x
+        val dy = a.y - b.y
+        if (dx * dx + dy * dy < thresholdSq) pairs += i to j
+      }
+    }
+    pairs
+  }
+  // One shared line color instance — drawLine receives it as-is every frame,
+  // so the old per-hit `energyColor.copy(alpha = …)` allocation disappears.
+  val lineColor = remember(energyColor) { energyColor.copy(alpha = 0.10f) }
+
   var elapsedMs by remember { mutableFloatStateOf(0f) }
   val loopsEnabled = enableAnimation && MotionPolicy.loopsEnabled()
 
@@ -193,27 +219,20 @@ fun VoidParticleField(
       canvas.drawCircle(px, py, drawSize * 0.8f, corePaint)
     }
 
-    // ── Pass 2: subtle connection lines (culled to threshold, step of 2) ──
-    val threshold = 0.08f
-    val thresholdSq = threshold * threshold
-    for (i in particles.indices step 2) {
+    // ── Pass 2: static connection lines (precomputed pair list, no per-frame
+    // O(n²) scan and no per-line Color allocation) ─────────────────────────
+    for ((i, j) in connectionPairs) {
       val a = particles[i]
-      for (j in i + 1 until particles.size step 2) {
-        val b = particles[j]
-        val dx = a.x - b.x
-        val dy = a.y - b.y
-        val distSq = dx * dx + dy * dy
-        if (distSq < thresholdSq) {
-          val dist = sqrt(distSq)
-          val alpha = (1f - dist / threshold) * 0.12f
-          drawLine(
-            color = energyColor.copy(alpha = alpha),
-            start = Offset(a.x * w, a.y * h),
-            end = Offset(b.x * w, b.y * h),
-            strokeWidth = 0.4f,
-          )
-        }
-      }
+      val b = particles[j]
+      drawLine(
+        color = lineColor,
+        start = Offset(a.x * w, a.y * h),
+        end = Offset(b.x * w, b.y * h),
+        strokeWidth = 0.4f,
+      )
     }
   }
 }
+
+/** Connection-line distance threshold (normalized space), matching the old cull. */
+private const val PARTICLE_LINK_THRESHOLD = 0.08f

@@ -41,6 +41,47 @@ internal fun isRemoteVehicleImageUrl(url: String): Boolean =
     url.startsWith("http://", ignoreCase = true)
 
 /**
+ * Decode target for vehicle photos: the illustration slot is at most a few
+ * hundred dp wide/tall. Sampling to this bound (instead of decoding the full
+ * server resolution, which can be 4000x3000 = ~48MB ARGB) cuts decode memory
+ * by ~16x and keeps scrolling the garage list allocation-free. The 4:3 aspect
+ * mirrors the typical car-photo source; a source narrower than the bound is
+ * never upscaled.
+ */
+internal const val MAX_VEHICLE_IMAGE_WIDTH = 960
+internal const val MAX_VEHICLE_IMAGE_HEIGHT = 720
+
+/**
+ * Largest power-of-two sample factor that still covers the target bounds.
+ * Mirrors ComicPlus_Pure's `inSampleSize` selection: never downsample a small
+ * source, never overshoot past the target by more than 2x.
+ */
+internal fun vehicleImageSampleSize(width: Int, height: Int): Int {
+  if (width <= 0 || height <= 0) return 1
+  var sample = 1
+  while (width / (sample * 2) >= MAX_VEHICLE_IMAGE_WIDTH ||
+    height / (sample * 2) >= MAX_VEHICLE_IMAGE_HEIGHT
+  ) {
+    sample *= 2
+  }
+  return sample
+}
+
+/**
+ * Exact post-sample target size, scaled down proportionally (never upscaled)
+ * so the longest edge fits inside [MAX_VEHICLE_IMAGE_WIDTH] x
+ * [MAX_VEHICLE_IMAGE_HEIGHT].
+ */
+internal fun vehicleImageTargetSize(width: Int, height: Int): Pair<Int, Int> {
+  if (width <= 0 || height <= 0) return 1 to 1
+  val scale = minOf(
+    MAX_VEHICLE_IMAGE_WIDTH.toFloat() / width,
+    MAX_VEHICLE_IMAGE_HEIGHT.toFloat() / height,
+  ).coerceAtMost(1f)
+  return (width * scale).toInt().coerceAtLeast(1) to (height * scale).toInt().coerceAtLeast(1)
+}
+
+/**
  * True when the stage box is a real laid-out slot, not leftover rotation
  * geometry. A landscape-width box shown in a portrait viewport clips to the
  * left half of a centered bike (the rear wheel flash).

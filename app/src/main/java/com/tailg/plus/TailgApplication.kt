@@ -5,6 +5,7 @@ import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.network.NetworkAvailabilityService
+import com.tailg.plus.util.BitmapMemoryCache
 import dagger.hilt.android.HiltAndroidApp
 import java.io.File
 import javax.inject.Inject
@@ -30,6 +31,9 @@ class TailgApplication : Application() {
     if (BuildConfig.DEBUG) {
       Timber.plant(Timber.DebugTree())
     }
+    // Shared bitmap cache with OS-trim callbacks — every image decode path
+    // (vehicle photos, mini-map tiles) draws from the same bounded budget.
+    BitmapMemoryCache.register(this)
     // osmdroid: identify to tile servers and keep the cache in app-private
     // storage (Dart equivalent: CachedTileProvider disk cache).
     Configuration.getInstance().apply {

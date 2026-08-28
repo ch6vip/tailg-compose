@@ -191,6 +191,19 @@ fun AppSkeleton(
   highlightColor: Color = AppColorsDark.surfaceContainerLow,
 ) {
   val loopsEnabled = MotionPolicy.loopsEnabled()
+  // Static skeleton when animations are disabled: skip the infinite
+  // transition entirely so no per-frame work is scheduled for loading bars
+  // that only exist for a moment.
+  if (!loopsEnabled) {
+    Box(
+      modifier = modifier
+        .width(width)
+        .height(height)
+        .clip(borderRadius)
+        .background(baseColor),
+    )
+    return
+  }
   val transition: InfiniteTransition = rememberInfiniteTransition(label = "skeleton")
   val t by transition.animateFloat(
     initialValue = 0f,
@@ -201,8 +214,7 @@ fun AppSkeleton(
     ),
     label = "skeletonPulse",
   )
-  val progress = if (loopsEnabled) t else 0.5f
-  val color = lerpColor(baseColor, highlightColor, progress)
+  val color = lerpColor(baseColor, highlightColor, t)
   Box(
     modifier = modifier
       .width(width)

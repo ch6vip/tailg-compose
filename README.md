@@ -83,4 +83,4 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 | MQTT TLS | ✅ 默认使用系统信任库；trust-all 仅 Debug 显式 opt-in |
 | 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |
 | 地图 SDK | ✅ osmdroid（高德瓦片默认 / 天地图 token 可选）——位置/轨迹/围栏三 tab + ControlScreen 迷你图 |
-| 性能优化 | ✅ 渲染与状态流双重削减、控车确认链路对齐官方推送模型 |
+| 性能优化 | ✅ 渲染与状态流双重削减、控车确认链路对齐官方推送模型、共享位图缓存+采样解码+动画开关+图片在途去重+列表 contentType+grain 降采样+地图 DPI/zoom 限制+云 client 连接池+baseline profile+Compose 编译器指标（对照 ComicPlus_Pure 管线） |

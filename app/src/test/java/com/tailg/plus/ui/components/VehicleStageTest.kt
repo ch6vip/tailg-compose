@@ -114,4 +114,37 @@ class VehicleStageTest {
     assertFalse(isRemoteVehicleImageUrl("drawable://bike"))
     assertFalse(isRemoteVehicleImageUrl("ftp://cdn.example/car.png"))
   }
+
+  @Test
+  fun imageSampleSizeBoundsDecodeBelowTarget() {
+    // 4000x3000 source → sample to ≤ 960x720 without oversampling below it.
+    val sample = vehicleImageSampleSize(4000, 3000)
+    assertTrue("sample=$sample should be at least 4 for 4000x3000", sample >= 4)
+    assertTrue("sampled width too coarse: ${4000 / sample}", 4000 / sample <= MAX_VEHICLE_IMAGE_WIDTH * 2)
+    assertTrue("sampled height too coarse: ${3000 / sample}", 3000 / sample <= MAX_VEHICLE_IMAGE_HEIGHT * 2)
+    // Small sources are never sampled.
+    assertEquals(1, vehicleImageSampleSize(640, 480))
+    assertEquals(1, vehicleImageSampleSize(MAX_VEHICLE_IMAGE_WIDTH, MAX_VEHICLE_IMAGE_HEIGHT))
+  }
+
+  @Test
+  fun imageSampleSizeRejectsNonPositive() {
+    assertEquals(1, vehicleImageSampleSize(0, 0))
+    assertEquals(1, vehicleImageSampleSize(-10, 100))
+  }
+
+  @Test
+  fun imageTargetSizeNeverUpscalesAndKeepsAspect() {
+    // Small source stays untouched.
+    val small = vehicleImageTargetSize(640, 480)
+    assertEquals(640, small.first)
+    assertEquals(480, small.second)
+    // Large source scales down proportionally within the bounds.
+    val (w, h) = vehicleImageTargetSize(4000, 3000)
+    assertTrue(w <= MAX_VEHICLE_IMAGE_WIDTH && h <= MAX_VEHICLE_IMAGE_HEIGHT)
+    assertEquals(w.toDouble() / h, 4.0 / 3.0, 0.02)
+    // Portrait sources keep portrait.
+    val (pw, ph) = vehicleImageTargetSize(2000, 3000)
+    assertTrue("portrait should stay portrait: $pw x $ph", ph >= pw)
+  }
 }

@@ -6,6 +6,7 @@ import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
+import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.domain.control.ControlCloudState
@@ -87,6 +88,22 @@ internal fun todayRideLabel(
   return "--"
 }
 
+/** [CloudScreenState] overload — same behavior, no full-state dependency. */
+internal fun todayRideLabel(
+  cloudState: CloudScreenState,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): String {
+  val direct = cloudState.todayRideMileage.trim()
+  if (direct.isNotEmpty()) {
+    return formatDistanceKilometersText(
+      raw = direct,
+      unit = distanceUnit,
+      missing = direct,
+    )
+  }
+  return "--"
+}
+
 internal fun totalMileageLabel(
   vehicle: OfficialVehicle?,
   distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
@@ -102,6 +119,32 @@ internal fun lastRideVisuals(
 ): Pair<String, String> {
   var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
   for (day in cloudState.travelDays) {
+    for (record in day.records) {
+      if (latest == null || record.startTime.compareTo(latest.startTime) > 0) {
+        latest = record
+      }
+    }
+  }
+  if (latest == null) return "--" to "--"
+  val distKm = latest.mileageKm
+  val mins = (latest.durationSeconds / 60.0).toInt()
+  val dist = formatDistanceKilometers(distKm, distanceUnit, fractionDigits = 1)
+  val dur = if (mins > 0) "$mins min" else latest.durationLabel
+  return dist to dur
+}
+
+/** [CloudScreenState] overload — same behavior, no full-state dependency. */
+internal fun lastRideVisuals(
+  cloudState: CloudScreenState,
+  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
+): Pair<String, String> = lastRideVisuals(cloudState.travelDays, distanceUnit)
+
+private fun lastRideVisuals(
+  travelDays: List<OfficialTravelDay>,
+  distanceUnit: DistanceUnitPreference,
+): Pair<String, String> {
+  var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
+  for (day in travelDays) {
     for (record in day.records) {
       if (latest == null || record.startTime.compareTo(latest.startTime) > 0) {
         latest = record

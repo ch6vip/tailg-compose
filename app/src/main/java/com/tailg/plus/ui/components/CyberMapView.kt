@@ -192,8 +192,15 @@ fun CyberMapView(
       setMultiTouchControls(true)
       controller.setZoom(initialZoom)
       minZoomLevel = 3.0
-      maxZoomLevel = 18.0
-      isTilesScaledToDpi = true
+      // 17 instead of 18: the highest zoom band is rarely useful for vehicle
+      // tracking and doubles the tile count at the top end (each zoom step is
+      // 4x the tiles). Keeps fling/pan decode pressure bounded.
+      maxZoomLevel = 17.0
+      // Fixed 256px tile decode. `isTilesScaledToDpi = true` makes every tile
+      // decode at 1.5-2x on xxhdpi screens — a 4x memory/GPU cost on the tile
+      // bitmap pool for slightly crisper labels. Vehicle tracking doesn't need
+      // that; tiles stay 256px and the renderer upscales them.
+      isTilesScaledToDpi = false
     }
   }
 

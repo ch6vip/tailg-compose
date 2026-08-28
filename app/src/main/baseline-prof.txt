@@ -1,0 +1,41 @@
+# Baseline Profile for tailg-compose (com.tailg.plus)
+#
+# AOT-compiles the cold-start and first-interaction path so the first launch
+# skips JIT warm-up. Rules target the bootstrapping chain:
+# Application.onCreate → MainActivity → TailgNavHost → Hilt graph → theme.
+# Class-level rules (no method signature) cover the whole class, which is
+# what a Macrobenchmark-generated profile emits for hot entry points.
+#
+# Regenerate with Macrobenchmark on a real device for full coverage; these
+# hand-written rules cover the stable entry path.
+
+# ── Application / process boot ───────────────────────────────────────────
+Lcom/tailg/plus/TailgApplication;
+
+# ── Activity + Compose host ──────────────────────────────────────────────
+Lcom/tailg/plus/MainActivity;
+Lcom/tailg/plus/ui/navigation/TailgNavHost;
+Lcom/tailg/plus/ui/theme/TailgTheme;
+
+# ── Hilt entry points (DI graph warm-up) ─────────────────────────────────
+Lcom/tailg/plus/di/TailgEntryPoint;
+Lcom/tailg/plus/di/TailgModule;
+
+# ── Core singleton services touched during boot ──────────────────────────
+Lcom/tailg/plus/data/cloud/OfficialCloudService;
+Lcom/tailg/plus/data/cloud/OfficialCloudState;
+Lcom/tailg/plus/data/cloud/OfficialCloudApiClient;
+Lcom/tailg/plus/data/mqtt/OfficialMqttService;
+Lcom/tailg/plus/data/ble/platform/ConnectionManager;
+Lcom/tailg/plus/data/preferences/AppPreferencesService;
+Lcom/tailg/plus/log/LogService;
+
+# ── Startup screens (login / vehicle home) ───────────────────────────────
+Lcom/tailg/plus/ui/screens/LoginScreen;
+Lcom/tailg/plus/ui/screens/ControlScreen;
+Lcom/tailg/plus/ui/screens/MainViewModel;
+Lcom/tailg/plus/ui/screens/ControlViewModel;
+Lcom/tailg/plus/ui/components/VoidNav;
+Lcom/tailg/plus/ui/components/AppChrome;
+Lcom/tailg/plus/ui/components/AppPressable;
+Lcom/tailg/plus/ui/components/LucideIcon;

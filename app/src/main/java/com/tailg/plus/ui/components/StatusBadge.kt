@@ -128,6 +128,19 @@ private fun PulsingDot(
   pulsing: Boolean,
 ) {
   val loops = pulsing && MotionPolicy.loopsEnabled()
+  // The infinite transition only runs while [loops] is true. When a badge
+  // flips to a non-active state (or reduce-motion is on), the transition is
+  // removed from composition and the dot renders statically — no per-frame
+  // recomposition is kept alive for idle/offline badges.
+  if (!loops) {
+    Box(
+      modifier = Modifier
+        .size(7.dp)
+        .clip(CircleShape)
+        .background(color),
+    )
+    return
+  }
   val transition = rememberInfiniteTransition(label = "pulsingDot")
   val t by transition.animateFloat(
     initialValue = 0f,
@@ -138,7 +151,7 @@ private fun PulsingDot(
     ),
     label = "dotPulse",
   )
-  val scale = if (loops) AppMotion.pulseMin + (AppMotion.pulseMax - AppMotion.pulseMin) * t else 1f
+  val scale = AppMotion.pulseMin + (AppMotion.pulseMax - AppMotion.pulseMin) * t
   Box(
     modifier = Modifier
       .scale(scale)

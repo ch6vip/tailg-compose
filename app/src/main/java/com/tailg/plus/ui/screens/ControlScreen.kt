@@ -21,6 +21,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -44,19 +45,24 @@ import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
+import com.tailg.plus.data.cloud.OfficialCloudVehicleLinks
 import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.cloud.resolveVehicleLocation
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.ControlCommandActivityStatus
+import com.tailg.plus.data.model.OfficialBatteryInfo
 import com.tailg.plus.data.model.OfficialCloudCommand
+import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
+import com.tailg.plus.data.model.OfficialVehicleLocation
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.mqtt.OfficialMqttStatusPayload
 import com.tailg.plus.data.mqtt.OfficialRemoteSendPath
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
+import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.domain.control.ControlCommandConfirmation
 import com.tailg.plus.domain.control.ControlCommandPolicy
 import com.tailg.plus.domain.control.ControlCommandResult
@@ -84,7 +90,9 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 
@@ -132,7 +140,29 @@ fun ControlScreen(
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val log = viewModel.log
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection: only the fields this screen actually reads. The
+  // raw `stateFlow` re-emits on every refresh field (messages, travel,
+  // batteryInfoLoading…); collecting the whole state here made any unrelated
+  // emission restart this entire composable. `map`+`distinctUntilChanged`
+  // collapses emissions that leave the read set unchanged.
+  val cloudState by cloudService.stateFlow
+    .map { state ->
+      CloudScreenState(
+        signedIn = state.signedIn,
+        selectedVehicle = state.selectedVehicle,
+        selectedVehicleKey = state.selectedVehicle?.key,
+        vehicles = state.vehicles,
+        batteryInfo = state.batteryInfo,
+        vehicleLocation = state.vehicleLocation,
+        localVehicleLinks = state.localVehicleLinks,
+        travelDays = state.travelDays,
+        todayRideMileage = state.todayRideMileage,
+        loading = state.loading,
+        error = state.error,
+      )
+    }
+    .distinctUntilChanged()
+    .collectAsStateWithLifecycle(initialValue = CloudScreenState.from(cloudService.currentState))
   val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
   val bleBikeState by connectionManager.bikeStateFlow.collectAsStateWithLifecycle()
   val mqttLinkState by mqttService.linkState.collectAsStateWithLifecycle()
@@ -933,6 +963,53 @@ fun ControlScreen(
       onBusyError = {
         scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
       },
+    )
+  }
+}
+
+/**
+ * Narrow projection of [OfficialCloudState] for the control home — only the
+ * fields this screen reads. Collecting the raw state made every refresh field
+ * (messages, travel, batteryInfoLoading, vehicleLocationLoading…) restart the
+ * whole screen; [kotlinx.coroutines.flow.distinctUntilChanged] additionally
+ * collapses emissions where none of the read fields changed.
+ */
+@Immutable
+internal data class CloudScreenState(
+  val signedIn: Boolean,
+  val selectedVehicle: OfficialVehicle?,
+  val selectedVehicleKey: String?,
+  val vehicles: List<OfficialVehicle>,
+  val batteryInfo: OfficialBatteryInfo?,
+  val vehicleLocation: OfficialVehicleLocation?,
+  val localVehicleLinks: Map<String, String>,
+  val travelDays: List<OfficialTravelDay>,
+  val todayRideMileage: String,
+  val loading: Boolean,
+  val error: String?,
+) {
+  /** Same contract as [OfficialCloudState.asControlCloudState], backed by the
+   *  projection's own [localVehicleLinks] so no full-state reference is kept. */
+  fun asControlCloudState(): ControlCloudState = object : ControlCloudState {
+    override val signedIn: Boolean get() = this@CloudScreenState.signedIn
+    override val selectedVehicle: OfficialVehicle? get() = this@CloudScreenState.selectedVehicle
+    override fun linkedLocalVehicleId(officialVehicleKey: String): String? =
+      OfficialCloudVehicleLinks.normalize(localVehicleLinks)[officialVehicleKey.trim()]
+  }
+
+  companion object {
+    fun from(state: OfficialCloudState): CloudScreenState = CloudScreenState(
+      signedIn = state.signedIn,
+      selectedVehicle = state.selectedVehicle,
+      selectedVehicleKey = state.selectedVehicle?.key,
+      vehicles = state.vehicles,
+      batteryInfo = state.batteryInfo,
+      vehicleLocation = state.vehicleLocation,
+      localVehicleLinks = state.localVehicleLinks,
+      travelDays = state.travelDays,
+      todayRideMileage = state.todayRideMileage,
+      loading = state.loading,
+      error = state.error,
     )
   }
 }

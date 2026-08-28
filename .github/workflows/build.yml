@@ -61,6 +61,8 @@ jobs:
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 3
+          compression-level: 9
 
       # Always publish reports (even on failure) so CI reds are debuggable
       # without reproducing locally.
@@ -75,6 +77,8 @@ jobs:
             app/build/reports/lint-results-debug.html
             app/build/reports/lint-results-debug.xml
           if-no-files-found: ignore
+          retention-days: 7
+          compression-level: 9
 
       # Prune stale artifacts so the shared account-level 500MB artifact
       # quota stays flat, while keeping the newest 3 (latest APK + reports)
@@ -84,6 +88,8 @@ jobs:
       - name: Prune old artifacts
         if: always()
         continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           set +e
           gh api "repos/ch6vip/tailg-compose/actions/artifacts?per_page=100" \

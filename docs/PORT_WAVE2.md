@@ -1,8 +1,13 @@
 # Wave 2 Delegation Briefs (cloud / mqtt / control routing / stores)
 
+> 状态：**已完成**。Wave 2 四个子任务（cloud / mqtt / control routing / stores）
+> 均已落地，本文档保留作委托简报的历史记录。
+
 Launch AFTER the model-layer subagent (`data/model`) reports. Each brief is
 self-contained; give the subagent the CONVENTIONS.md path and the exact source
 files. Do not run gradle locally; GH Actions verifies.
+
+相关文档：[CONVENTIONS.md](CONVENTIONS.md)（移植契约）、[UI_PORT_PLAN.md](UI_PORT_PLAN.md)（移植清单）。
 
 ## W2-A · Cloud API (com.tailg.plus.data.cloud)
 

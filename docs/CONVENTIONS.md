@@ -1,7 +1,12 @@
 # Port Conventions (Dart → Kotlin)
 
+> 状态：**已完成**。本文档是移植期间（历史）的强制契约，保留作移植规范参考；
+> 后续新代码仍建议遵循其中的命名、数据建模与异步模型约定。
+
 This document fixes the contracts for porting `tailg-ble-app` (Flutter/Dart) into
 this Kotlin + Compose project. **All subagent ports MUST follow this file.**
+
+相关文档：[UI_PORT_PLAN.md](UI_PORT_PLAN.md)（移植清单）、[PORT_WAVE2.md](PORT_WAVE2.md)（Wave 2 简报）。
 
 ## Source of truth
 

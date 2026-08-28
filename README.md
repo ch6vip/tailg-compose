@@ -13,11 +13,25 @@
 ```
 app/src/main/java/com/tailg/plus/
 ├── TailgApplication.kt / MainActivity.kt
-├── ui/theme/       # VOID COCKPIT → M3 令牌
-├── ui/navigation/  # 路由图
-├── data/           # 模型 + 仓库（cloud / mqtt / ble / storage）
-├── domain/         # 用例与状态机
-└── service/        # 前台服务（感应解锁等）
+├── ui/
+│   ├── theme/        # VOID COCKPIT → M3 令牌
+│   ├── navigation/   # 路由图（TailgNavHost + Auth/Vehicle/Settings 子图）
+│   ├── screens/      # 29 个页面移植（见 docs/UI_PORT_PLAN.md）
+│   └── components/   # 33 个共享组件（CyberControlGrid、CyberMapView、VoidNav…）
+├── data/
+│   ├── model/        # 数据模型
+│   ├── ble/          # BLE 协议（TLink/QGJ + AES）
+│   ├── cloud/        # 云 HTTP（Retrofit + Moshi）
+│   ├── mqtt/         # MQTT（Paho）
+│   ├── network/      # 网络层
+│   ├── preferences/  # DataStore 偏好
+│   └── store/        # 本地存储（DataStore/JSON）
+├── domain/
+│   └── control/      # 控车路由与状态机
+├── di/               # Hilt 依赖注入
+├── service/          # 前台服务（感应解锁等）
+├── log/  util/  permission/  # 基础设施
+└── (187 个 Kotlin 文件)
 ```
 
 ## 构建
@@ -46,6 +60,14 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 `plaintext-tcp`。只有服务端提供兼容 TLS 端点并确认车型协议支持后，才能切换，
 不要直接替换端口以免破坏远程控车兼容性。
 
+## 文档
+
+| 文档 | 说明 |
+|------|------|
+| [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | 移植契约（Dart → Kotlin），移植期间所有子代理必须遵循 |
+| [docs/UI_PORT_PLAN.md](docs/UI_PORT_PLAN.md) | UI 移植清单（29 页 → Compose），含每页落地状态 |
+| [docs/PORT_WAVE2.md](docs/PORT_WAVE2.md) | Wave 2 委托简报（cloud/mqtt/control routing/stores） |
+
 ## 进度
 
 | 阶段 | 状态 |
@@ -53,7 +75,7 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 | 工程骨架 + M3 主题 + CI | ✅ |
 | 模型 / 平台层（BLE/MQTT/云） | ✅ |
 | 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
-| UI 30 页 + 导航图 | ✅ |
+| UI 29 页 + 导航图 | ✅ |
 | 测试移植 | ✅ (32 个测试文件,224 个测试,全部通过) |
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |
 | Hilt DI 图 | ✅ (单例图 + EntryPoint；屏幕共用同一 graph，无双实例 factory) |
@@ -61,3 +83,4 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 | MQTT TLS | ✅ 默认使用系统信任库；trust-all 仅 Debug 显式 opt-in |
 | 真机能力 | ✅ BLE 扫描、CameraX + ML Kit 扫码、位置、MQTT |
 | 地图 SDK | ✅ osmdroid（高德瓦片默认 / 天地图 token 可选）——位置/轨迹/围栏三 tab + ControlScreen 迷你图 |
+| 性能优化 | ✅ 渲染与状态流双重削减、控车确认链路对齐官方推送模型 |

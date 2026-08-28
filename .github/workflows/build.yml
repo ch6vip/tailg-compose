@@ -76,18 +76,18 @@ jobs:
             app/build/reports/lint-results-debug.xml
           if-no-files-found: ignore
 
-      # Prune stale artifacts from previous runs so the shared account-level
-      # 500MB artifact quota stays flat. Quota is per-account, and usage only
-      # recalculates every 6-12h, so this prevents new build-up rather than
-      # freeing space instantly (run `gh api .../actions/artifacts` + DELETE
-      # once manually to clear existing backlog).
+      # Prune stale artifacts so the shared account-level 500MB artifact
+      # quota stays flat, while keeping the newest 3 (latest APK + reports)
+      # downloadable from the Actions page. Quota is per-account and usage
+      # only recalculates every 6-12h, so this prevents new build-up rather
+      # than freeing space instantly.
       - name: Prune old artifacts
         if: always()
         continue-on-error: true
         run: |
           set +e
           gh api "repos/ch6vip/tailg-compose/actions/artifacts?per_page=100" \
-            --paginate --jq '.artifacts[].id' |
+            --paginate --jq '.artifacts | sort_by(.created_at) | .[:-3][] | .id' |
             while read -r id; do
               echo "deleting artifact $id"
               gh api -X DELETE "repos/ch6vip/tailg-compose/actions/artifacts/$id" || true

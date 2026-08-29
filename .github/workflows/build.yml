@@ -1,14 +1,18 @@
 name: build
 
-on:
+# `on` quoted: bare `on:` is a YAML 1.1 boolean alias (like `yes`/`no`),
+# which some parsers resolve to `true` instead of the events key.
+'on':
   push:
     branches: [master, develop]
   pull_request:
   workflow_dispatch:
 
 # Cancel superseded runs on the same branch so rapid pushes do not queue up.
+# Manual dispatch keeps its own group: a hand-triggered run is not cancelled
+# by a later push, and vice versa.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -92,9 +96,9 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set +e
-          gh api "repos/ch6vip/tailg-compose/actions/artifacts?per_page=100" \
+          gh api "repos/${{ github.repository }}/actions/artifacts?per_page=100" \
             --paginate --jq '.artifacts | sort_by(.created_at) | .[:-3][] | .id' |
             while read -r id; do
               echo "deleting artifact $id"
-              gh api -X DELETE "repos/ch6vip/tailg-compose/actions/artifacts/$id" || true
+              gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" || true
             done

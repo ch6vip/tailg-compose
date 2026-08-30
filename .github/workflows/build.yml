@@ -103,8 +103,27 @@ jobs:
               gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" || true
             done
 
-# trigger-check: no-op comment to force a fresh run
-
-
-# cache-quota-check: verify upload after cache purge
+      # Prune old Actions caches. The Gradle cache keys (gradle-home-v1,
+      # gradle-transforms-v1, ...) accumulate one entry per build; a single
+      # stale android-sdk cache once held 4.6GB and, together with artifacts,
+      # blew through the account-level 500MB Actions storage quota. Cache
+      # deletion is immediate (unlike the usage snapshot, which lags 6-12h),
+      # so pruning here keeps the quota flat run over run. Keep the newest 3
+      # entries per key family (by created_at): they are the ones the next
+      # build actually hits. Key family = first dash-delimited token
+      # (gradle-home-v1, ...), so different content-hash variants of the same
+      # family share a bucket.
+      - name: Prune old caches
+        if: always()
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          gh api "repos/${{ github.repository }}/actions/caches?per_page=100" \
+            --paginate --jq '[.actions_caches[] | {id, key, created_at}] | group_by(.key | split("|")[0] | split("-")[0:3] | join("-")) | .[] | sort_by(.created_at) | .[:-3][] | .id' |
+            while read -r id; do
+              echo "deleting cache $id"
+              gh api -X DELETE "repos/${{ github.repository }}/actions/caches/$id" || true
+            done
 

@@ -102,3 +102,6 @@ jobs:
               echo "deleting artifact $id"
               gh api -X DELETE "repos/${{ github.repository }}/actions/artifacts/$id" || true
             done
+
+# trigger-check: no-op comment to force a fresh run
+

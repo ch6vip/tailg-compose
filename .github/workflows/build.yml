@@ -105,3 +105,6 @@ jobs:
 
 # trigger-check: no-op comment to force a fresh run
 
+
+# cache-quota-check: verify upload after cache purge
+

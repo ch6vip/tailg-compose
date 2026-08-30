@@ -40,8 +40,13 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          # Cache ~/.gradle/caches + ~/.gradle/wrapper across runs
-          cache-read-only: ${{ github.ref != 'refs/heads/master' && github.ref != 'refs/heads/develop' }}
+          # Cache ~/.gradle/caches + ~/.gradle/wrapper across runs.
+          # Read-only on ALL branches: the gradle-dependencies cache is
+          # ~600MB per write, so letting master/develop write a fresh entry
+          # every push grows the account-level 500MB Actions storage quota
+          # faster than pruning can reclaim it. Read-only keeps cache hits
+          # (Gradle deps are stable) while never adding new entries.
+          cache-read-only: true
           gradle-home-cache-includes: |
             caches
             wrapper
@@ -108,7 +113,7 @@ jobs:
       # stale android-sdk cache once held 4.6GB and, together with artifacts,
       # blew through the account-level 500MB Actions storage quota. Cache
       # deletion is immediate (unlike the usage snapshot, which lags 6-12h),
-      # so pruning here keeps the quota flat run over run. Keep the newest 3
+      # so pruning here keeps the quota flat run over run. Keep the newest 2
       # entries per key family (by created_at): they are the ones the next
       # build actually hits. Key family = first dash-delimited token
       # (gradle-home-v1, ...), so different content-hash variants of the same
@@ -121,7 +126,7 @@ jobs:
         run: |
           set +e
           gh api "repos/${{ github.repository }}/actions/caches?per_page=100" \
-            --paginate --jq '[.actions_caches[] | {id, key, created_at}] | group_by(.key | split("|")[0] | split("-")[0:3] | join("-")) | .[] | sort_by(.created_at) | .[:-3][] | .id' |
+            --paginate --jq '[.actions_caches[] | {id, key, created_at}] | group_by(.key | split("|")[0] | split("-")[0:3] | join("-")) | .[] | sort_by(.created_at) | .[:-2][] | .id' |
             while read -r id; do
               echo "deleting cache $id"
               gh api -X DELETE "repos/${{ github.repository }}/actions/caches/$id" || true

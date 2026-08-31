@@ -31,7 +31,7 @@
 | 项 | 实测值 |
 | --- | --- |
 | 仓库可见性 | **PUBLIC**（`gh repo view` 确认：`ch6vip/tailg-compose`） |
-| `app/release.keystore` | **已被 git 跟踪**（commit `0dd7b98` 一同提交） |
+| `app/release.keystore` | **已被 git 跟踪**（2026-08 的签名提交引入，历史已于 2026-09-01 清理，见第 8 节） |
 | 签名密码 | 硬编码兜底值 `Q********.` / alias `tailg-r******e`（`app/build.gradle.kts:30-32`） |
 | workflow 里是否注入 Secrets | **没有** `env:` 块 → 走的是兜底明文密码分支 |
 | AGP / Kotlin / Gradle | 8.9.1 / 2.1.10 / 8.12-bin |
@@ -46,7 +46,7 @@
 
 **问题**：`app/release.keystore` 在公开仓库里，密码以源码形式写在 `app/build.gradle.kts:30-32`。任何人 clone 后即可用你的签名打出任意 APK——已安装你 App 的用户会被恶意更新静默覆盖（Android 只校验签名一致性）。
 
-**与 workflow 的耦合**：`build.yml:62` 的注释写着 "Catch R8/ProGuard keep-rule regressions **without requiring a release keystore**" —— 这条注释**已经与事实不符**。自从 commit `0dd7b98` 把 keystore 签进仓库后，`assembleRelease` 是真签名，而且 `build.yml:76-84` 每次 push **和每个 PR** 都把**已签名的 release APK** 作为 artifact 上传。公开仓库的 artifact 对任何有读权限的人可下载。
+**与 workflow 的耦合**：`build.yml:62` 的注释写着 "Catch R8/ProGuard keep-rule regressions **without requiring a release keystore**" —— 这条注释**已经与事实不符**。自从 2026-08 的签名提交把 keystore 签进仓库后，`assembleRelease` 是真签名，而且 `build.yml:76-84` 每次 push **和每个 PR** 都把**已签名的 release APK** 作为 artifact 上传。公开仓库的 artifact 对任何有读权限的人可下载。
 
 **处置顺序（缺一不可）**：
 1. **轮换密钥**，旧密钥视为已泄露（Play/第三方渠道若已上传过，走签名密钥升级流程）。
@@ -153,38 +153,76 @@ secret scanning + push protection 均已 enabled（此前是关闭的，所以�
 
 ---
 
-## 8. 待你执行：清理 git 历史（破坏性，需确认）
+## 8. git 历史清理（已于 2026-09-01 执行完毕）
 
-`app/release.keystore` 仍存在于提交 `0dd7b98` 及之后所有提交的树中。删文件并不会让历史里的 blob 消失。
+`app/release.keystore` 曾存在于 2026-08 的签名提交及之后所有提交的树中，且
+`app/build.gradle.kts` 在两个提交里带有明文密码与 alias。**只删文件是不够的**：
+删文件不会让历史里的 blob 消失，而明文密码在另一个文件里。所以做了历史重写。
+
+### 8.1 实际执行的命令
 
 ```bash
-# 先备份整仓（filter-repo 会重写历史）
-cp -r tailg-compose tailg-compose.bak
+# 1) 备份：必须放在仓库外，filter-repo 会重写仓库内所有 ref，
+#    留在仓库里的"备份分支"同样会被重写，等于没备份。
+git clone --mirror . C:/Users/ch6vip/tailg-compose-backup-20260901.git
 
-cd tailg-compose
-export PATH="C:/Users/ch6vip/.workbuddy/binaries/python/envs/default/Scripts:$PATH"
+# 2) 在全新克隆上重写。本地 clone 默认走硬链接，必须 --no-local，
+#    否则 filter-repo 判定 "does not look like a fresh clone" 并拒绝执行。
+git clone --no-local C:/Users/ch6vip/tailg-compose-backup-20260901.git tailg-filter
+cd tailg-filter
 
-# 从全部历史中移除该文件
-git filter-repo --path app/release.keystore --invert-paths --force
+# 3) 一次做两件事：删除 keystore 路径 + 替换明文密码/alias。
+#    replace.txt 每行格式为 <原文>==><替换>：
+#      Q********.==>***REMOVED***
+#      tailg-r******e==>***REMOVED***
+git filter-repo --invert-paths --path app/release.keystore \
+  --replace-text replace.txt
 
-# 确认无人再引用
-git log --all --oneline -- app/release.keystore   # 应为空
+# 4) 校验（三条都必须为空 / 一致）
+git rev-list --objects --all | grep -i release.keystore          # 空
+git grep -I -E "<密码>|<alias>" $(git rev-list --all)     # 空
+git rev-parse HEAD^{tree}                                          # 应与重写前一致
 
-git push --force-with-lease --all
-git push --force-with-lease --tags
+# 5) filter-repo 会移除 origin，推回前需重新添加
+git remote add origin https://github.com/ch6vip/tailg-compose.git
+git push --force --all
 ```
 
-**执行前需要知道的后果**：
+### 8.2 结果
 
-1. **所有提交的 SHA 都会变**，109 个提交全部重写。若有人 clone 过，他们必须重新 clone（`git pull` 会冲突）。
-2. **已开的 PR 会被打乱**，建议先合并或关闭。
-3. **GitHub 仍可能通过旧 SHA 访问被重写前的对象**（缓存 + API），直到 GC。force push 后可联系 GitHub Support 请求清除缓存视图。
-4. 如果仓库有 **fork**，fork 里仍保留旧历史，需要他们重新 fork。
-5. filter-repo 会移除 `origin` remote，push 前需要重新 `git remote add`。
+| 项 | 结果 |
+| --- | --- |
+| 提交数 | 111 → **111**（无丢失） |
+| 根树对象 | `6e272e94…`，与重写前**逐字节一致**（内容零改动） |
+| `app/release.keystore` | 全历史已移除 |
+| 明文密码 / alias | 全历史已替换为 `***REMOVED***` |
+| `git fsck` | 干净 |
 
-**如果你判断清理历史的代价值得做** —— 那么更彻底的选择其实是：既然历史要重写，不如顺手把密钥也换掉。保留一把已经公开过的密钥，历史清理只是缩小传播面，并不能让它重新变私密。
+### 8.3 执行时踩到的两个坑
 
-若决定轮换，生成新密钥（本机已有 JDK）：
+1. **不要在工作副本上直接跑 filter-repo。** 首次在 `E:\...\tailg-compose`
+   上直接跑，先报 `error: unable to update .git/info/refs`，随后 `gc` 阶段把
+   `.git/objects` **清空**，HEAD 变成 `bad object`，整个仓库不可用 —— 最后是从
+   `--mirror` 备份恢复的（工作区文件未受影响）。在**全新克隆**上跑完全没有这个问题。
+2. **本地 clone 必须加 `--no-local`**，否则走硬链接，filter-repo 拒绝执行。
+
+### 8.4 仍需注意
+
+1. **所有提交的 SHA 都已改变**（111 个全部重写）。若有人 clone 过，必须重新
+   clone（`git pull` 会冲突）。
+2. **GitHub 仍可能通过旧 SHA 访问重写前的对象**（缓存 + PR 引用）。force push
+   后可联系 GitHub Support 请求清除缓存视图。
+3. 本仓库 0 fork，无需通知下游。
+4. 备份保留在 `C:\Users\ch6vip\tailg-compose-backup-20260901.git`，
+   确认无误后可删除。
+
+### 8.5 关于是否轮换密钥（本次未做）
+
+本次按决定保留原密钥。需要说清楚：**历史清理只是缩小传播面，不能让已公开的
+密钥重新变私密。** 本仓库 0 tags / 0 releases / versionCode 1，没有任何存量
+安装，换密钥的边际成本接近零。
+
+若日后决定轮换（本机已有 JDK）：
 
 ```bash
 keytool -genkeypair -v \
@@ -200,8 +238,6 @@ gh secret set KEY_ALIAS       --body "tailg-release"
 gh secret set KEY_PASSWORD    --body "<新密码>"
 rm -f /tmp/ks.b64
 ```
-
-本仓库尚无存量安装（0 tags / 0 releases / versionCode 1），直接换密钥不影响任何用户。
 
 ---
 

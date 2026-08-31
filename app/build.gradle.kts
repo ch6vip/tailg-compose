@@ -18,19 +18,46 @@ android {
     // ------------------------------------------------------------------
     // Signing configuration
     // ------------------------------------------------------------------
-    // In CI the keystore file is checked into the repo for reproducible
-    // builds; passwords are injected via environment variables (GitHub
-    // Secrets → env vars).  Locally you may either set the same env vars
-    // or let the fallback defaults apply (the checked-in keystore uses
-    // the well-known password "tailg-release").
+    // The keystore is NOT in the repo. In CI it is restored from the
+    // ANDROID_KEYSTORE_BASE64 secret into $RUNNER_TEMP (see .github/
+    // workflows/build.yml); locally, export the four variables below.
+    //
+    // There is deliberately NO fallback password: a hardcoded credential
+    // in a public repo means anyone can sign an APK as us. If the
+    // variables are missing, the release build simply comes out unsigned
+    // (still a valid R8/ProGuard smoke test) instead of failing.
     // ------------------------------------------------------------------
+    val signingStoreFile = System.getenv("STORE_FILE")
+        ?.takeIf { it.isNotBlank() }
+        ?.let { file(it) }
+    val signingStorePassword = System.getenv("KEYSTORE_PASSWORD")
+    val signingKeyAlias = System.getenv("KEY_ALIAS")
+    val signingKeyPassword = System.getenv("KEY_PASSWORD")
+
     signingConfigs {
-        create("release") {
-            storeFile = file("release.keystore")
-            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "***REMOVED***"
-            keyAlias = System.getenv("KEY_ALIAS") ?: "***REMOVED***"
-            keyPassword = System.getenv("KEY_PASSWORD") ?: "***REMOVED***"
+        // Only register the config when the key is actually present, so a
+        // build without it does not fail with "Keystore file not found".
+        if (signingStoreFile?.exists() == true
+            && !signingStorePassword.isNullOrEmpty()
+            && !signingKeyAlias.isNullOrEmpty()
+            && !signingKeyPassword.isNullOrEmpty()
+        ) {
+            create("release") {
+                storeFile = signingStoreFile
+                storePassword = signingStorePassword
+                keyAlias = signingKeyAlias
+                keyPassword = signingKeyPassword
+            }
         }
+    }
+
+    // Resolved once, up front: PR builds do not receive the signing key.
+    val releaseSigningConfig = signingConfigs.findByName("release")
+    if (releaseSigningConfig == null) {
+        logger.lifecycle(
+            "release signing: no keystore configured (STORE_FILE/KEYSTORE_PASSWORD/" +
+                "KEY_ALIAS/KEY_PASSWORD) — the release APK will be UNSIGNED."
+        )
     }
 
     defaultConfig {
@@ -60,7 +87,8 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
-            signingConfig = signingConfigs.getByName("release")
+            // Sign only when the key was restored; otherwise unsigned.
+            releaseSigningConfig?.let { signingConfig = it }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

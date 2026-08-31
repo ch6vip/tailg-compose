@@ -11,6 +11,13 @@ build/
 
 # Local config
 local.properties
+
+# Signing — never commit a keystore. The release key lives in GitHub Secrets
+# (ANDROID_KEYSTORE_BASE64) and is restored to $RUNNER_TEMP in CI.
+*.keystore
+*.jks
+*.p12
+*.pfx
 key.properties
 
 # OS

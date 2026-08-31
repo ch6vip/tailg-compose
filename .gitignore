@@ -11,8 +11,6 @@ build/
 
 # Local config
 local.properties
-*.jks
-*.keystore
 key.properties
 
 # OS

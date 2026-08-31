@@ -73,6 +73,16 @@ jobs:
           retention-days: 3
           compression-level: 9
 
+      - name: Upload signed release APK
+        if: success()
+        continue-on-error: true
+        uses: actions/upload-artifact@v5
+        with:
+          name: app-release
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 3
+          compression-level: 9
+
       # Always publish reports (even on failure) so CI reds are debuggable
       # without reproducing locally.
       - name: Upload test & lint reports

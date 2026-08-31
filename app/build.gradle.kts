@@ -15,6 +15,24 @@ android {
     namespace = "com.tailg.plus"
     compileSdk = 35
 
+    // ------------------------------------------------------------------
+    // Signing configuration
+    // ------------------------------------------------------------------
+    // In CI the keystore file is checked into the repo for reproducible
+    // builds; passwords are injected via environment variables (GitHub
+    // Secrets → env vars).  Locally you may either set the same env vars
+    // or let the fallback defaults apply (the checked-in keystore uses
+    // the well-known password "tailg-release").
+    // ------------------------------------------------------------------
+    signingConfigs {
+        create("release") {
+            storeFile = file("release.keystore")
+            storePassword = System.getenv("KEYSTORE_PASSWORD") ?: "***REMOVED***"
+            keyAlias = System.getenv("KEY_ALIAS") ?: "***REMOVED***"
+            keyPassword = System.getenv("KEY_PASSWORD") ?: "***REMOVED***"
+        }
+    }
+
     defaultConfig {
         applicationId = "com.tailg.plus"
         minSdk = 26
@@ -42,6 +60,7 @@ android {
         release {
             isMinifyEnabled = true
             isShrinkResources = true
+            signingConfig = signingConfigs.getByName("release")
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",

@@ -6,66 +6,72 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 /**
- * Typography mapped from the VOID text tokens (AppTextStyles in the Flutter
- * replica) onto Material 3 type roles. UI port phase may refine per-screen.
+ * Typography mapped onto Material 3 type roles.
+ *
+ * Colors come from [CyberHomeColors] (the 2026 light cockpit token set) —
+ * NOT [AppColorsDark]. The app is light-only (`TailgTheme.darkTheme` defaults
+ * to false); the old mapping hardcoded the dark VOID palette's near-white
+ * `textPrimary` (`0xFFF4F6FA`) here, which leaked into every `Text` /
+ * `TextField` that did not set an explicit color and rendered white-on-white
+ * on the light `CyberHomeColors.card` (the "invisible login phone number" bug).
  */
 val TailgTypography = Typography(
     displaySmall = TextStyle(
         fontSize = 24.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     headlineMedium = TextStyle(
         fontSize = 20.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     headlineSmall = TextStyle(
         fontSize = 18.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     titleLarge = TextStyle(
         fontSize = 17.sp,
         fontWeight = FontWeight.W800,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     titleMedium = TextStyle(
         fontSize = 16.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     titleSmall = TextStyle(
         fontSize = 15.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     bodyLarge = TextStyle(
         fontSize = 14.sp,
         fontWeight = FontWeight.W700,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     bodyMedium = TextStyle(
         fontSize = 13.sp,
-        color = AppColorsDark.textSecondary,
+        color = CyberHomeColors.inkSecondary,
     ),
     bodySmall = TextStyle(
         fontSize = 13.sp,
-        color = AppColorsDark.textTertiary,
+        color = CyberHomeColors.inkMuted,
     ),
     labelLarge = TextStyle(
         fontSize = 13.sp,
         fontWeight = FontWeight.W600,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
     ),
     labelMedium = TextStyle(
         fontSize = 12.sp,
-        color = AppColorsDark.textSecondary,
+        color = CyberHomeColors.inkSecondary,
     ),
     labelSmall = TextStyle(
         fontSize = 11.sp,
         fontWeight = FontWeight.W700,
         letterSpacing = 1.5.sp,
-        color = AppColorsDark.textTertiary,
+        color = CyberHomeColors.inkMuted,
     ),
 )

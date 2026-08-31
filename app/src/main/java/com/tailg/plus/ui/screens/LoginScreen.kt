@@ -389,6 +389,10 @@ private fun SmsLoginForm(
         { Text(stringResource(R.string.login_phone_error)) }
       } else null,
       keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+      textStyle = TextStyle(
+        fontSize = 16.sp,
+        color = CyberHomeColors.ink,
+      ),
       placeholder = { Text(stringResource(R.string.login_phone_hint)) },
       colors = cyberTextFieldColors(),
       shape = cyberTextFieldShape,
@@ -407,6 +411,10 @@ private fun SmsLoginForm(
           { Text(stringResource(R.string.login_sms_error)) }
         } else null,
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+        textStyle = TextStyle(
+          fontSize = 16.sp,
+          color = CyberHomeColors.ink,
+        ),
         placeholder = { Text(stringResource(R.string.login_sms_hint)) },
         colors = cyberTextFieldColors(),
         shape = cyberTextFieldShape,

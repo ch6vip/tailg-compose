@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldColors
@@ -246,6 +247,13 @@ fun cyberTextFieldColors(): TextFieldColors = OutlinedTextFieldDefaults.colors(
   unfocusedLabelColor = CyberHomeColors.inkMuted,
   disabledLabelColor = CyberHomeColors.inkFaint,
   errorLabelColor = CyberHomeColors.danger,
+  // Selection highlight/handles — defaulted to Material neon in earlier
+  // builds, producing green handles that clash with the Cyber light theme
+  // and looked like "invisible text" when the user long-pressed to select.
+  selectionColors = TextSelectionColors(
+    handleColor = CyberHomeColors.primary,
+    backgroundColor = CyberHomeColors.primarySoft,
+  ),
 )
 
 /** Cyber outlined text-field shape (Dart `AppRadii.tile`). */

@@ -7,6 +7,7 @@
     <string name="nav_service">Services</string>
     <string name="nav_control">Control</string>
     <string name="nav_mine">Mine</string>
+    <string name="nav_settings">Settings</string>
     <string name="login_title">Sign in</string>
     <string name="login_brand">TAILG</string>
     <string name="login_subtitle">Tailg Smart · VOID COCKPIT</string>

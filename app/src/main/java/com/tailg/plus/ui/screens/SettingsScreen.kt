@@ -66,6 +66,7 @@ fun SettingsScreen(
   onBack: () -> Unit,
   onNavigate: (String) -> Unit,
   preferencesService: AppPreferencesService? = null,
+  showBack: Boolean = true,
 ) {
   val context = androidx.compose.ui.platform.LocalContext.current
   val prefs = preferencesService
@@ -85,7 +86,7 @@ fun SettingsScreen(
         .padding(padding)
         .padding(bottom = 32.dp),
     ) {
-      CyberPageHeader(title = stringResource(R.string.settings_title), onBack = onBack)
+      CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
       CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
       SettingsGroup(
         settingItemModel(

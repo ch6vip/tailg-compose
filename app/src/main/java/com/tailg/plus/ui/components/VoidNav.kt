@@ -40,10 +40,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
- * Port of `lib/widgets/void_nav.dart` — three-entry floating nav
- * (服务 / 控车 / 我的) styled after the light Cyber cockpit.
- *
- * Product scope is preserved: only 服务 / 控车 / 我的 exist (no empty shells).
+ * Port of `lib/widgets/void_nav.dart` — four-entry floating nav
+ * (服务 / 控车 / 我的 / 设置) styled after the light Cyber cockpit.
  *
  * Token mapping:
  * - `CyberHomeColors.navSurface/navSelected/white/ink/inkSecondary` → the
@@ -55,7 +53,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  *   [CyberHomeColors.navSurface] only.
  *
  * Icons: `Lucide.service` → `Icons.Filled.GridView`; `Lucide.vehicle` →
- * `Icons.Filled.DirectionsBike`; `Lucide.mine` → `Icons.Filled.Person`.
+ * `Icons.Filled.DirectionsBike`; `Lucide.mine` → `Icons.Filled.Person`;
+ * `Lucide.settings` → `Icons.Filled.Settings`.
  */
 object VoidOrbitalNav {
   const val barHeightDp = 64
@@ -68,6 +67,7 @@ fun VoidOrbitalNav(
   onService: () -> Unit,
   onVehicle: () -> Unit,
   onMine: () -> Unit,
+  onSettings: () -> Unit,
 ) {
   val haptics = LocalHapticFeedback.current
   val shape = RoundedCornerShape(AppRadii.pill)
@@ -142,6 +142,16 @@ fun VoidOrbitalNav(
           onTap = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
             onMine()
+          },
+          modifier = Modifier.weight(1f),
+        )
+        NavItem(
+          label = stringResource(R.string.nav_settings),
+          icon = Lucide.settings,
+          selected = currentIndex == 3,
+          onTap = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
+            onSettings()
           },
           modifier = Modifier.weight(1f),
         )

@@ -10,6 +10,7 @@
     <string name="nav_service">服务</string>
     <string name="nav_control">控车</string>
     <string name="nav_mine">我的</string>
+    <string name="nav_settings">设置</string>
 
     <!-- Login -->
     <string name="login_title">登录</string>

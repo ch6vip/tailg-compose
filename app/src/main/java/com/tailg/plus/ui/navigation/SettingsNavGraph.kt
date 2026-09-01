@@ -50,6 +50,7 @@ fun NavGraphBuilder.settingsNavGraph(
             preferencesService = preferencesService,
             onBack = { navController.popBackStack() },
             onNavigate = { route -> navController.navigate(route) },
+            showBack = false,
         )
     }
     composable(Routes.APP_PREFERENCES) {

@@ -159,6 +159,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
     Routes.SERVICE_HUB,
     Routes.CONTROL,
     Routes.PROFILE_MINE,
+    Routes.SETTINGS,
   )
   val vehicleRouteId = navVehicleRouteId
 
@@ -180,6 +181,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
           Routes.SERVICE_HUB -> 0
           Routes.CONTROL -> 1
           Routes.PROFILE_MINE -> 2
+          Routes.SETTINGS -> 3
           else -> 0
         }
         VoidOrbitalNav(
@@ -187,6 +189,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
           onService = { navigateBottomTab(Routes.SERVICE_HUB) },
           onVehicle = { navigateBottomTab(Routes.vehicleHome(vehicleRouteId)) },
           onMine = { navigateBottomTab(Routes.PROFILE_MINE) },
+          onSettings = { navigateBottomTab(Routes.SETTINGS) },
         )
       }
     },

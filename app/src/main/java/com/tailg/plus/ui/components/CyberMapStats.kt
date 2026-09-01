@@ -28,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -82,47 +81,36 @@ fun CyberMapStatsRow(
   onMapTap: () -> Unit,
   onRideStatsTap: () -> Unit,
 ) {
-  val stacked = LocalConfiguration.current.screenWidthDp < 420
-  val mapCard: @Composable () -> Unit = {
-    Box(modifier = Modifier.fillMaxWidth()) {
+  // Side-by-side layout on every width: the mini map and the ride card split
+  // the row evenly, with a 12dp gutter between them.
+  Row(
+    modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth(),
+    verticalAlignment = Alignment.Top,
+  ) {
+    Box(modifier = Modifier.weight(1f)) {
       MiniMap(
         location = location,
         address = address,
-        height = if (stacked) 210.dp else 260.dp,
+        height = 260.dp,
         onMapTap = onMapTap,
       )
     }
-  }
-  val rideCard: @Composable () -> Unit = {
-    AppPressable(
-      onClick = onRideStatsTap,
-      shape = RoundedCornerShape(AppRadii.sheet),
-      semanticsLabel = stringResource(R.string.map_stats_view_ride),
-      shadowElevation = 0.dp,
-    ) {
-      RideCard(
-        height = if (stacked) 216.dp else 260.dp,
-        todayKm = todayKm,
-        totalKm = totalKm,
-        lastDistance = lastDistance,
-        lastDuration = lastDuration,
-      )
-    }
-  }
-  if (stacked) {
-    Column(modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth()) {
-      mapCard()
-      Spacer(Modifier.height(12.dp))
-      rideCard()
-    }
-  } else {
-    Row(
-      modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth(),
-      verticalAlignment = Alignment.Top,
-    ) {
-      Box(modifier = Modifier.weight(1f)) { mapCard() }
-      Spacer(Modifier.width(12.dp))
-      Box(modifier = Modifier.weight(1f)) { rideCard() }
+    Spacer(Modifier.width(12.dp))
+    Box(modifier = Modifier.weight(1f)) {
+      AppPressable(
+        onClick = onRideStatsTap,
+        shape = RoundedCornerShape(AppRadii.sheet),
+        semanticsLabel = stringResource(R.string.map_stats_view_ride),
+        shadowElevation = 0.dp,
+      ) {
+        RideCard(
+          height = 260.dp,
+          todayKm = todayKm,
+          totalKm = totalKm,
+          lastDistance = lastDistance,
+          lastDuration = lastDuration,
+        )
+      }
     }
   }
 }

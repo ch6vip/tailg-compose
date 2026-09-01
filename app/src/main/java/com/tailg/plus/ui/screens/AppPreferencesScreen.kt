@@ -18,7 +18,6 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -30,7 +29,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -38,14 +36,9 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
-import com.tailg.plus.data.store.VehicleStore
-import com.tailg.plus.log.LogService
-import com.tailg.plus.service.DiagnosticExportService
-import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberCard
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.CyberSectionLabel
@@ -59,7 +52,6 @@ import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
-import com.tailg.plus.util.ClipboardText
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -213,36 +205,7 @@ fun UnitSettingsScreen(
 @Composable
 fun AboutAppScreen(
   onBack: () -> Unit,
-  logService: LogService? = null,
-  cloudService: OfficialCloudService? = null,
 ) {
-  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
-  val log = logService ?: entryPoint.logService()
-  val clipboard = entryPoint.clipboardText()
-  val snackbarHostState = remember { SnackbarHostState() }
-  val scope = rememberCoroutineScope()
-  val strCopiedReport = stringResource(R.string.prefs_copied_report)
-  val strTerms = stringResource(R.string.prefs_terms)
-  val strPrivacy = stringResource(R.string.prefs_privacy)
-
-  val cloud = cloudService ?: entryPoint.cloudService()
-  val vehicleStore = entryPoint.vehicleStore()
-  val exportService = remember {
-    DiagnosticExportService(
-      logService = log,
-      vehicleStore = vehicleStore,
-      officialCloudService = cloud,
-    )
-  }
-
-  val copyDiagnosticReport: () -> Unit = {
-    scope.launch {
-      val report = exportService.buildReport(log.all)
-      clipboard.writeClipboardText(report)
-      AppSnack.success(snackbarHostState, strCopiedReport)
-    }
-  }
-
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
   ) { padding ->
@@ -290,38 +253,6 @@ fun AboutAppScreen(
             InfoRow(label = stringResource(R.string.prefs_git_commit), value = BUILD_COMMIT)
           }
         }
-        CyberSectionLabel(stringResource(R.string.prefs_service_support))
-        CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-          Column {
-            ActionRow(
-              icon = Lucide.support,
-              title = stringResource(R.string.prefs_service_diag),
-              subtitle = stringResource(R.string.prefs_service_diag_desc),
-              onClick = copyDiagnosticReport,
-            )
-            InsetDivider()
-            ActionRow(
-              icon = Lucide.fileText,
-              title = stringResource(R.string.prefs_terms),
-              subtitle = stringResource(R.string.prefs_terms_desc),
-              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, strTerms) },
-            )
-            InsetDivider()
-            ActionRow(
-              icon = Lucide.privacy,
-              title = stringResource(R.string.prefs_privacy),
-              subtitle = stringResource(R.string.prefs_privacy_desc),
-              onClick = { AppSnack.notYetOpen(scope, snackbarHostState, strPrivacy) },
-            )
-          }
-        }
-        Spacer(Modifier.height(20.dp))
-        Text(
-          text = "Copyright 2026",
-          style = cyberCaptionStyle,
-          modifier = Modifier.fillMaxWidth(),
-          textAlign = TextAlign.Center,
-        )
       }
     }
   }
@@ -352,44 +283,6 @@ private fun OptionRow(
     LucideIcon(
       icon = if (selected) Lucide.checkCircle else Lucide.radioUnchecked,
       color = if (selected) CyberHomeColors.primary else CyberHomeColors.inkFaint,
-    )
-  }
-}
-
-/** Dart `_ActionRow`: icon + title/subtitle + chevron, pressable. */
-@Composable
-private fun ActionRow(
-  icon: ImageVector,
-  title: String,
-  subtitle: String,
-  onClick: () -> Unit,
-) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable { onClick() }
-      .padding(start = 16.dp, end = 14.dp, top = 14.dp, bottom = 14.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(
-      modifier = Modifier
-        .size(38.dp)
-        .clip(RoundedCornerShape(AppRadii.tile))
-        .background(CyberHomeColors.primarySoft),
-      contentAlignment = Alignment.Center,
-    ) {
-      LucideIcon(icon = icon, color = CyberHomeColors.primary, size = AppIconSizes.md)
-    }
-    Spacer(Modifier.width(14.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(text = title, style = cyberItemTitleStyle)
-      Spacer(Modifier.height(4.dp))
-      Text(text = subtitle, style = cyberCaptionStyle)
-    }
-    LucideIcon(
-      icon = Lucide.chevronRight,
-      color = CyberHomeColors.inkFaint,
-      size = AppIconSizes.md,
     )
   }
 }

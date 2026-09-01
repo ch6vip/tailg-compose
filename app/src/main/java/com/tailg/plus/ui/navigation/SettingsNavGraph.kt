@@ -68,7 +68,6 @@ fun NavGraphBuilder.settingsNavGraph(
     composable(Routes.ABOUT_APP) {
         AboutAppScreen(
             onBack = { navController.popBackStack() },
-            cloudService = cloudService,
         )
     }
     composable(Routes.NOTIFICATION_PREFS) {

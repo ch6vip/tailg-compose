@@ -24,11 +24,9 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.horizontalScroll
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -38,7 +36,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.vector.ImageVector
@@ -46,30 +43,31 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
-import kotlin.math.roundToInt
 
 /**
- * Port of `lib/widgets/cyber_vehicle_header.dart` — collapsing header for the
+ * Port of `lib/widgets/cyber_vehicle_header.dart` — vehicle header for the
  * Cyber control home.
  *
- * The Dart `SliverPersistentHeaderDelegate` collapses between
- * `minExtent = 152` and `maxExtent = expandedExtent` with
- * `SliverPersistentHeader(pinned: true)`. Compose has no sliver protocol,
- * so a [CollapsingHeaderState] + nested scroll is the equivalent: the header
- * stays pinned, shrinks in place, and list content does not recompose per
- * collapse pixel.
+ * The Dart `SliverPersistentHeader(pinned: true)` collapsing behavior is **not**
+ * ported: the header is a plain block that scrolls away with the page content
+ * (the compact top bar that used to be revealed on collapse was removed). Two
+ * consequences, both intentional:
+ * - Height is fixed at [CyberHeaderExpandedHeight]; there is no collapse
+ *   fraction, no pinned layer and no per-pixel recomposition.
+ * - Drags that start on the bike illustration are handled by the page's own
+ *   vertical scroll, so they scroll in both directions and keep the fling —
+ *   the previous pinned header consumed them through a local
+ *   `Modifier.scrollable` with no fling behavior.
  *
  * Token mapping: `CyberHomeColors.pageBg/card/control/primary/primarySoft/
  * ink/inkSecondary/inkMuted/inkFaint/warning/danger/actionShadow` → the
@@ -86,30 +84,15 @@ import kotlin.math.roundToInt
 /** BLE chip visual state (drives label + spinner in the header). */
 enum class OfficialBleChipState { Hidden, NoBle, ClickToConnect, Connecting, Disconnecting, Connected }
 
+/**
+ * Height of the control-home vehicle header. The header is a plain scrollable
+ * block (it scrolls away with the page) — it no longer pins and collapses into
+ * a compact top bar, so this is a single fixed extent.
+ */
 internal val CyberHeaderExpandedHeight = 376.dp
-internal val CyberHeaderCollapsedHeight = 152.dp
-
-internal fun cyberHeaderHeight(collapseFraction: Float): Dp {
-  val progress = collapseFraction.coerceIn(0f, 1f)
-  return CyberHeaderExpandedHeight -
-    (CyberHeaderExpandedHeight - CyberHeaderCollapsedHeight) * progress
-}
-
-private fun Modifier.collapseLayerVisible(visible: () -> Boolean): Modifier =
-  layout { measurable, constraints ->
-    if (!visible()) {
-      layout(0, 0) {}
-    } else {
-      val placeable = measurable.measure(constraints)
-      layout(placeable.width, placeable.height) {
-        placeable.place(0, 0)
-      }
-    }
-  }
 
 @Composable
 fun CyberVehicleHeader(
-  collapseState: CollapsingHeaderState,
   vehicleName: String,
   rangeText: String,
   carPhoto: String,
@@ -128,21 +111,6 @@ fun CyberVehicleHeader(
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
 ) {
-  val density = LocalDensity.current
-  val expandedPx = with(density) { CyberHeaderExpandedHeight.toPx() }
-  val collapsedPx = with(density) { CyberHeaderCollapsedHeight.toPx() }
-  // Thresholds only: reading fraction in composition would rebuild VehicleStage
-  // every collapse pixel. Opacity/height are applied in layout/draw instead.
-  val expandedInteractive by remember(collapseState) {
-    derivedStateOf { collapseState.fraction <= 0.278f }
-  }
-  val compactInteractive by remember(collapseState) {
-    derivedStateOf { collapseState.fraction >= 0.71f }
-  }
-  val showCollapsedShadow by remember(collapseState) {
-    derivedStateOf { collapseState.fraction > 0.95f }
-  }
-
   // Entrance fade (secondary defense): the loading gate now renders as an
   // overlay, so the home list structure never changes and this header
   // is not re-measured on gate clear (the primary fix for the illustration
@@ -175,102 +143,39 @@ fun CyberVehicleHeader(
     relayoutTick += 1f
   }
 
+  // Static header: the block scrolls away with the page content instead of
+  // pinning and collapsing into a compact top bar, so the height stays at the
+  // expanded extent and every action is interactive at all times.
   Box(
     modifier = modifier
       .fillMaxWidth()
+      .height(CyberHeaderExpandedHeight)
       .graphicsLayer { alpha = enterAlpha }
       .layout { measurable, constraints ->
         relayoutTick // measure-invalidation key; see comment above
-        val height = (expandedPx - collapseState.offsetPx)
-          .roundToInt()
-          .coerceIn(collapsedPx.roundToInt(), expandedPx.roundToInt())
-        val placeable = measurable.measure(
-          constraints.copy(minHeight = height, maxHeight = height),
-        )
-        layout(placeable.width, height) { placeable.place(0, 0) }
+        val placeable = measurable.measure(constraints)
+        layout(placeable.width, placeable.height) { placeable.place(0, 0) }
       }
-      .background(CyberHomeColors.pageBg)
-      .then(
-        if (showCollapsedShadow) {
-          Modifier.shadow(
-            elevation = 8.dp,
-            shape = RoundedCornerShape(bottomStart = AppRadii.md, bottomEnd = AppRadii.md),
-            clip = false,
-            ambientColor = Color.Transparent,
-            spotColor = CyberHomeColors.actionShadow,
-          )
-        } else {
-          Modifier
-        },
-      ),
+      .background(CyberHomeColors.pageBg),
   ) {
-    // Expanded hero layer.
-    // Dart IgnorePointer(ignoring: expandedOpacity < 0.5): Compose alpha()
-    // does not block hit testing, so gate the layer's clickable subtree with
-    // the interactive parameter. Both layers stay composed so VehicleStage is
-    // not disposed on collapse. Layout reports 0 size when a layer is fully
-    // faded so the overlay on top cannot eat hits. Opacity is draw-phase only.
-    // The explicit parent height above mirrors SliverPersistentHeader's
-    // min/max extents; matchParentSize children do not participate in Box
-    // measurement on their own.
-    Box(
-      modifier = Modifier
-        .matchParentSize()
-        .collapseLayerVisible { collapseState.fraction < 0.56f }
-        .graphicsLayer {
-          val progress = collapseState.fraction
-          alpha = (1f - progress * 1.8f).coerceIn(0f, 1f)
-        },
-    ) {
-      CyberHeroHeader(
-        vehicleName = vehicleName,
-        rangeText = rangeText,
-        carPhoto = carPhoto,
-        batteryPercent = batteryPercent,
-        batteryKnown = batteryKnown,
-        online = online,
-        bluetoothConnected = bluetoothConnected,
-        isLocked = isLocked,
-        powered = powered,
-        bleChip = bleChip,
-        channelStatus = channelStatus,
-        interactive = expandedInteractive,
-        onTitleTap = onTitleTap,
-        onBatteryTap = onBatteryTap,
-        onBleChipTap = onBleChipTap,
-        onMessages = onMessages,
-        onChannelTap = onChannelTap,
-      )
-    }
-    // Compact top-bar layer.
-    Box(
-      modifier = Modifier
-        .matchParentSize()
-        .collapseLayerVisible { collapseState.fraction > 0.42f }
-        .graphicsLayer {
-          val progress = collapseState.fraction
-          alpha = ((progress - 0.42f) / 0.58f).coerceIn(0f, 1f)
-        },
-    ) {
-      CyberTopBar(
-        vehicleName = vehicleName,
-        rangeText = rangeText,
-        carPhoto = carPhoto,
-        batteryPercent = batteryPercent,
-        online = online,
-        bluetoothConnected = bluetoothConnected,
-        isLocked = isLocked,
-        powered = powered,
-        bleChip = bleChip,
-        channelStatus = channelStatus,
-        interactive = compactInteractive,
-        onTitleTap = onTitleTap,
-        onBatteryTap = onBatteryTap,
-        onBleChipTap = onBleChipTap,
-        onMessages = onMessages,
-        onChannelTap = onChannelTap,
-      )
-    }
+    CyberHeroHeader(
+      vehicleName = vehicleName,
+      rangeText = rangeText,
+      carPhoto = carPhoto,
+      batteryPercent = batteryPercent,
+      batteryKnown = batteryKnown,
+      online = online,
+      bluetoothConnected = bluetoothConnected,
+      isLocked = isLocked,
+      powered = powered,
+      bleChip = bleChip,
+      channelStatus = channelStatus,
+      onTitleTap = onTitleTap,
+      onBatteryTap = onBatteryTap,
+      onBleChipTap = onBleChipTap,
+      onMessages = onMessages,
+      onChannelTap = onChannelTap,
+    )
   }
 }
 
@@ -287,7 +192,7 @@ private fun CyberHeroHeader(
   powered: Boolean?,
   bleChip: OfficialBleChipState,
   channelStatus: ControlTopBarChannel,
-  interactive: Boolean,
+  interactive: Boolean = true,
   onTitleTap: () -> Unit,
   onBatteryTap: () -> Unit,
   onBleChipTap: () -> Unit,
@@ -388,9 +293,15 @@ private fun CyberHeroHeader(
       Spacer(Modifier.width(12.dp))
       // Right: BLE + messages hero actions (Dart _HeroAction)
       Row {
-        // BLE action (48×48 primary or card button)
+        // BLE action (48×48 primary or card button). The chip state also
+        // carries "no BLE adapter" and "busy connecting", which the compact
+        // top bar used to render; keep them here now that it is gone.
         HeroAction(
-          icon = if (bluetoothConnected) Lucide.bluetooth else Lucide.bluetoothSearching,
+          icon = when (bleChip) {
+            OfficialBleChipState.Connected -> Lucide.bluetooth
+            OfficialBleChipState.NoBle -> Lucide.bluetoothOff
+            else -> Lucide.bluetoothSearching
+          },
           label = if (bluetoothConnected) stringResource(R.string.vehicle_header_connected)
                   else stringResource(R.string.vehicle_header_connect),
           primary = bluetoothConnected,
@@ -476,144 +387,18 @@ private fun HeroAction(
 }
 
 @Composable
-private fun CyberTopBar(
-  vehicleName: String,
-  rangeText: String,
-  carPhoto: String,
-  batteryPercent: Int,
-  online: Boolean,
-  bluetoothConnected: Boolean,
-  isLocked: Boolean,
-  powered: Boolean?,
-  bleChip: OfficialBleChipState,
-  channelStatus: ControlTopBarChannel,
-  interactive: Boolean,
-  onTitleTap: () -> Unit,
-  onBatteryTap: () -> Unit,
-  onBleChipTap: () -> Unit,
-  onMessages: () -> Unit,
-  onChannelTap: () -> Unit,
-) {
-  val contentWidth = (LocalConfiguration.current.screenWidthDp - 40).dp
-  val actionColumnWidth = (contentWidth * 0.48f)
-    .coerceAtMost(160.dp)
-    .coerceAtLeast(112.dp)
-    .coerceAtMost(contentWidth)
-  Row(
-    modifier = Modifier
-      .fillMaxSize()
-      .padding(start = 20.dp, top = 8.dp, end = 20.dp, bottom = 6.dp),
-    verticalAlignment = Alignment.Top,
-  ) {
-      // Left: vehicle name + range + status line (Dart Column layout)
-      Column(
-        modifier = Modifier.weight(1f),
-        verticalArrangement = Arrangement.Top,
-      ) {
-        // -- vehicle name (Dart 25sp) --
-        AppPressable(
-          onClick = if (interactive) onTitleTap else null,
-          shape = RoundedCornerShape(AppRadii.sm),
-          semanticsLabel = stringResource(R.string.vehicle_header_switch),
-        ) {
-          Text(
-            text = vehicleName,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            style = androidx.compose.ui.text.TextStyle(
-              fontSize = 25.sp,
-              fontWeight = FontWeight.W700,
-              color = CyberHomeColors.ink,
-              lineHeight = 25.sp * 1.15f,
-            ),
-          )
-        }
-        Spacer(Modifier.height(6.dp))
-        // -- range text (Dart 22sp, clickable → onBatteryTap) --
-        AppPressable(
-          onClick = if (interactive) onBatteryTap else null,
-          shape = RoundedCornerShape(AppRadii.sm),
-          semanticsLabel = stringResource(R.string.vehicle_header_battery),
-        ) {
-          ScaleToFit(
-            modifier = Modifier.fillMaxWidth().height(AppTouchTargets.min),
-            contentAlignment = Alignment.CenterStart,
-          ) {
-            AnimatedValueText(
-              value = rangeText,
-              maxLines = 1,
-              style = androidx.compose.ui.text.TextStyle(
-                fontSize = 22.sp,
-                fontWeight = FontWeight.W600,
-                color = CyberHomeColors.inkSecondary,
-              ),
-            )
-          }
-        }
-        // -- status line (compact) --
-        CyberStatusLine(
-          online = online,
-          bluetoothConnected = bluetoothConnected,
-          isLocked = isLocked,
-          powered = powered,
-          channelStatus = channelStatus,
-          compact = true,
-          onChannelTap = if (interactive) onChannelTap else null,
-        )
-      }
-      Spacer(Modifier.width(10.dp))
-      // Right: vehicle thumb + BLE chip + messages. Bound the action row so
-      // long translated BLE states cannot consume the whole compact header.
-      Column(
-        modifier = Modifier.width(actionColumnWidth),
-        horizontalAlignment = Alignment.End,
-      ) {
-        // Vehicle thumbnail (Dart 112×70)
-        VehicleThumb(
-          carPhoto = carPhoto,
-          batteryPercent = batteryPercent,
-          width = 112.dp,
-          height = 70.dp,
-        )
-        Spacer(Modifier.height(5.dp))
-        Row(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalArrangement = Arrangement.End,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          if (bleChip != OfficialBleChipState.Hidden) {
-            CyberBleChip(
-              state = bleChip,
-              onClick = if (interactive) onBleChipTap else null,
-              modifier = Modifier.weight(1f),
-            )
-            Spacer(Modifier.width(5.dp))
-          }
-          RoundIconBtn(
-            icon = Lucide.message,
-            label = stringResource(R.string.vehicle_header_messages),
-            interactive = interactive,
-            onClick = onMessages,
-          )
-        }
-      }
-    }
-  }
-
-@Composable
 private fun CyberStatusLine(
   online: Boolean,
   bluetoothConnected: Boolean,
   isLocked: Boolean,
   powered: Boolean?,
   channelStatus: ControlTopBarChannel,
-  compact: Boolean = false,
   onChannelTap: (() -> Unit)?,
 ) {
   val channelLabel = channelStatus.localizedLabel()
-  val iconSize = if (compact) 15.dp else 18.dp
-  val textSize = if (compact) 11.sp else 13.sp
-  val gap = if (compact) 5.dp else 7.dp
+  val iconSize = 18.dp
+  val textSize = 13.sp
+  val gap = 7.dp
 
   // Dart: SingleChildScrollView(horizontal) around the whole row
   Row(
@@ -669,12 +454,12 @@ private fun CyberStatusLine(
         Row(
           modifier = Modifier
             .clip(RoundedCornerShape(AppRadii.pill))
-            .padding(horizontal = if (compact) 6.dp else 8.dp, vertical = if (compact) 2.dp else 3.dp),
+            .padding(horizontal = 8.dp, vertical = 3.dp),
           verticalAlignment = Alignment.CenterVertically,
         ) {
           Box(
             modifier = Modifier
-              .size(if (compact) 6.dp else 6.dp)
+              .size(6.dp)
               .clip(CircleShape)
               .background(channelDotColor(channelStatus.kind)),
           )
@@ -682,7 +467,7 @@ private fun CyberStatusLine(
           Text(
             text = channelLabel,
             style = androidx.compose.ui.text.TextStyle(
-              fontSize = if (compact) 10.sp else 11.sp,
+              fontSize = 11.sp,
               fontWeight = FontWeight.W600,
               color = CyberHomeColors.inkMuted,
             ),
@@ -737,144 +522,4 @@ private fun channelDotColor(kind: ControlTopBarChannelKind): Color = when (kind)
   ControlTopBarChannelKind.MQTT_RETRY,
   -> CyberHomeColors.warning
   ControlTopBarChannelKind.UNAVAILABLE -> CyberHomeColors.danger
-}
-
-/** Dart `_VehicleThumb` — 112×70 clipped image or fallback painter. */
-@Composable
-private fun VehicleThumb(
-  carPhoto: String,
-  batteryPercent: Int,
-  width: Dp = 112.dp,
-  height: Dp = 70.dp,
-) {
-  val level = (batteryPercent / 100f).coerceIn(0f, 1f)
-  Box(
-    modifier = Modifier
-      .width(width)
-      .height(height)
-      .clip(RoundedCornerShape(AppRadii.card))
-      .background(CyberHomeColors.mapPlaceholder),
-  ) {
-    VehicleImageOrFallback(
-      imageUrl = carPhoto,
-      batteryLevel = level,
-      modifier = Modifier.fillMaxSize(),
-    )
-  }
-}
-
-@Composable
-private fun CyberBleChip(
-  state: OfficialBleChipState,
-  onClick: (() -> Unit)?,
-  modifier: Modifier = Modifier,
-) {
-  if (state == OfficialBleChipState.Hidden) return
-  val connected = state == OfficialBleChipState.Connected
-  val connecting = state == OfficialBleChipState.Connecting || state == OfficialBleChipState.Disconnecting
-
-  val label = when (state) {
-    OfficialBleChipState.NoBle -> stringResource(R.string.vehicle_header_no_ble)
-    OfficialBleChipState.ClickToConnect -> stringResource(R.string.vehicle_header_connect)
-    OfficialBleChipState.Connecting -> stringResource(R.string.vehicle_header_connecting)
-    OfficialBleChipState.Disconnecting -> stringResource(R.string.vehicle_header_disconnecting)
-    OfficialBleChipState.Connected -> stringResource(R.string.vehicle_header_connected)
-    OfficialBleChipState.Hidden -> ""
-  }
-
-  AppPressable(
-    onClick = onClick,
-    modifier = modifier,
-    shape = RoundedCornerShape(AppRadii.sheet),
-    background = if (connected) CyberHomeColors.primary.copy(alpha = 0.12f) else CyberHomeColors.control,
-    borderWidth = 1.dp,
-    borderColor = if (connected) CyberHomeColors.primary.copy(alpha = 0.35f) else CyberHomeColors.line,
-    semanticsLabel = label,
-  ) {
-    Row(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(AppTouchTargets.min)
-        .padding(horizontal = 10.dp),
-      verticalAlignment = Alignment.CenterVertically,
-    ) {
-      // Icon area with animated content switcher
-      AnimatedContent(
-        targetState = if (connecting) "connecting" else if (connected) "connected" else "disconnected",
-        transitionSpec = {
-          fadeIn(tween(AppMotion.status)) togetherWith fadeOut(tween(AppMotion.status))
-        },
-        label = "bleChipIcon",
-      ) { stateKey ->
-        when (stateKey) {
-          "connecting" -> CircularProgressIndicator(
-            modifier = Modifier.size(12.dp),
-            strokeWidth = 1.6.dp,
-            color = CyberHomeColors.primary,
-          )
-          else -> {
-            val chipIcon = when {
-              connected -> Lucide.bluetooth
-              connecting -> Lucide.bluetoothSearching
-              state == OfficialBleChipState.ClickToConnect -> Lucide.bluetoothSearching
-              state == OfficialBleChipState.NoBle -> Lucide.bluetoothOff
-              else -> Lucide.bluetoothSearching
-            }
-            LucideIcon(
-              icon = chipIcon,
-              size = 14.dp,
-              color = if (connected) CyberHomeColors.primary else CyberHomeColors.inkMuted,
-            )
-          }
-        }
-      }
-      Spacer(Modifier.width(4.dp))
-      // Label text
-      AnimatedContent(
-        targetState = label,
-        modifier = Modifier.weight(1f),
-        contentAlignment = Alignment.CenterStart,
-        transitionSpec = {
-          fadeIn(tween(AppMotion.status)) togetherWith fadeOut(tween(AppMotion.status))
-        },
-        label = "bleChipLabel",
-      ) { chipLabel ->
-        Text(
-          text = chipLabel,
-          maxLines = 1,
-          overflow = TextOverflow.Ellipsis,
-          style = androidx.compose.ui.text.TextStyle(
-            fontSize = 11.sp,
-            fontWeight = FontWeight.W600,
-            color = if (connected) CyberHomeColors.primary else CyberHomeColors.inkMuted,
-          ),
-        )
-      }
-    }
-  }
-}
-
-@Composable
-private fun RoundIconBtn(
-  icon: ImageVector,
-  label: String,
-  interactive: Boolean,
-  onClick: () -> Unit,
-) {
-  AppPressable(
-    onClick = if (interactive) onClick else null,
-    enabled = interactive,
-    modifier = Modifier.size(AppTouchTargets.min),
-    shape = CircleShape,
-    background = CyberHomeColors.control,
-    semanticsLabel = label,
-    haptic = false,
-  ) {
-    Box(
-      modifier = Modifier.fillMaxSize(),
-      contentAlignment = Alignment.Center,
-    ) {
-      LucideIcon(icon = icon, size = 19.dp, color = CyberHomeColors.inkMuted)
-    }
-  }
 }

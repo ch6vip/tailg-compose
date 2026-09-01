@@ -9,12 +9,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.gestures.Orientation
-import androidx.compose.foundation.gestures.rememberScrollableState
-import androidx.compose.foundation.gestures.scrollable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Scaffold
@@ -23,20 +19,15 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.SideEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -74,10 +65,7 @@ import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
-import com.tailg.plus.ui.components.CollapsingHeaderState
 import com.tailg.plus.ui.components.CyberControlGrid
-import com.tailg.plus.ui.components.CyberHeaderCollapsedHeight
-import com.tailg.plus.ui.components.CyberHeaderExpandedHeight
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
@@ -88,7 +76,6 @@ import com.tailg.plus.ui.components.VehicleSwitchSheet
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
-import kotlin.math.roundToInt
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -782,16 +769,11 @@ fun ControlScreen(
     showNearFieldHint = false,
   )
 
+  // Plain vertical scroll: the vehicle header is the first item of the column
+  // and scrolls away with the page (no pinned collapsing header), so drags
+  // that start on the bike illustration are handled by the same scrollable
+  // that owns the rest of the page — including fling.
   val scrollState = rememberScrollState()
-  val density = LocalDensity.current
-  val collapseRangePx = with(density) {
-    (CyberHeaderExpandedHeight - CyberHeaderCollapsedHeight).toPx()
-  }
-  val collapseState = remember { CollapsingHeaderState(collapseRangePx) }
-  SideEffect { collapseState.updateRange(collapseRangePx) }
-  val headerScrollableState = rememberScrollableState { delta ->
-    collapseState.consumeScrollableDelta(delta, scrollState::dispatchRawDelta)
-  }
   val configuration = LocalConfiguration.current
   val viewportKey = configuration.orientation to configuration.screenWidthDp
 
@@ -848,13 +830,26 @@ fun ControlScreen(
         Column(
           modifier = Modifier
             .fillMaxSize()
-            .padding(top = CyberHeaderCollapsedHeight)
-            .offset {
-              IntOffset(0, (collapseState.rangePx - collapseState.offsetPx).roundToInt())
-            }
-            .nestedScroll(collapseState.listConnection)
             .verticalScroll(scrollState),
         ) {
+          CyberVehicleHeader(
+            vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
+            rangeText = rangeLabel(battery, distanceUnit),
+            carPhoto = cloudVehicle?.carPhoto ?: "",
+            batteryPercent = percent,
+            batteryKnown = battery.percent != null,
+            online = cloudVehicle?.online ?: false,
+            bluetoothConnected = connectionManager.isProtocolLoggedIn,
+            isLocked = isArmed ?: true,
+            powered = isPowerOn,
+            bleChip = bleChipState,
+            channelStatus = controlChannelStatus,
+            onTitleTap = onTitleTap,
+            onBatteryTap = onBatteryTap,
+            onBleChipTap = onBleChipTap,
+            onMessages = onMessages,
+            onChannelTap = onChannelTap,
+          )
           Spacer(Modifier.height(18.dp))
           CyberControlGrid(
             powered = isPowerOn,
@@ -890,32 +885,6 @@ fun ControlScreen(
           Spacer(Modifier.height(24.dp))
         }
       }
-        CyberVehicleHeader(
-          modifier = Modifier
-            .align(Alignment.TopCenter)
-            .fillMaxWidth()
-            .scrollable(
-              state = headerScrollableState,
-              orientation = Orientation.Vertical,
-            ),
-          collapseState = collapseState,
-          vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
-          rangeText = rangeLabel(battery, distanceUnit),
-          carPhoto = cloudVehicle?.carPhoto ?: "",
-          batteryPercent = percent,
-          batteryKnown = battery.percent != null,
-          online = cloudVehicle?.online ?: false,
-          bluetoothConnected = connectionManager.isProtocolLoggedIn,
-          isLocked = isArmed ?: true,
-          powered = isPowerOn,
-          bleChip = bleChipState,
-          channelStatus = controlChannelStatus,
-          onTitleTap = onTitleTap,
-          onBatteryTap = onBatteryTap,
-          onBleChipTap = onBleChipTap,
-          onMessages = onMessages,
-          onChannelTap = onChannelTap,
-        )
       // Gate overlay (banner / loading skeleton) above the stable list.
       CyberControlGateOverlay(
         gateKind = gateKind,
@@ -945,7 +914,6 @@ fun ControlScreen(
       onDismiss = { viewModel.setShowVehicleSwitchSheet(false) },
     )
   }
-
 
   // Channel selection sheet (Dart CyberChannelStrip bottom sheet).
   if (showChannelSheet) {

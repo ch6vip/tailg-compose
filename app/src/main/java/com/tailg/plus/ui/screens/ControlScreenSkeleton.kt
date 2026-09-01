@@ -151,7 +151,7 @@ internal fun CyberHomeSkeleton() {
  * no-vehicle) or loading banner + [CyberHomeSkeleton], cross-fading between
  * states and into the content beneath.
  *
- * The Dart original prepends the gate as a sliver before the pinned header.
+ * The Dart original prepends the gate as a sliver before the vehicle header.
  * A Compose scrollable list instead re-measures the header with transient
  * constraints when a prepended item is removed, which made the Canvas
  * vehicle illustration flash at a wrong offset for a frame — visible even

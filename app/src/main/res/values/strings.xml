@@ -782,6 +782,7 @@
     <string name="prefs_version">版本</string>
     <string name="prefs_app_version">应用版本</string>
     <string name="prefs_git_commit">Git 提交</string>
+    <string name="prefs_view_source">在 GitHub 查看源码</string>
     <string name="notif_load_failed">加载失败</string>
     <string name="notif_title">通知偏好</string>
     <string name="notif_load_failed_title">通知偏好加载失败</string>

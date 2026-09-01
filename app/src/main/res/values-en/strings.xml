@@ -133,6 +133,7 @@
     <string name="prefs_language_en">English</string>
     <string name="prefs_unit_metric">Metric</string>
     <string name="prefs_unit_imperial">Imperial</string>
+    <string name="prefs_view_source">View source on GitHub</string>
     <string name="settings_advanced">Advanced</string>
     <string name="settings_diagnostics">Advanced diagnostics</string>
     <string name="settings_diagnostics_desc">Device info, logs, protocol and pre-upgrade checks</string>

@@ -206,6 +206,21 @@ fun UnitSettingsScreen(
 fun AboutAppScreen(
   onBack: () -> Unit,
 ) {
+  val ctx = LocalContext.current
+  val strViewSource = stringResource(R.string.prefs_view_source)
+
+  fun openGitHub() {
+    val intent = android.content.Intent(
+      android.content.Intent.ACTION_VIEW,
+      android.net.Uri.parse("https://github.com/ch6vip/tailg-compose"),
+    )
+    try {
+      ctx.startActivity(intent)
+    } catch (e: android.content.ActivityNotFoundException) {
+      // 无可用浏览器时静默忽略
+    }
+  }
+
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
   ) { padding ->
@@ -251,6 +266,18 @@ fun AboutAppScreen(
             InfoRow(label = stringResource(R.string.prefs_app_version), value = APP_VERSION)
             InsetDivider()
             InfoRow(label = stringResource(R.string.prefs_git_commit), value = BUILD_COMMIT)
+          }
+        }
+        Spacer(Modifier.height(12.dp))
+        CyberCard(onClick = { openGitHub() }) {
+          Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            LucideIcon(icon = Lucide.link, color = CyberHomeColors.primary, size = AppIconSizes.md)
+            Spacer(Modifier.width(14.dp))
+            Text(text = strViewSource, style = cyberBodyStyle, modifier = Modifier.weight(1f))
+            LucideIcon(icon = Lucide.chevronRight, color = CyberHomeColors.inkFaint, size = AppIconSizes.md)
           }
         }
       }

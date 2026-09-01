@@ -192,7 +192,6 @@ internal class OfficialCloudOperationLogic(
             ridePeriod = OfficialRidePeriod.DAY,
             rideStatisticsLoading = false,
             rideStatisticsError = null,
-            todayRideMileage = "",
             vehicleMessages = emptyList(),
             systemMessages = emptyList(),
             messagesLoading = false,

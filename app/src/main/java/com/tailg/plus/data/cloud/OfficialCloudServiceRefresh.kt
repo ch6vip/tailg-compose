@@ -9,11 +9,9 @@ import com.tailg.plus.data.model.OfficialSmartServiceControlDecision
 import com.tailg.plus.data.model.OfficialSmartServiceStatus
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.model.requestKey
-import com.tailg.plus.data.model.sumTravelMileageKm
 import com.tailg.plus.data.model.wireName
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.util.SensitiveValueMasker
-import com.tailg.plus.util.formatDecimalDown
 import java.time.ZoneId
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -661,70 +659,6 @@ internal class OfficialCloudRefreshLogic(
             if (!silent && service.isCurrentSession(token) && service.state.fenceLoading) {
                 service.state = service.state.copyWith(fenceLoading = false)
             }
-        }
-    }
-
-    // -- today ride mileage --------------------------------------------------
-
-    suspend fun refreshTodayRideMileage(silent: Boolean, force: Boolean = false) {
-        val token = service.state.token
-        val vehicle = service.state.selectedVehicle
-        val userId = service.state.userId.trim()
-        val frame = vehicle?.frame?.trim() ?: ""
-        if (token.isEmpty() || vehicle == null || frame.isEmpty() || userId.isEmpty()) {
-            if (service.state.todayRideMileage.isNotEmpty()) {
-                service.state = service.state.copyWith(todayRideMileage = "")
-            }
-            return
-        }
-        val refreshKey = "todayRide:${vehicle.key}"
-        service.coalesceRefresh(refreshKey, silent, force) {
-            refreshTodayRideMileageNow(refreshKey, vehicle, userId, token)
-        }
-    }
-
-    private suspend fun refreshTodayRideMileageNow(
-        refreshKey: String,
-        vehicle: OfficialVehicle,
-        userId: String,
-        token: String,
-    ) {
-        try {
-            val response = service.apiClient.request(
-                "app/carTravel/records",
-                method = "POST",
-                token = token,
-                body = mapOf("frame" to vehicle.frame.trim(), "uid" to userId),
-                retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
-            )
-            service.ensureSuccess(response.body, fallback = "获取今日骑行失败")
-            if (!service.isCurrentSession(token)) return
-            // TODO(dump): 临时探测 carTravel/records 的 data 真实形状，确认后移除
-            val probe = response.body["data"]
-            service.log.operation(
-                "今日骑行 data 结构探测",
-                detail = "class=${probe?.let { it::class.simpleName } ?: "null"} sample=${probe.toString().take(400)}",
-            )
-            // `data` is a structured list of travel-day entries (mirrors the
-            // `app/centralControl/deviceTravel` shape). Parse it and sum the
-            // per-record mileage, which is in METERS, into kilometers.
-            val days = OfficialCloudDataParser.travelDays(response.body["data"])
-            val km = days.sumOf { sumTravelMileageKm(it.records) }
-            val raw = if (days.isEmpty()) "" else formatDecimalDown(km, 2)
-            service.state = service.state.copyWith(todayRideMileage = raw)
-            service.log.operation(
-                "官方今日骑行已刷新",
-                detail = if (raw.isEmpty()) "empty" else "km=$raw",
-            )
-            service.markRefreshSuccess(refreshKey)
-        } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
-            service.log.operation(
-                "官方今日骑行刷新失败",
-                detail = OfficialCloudRedactor.errorMessage(e),
-                level = LogLevel.WARNING,
-            )
         }
     }
 

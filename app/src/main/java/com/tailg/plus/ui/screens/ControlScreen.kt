@@ -44,6 +44,8 @@ import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.ControlCommandActivityStatus
 import com.tailg.plus.data.model.OfficialBatteryInfo
 import com.tailg.plus.data.model.OfficialCloudCommand
+import com.tailg.plus.data.model.OfficialRidePeriod
+import com.tailg.plus.data.model.OfficialRideStatistics
 import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.model.OfficialVehicleLocation
@@ -147,7 +149,7 @@ fun ControlScreen(
           vehicleLocation = state.vehicleLocation,
           localVehicleLinks = state.localVehicleLinks,
           travelDays = state.travelDays,
-          todayRideMileage = state.todayRideMileage,
+          rideStatistics = state.rideStatistics,
           loading = state.loading,
           error = state.error,
         )
@@ -373,7 +375,7 @@ fun ControlScreen(
         cloudService.refreshVehicles(force = true, refreshReplicaDetails = true)
         cloudService.refreshBatteryInfo(force = true, silent = true)
         cloudService.refreshVehicleLocation(force = true, silent = true)
-        cloudService.refreshTodayRideMileage(force = true, silent = true)
+        cloudService.refreshRideStatistics(period = OfficialRidePeriod.DAY, force = true, silent = true)
         cloudService.refreshMessages(force = true, silent = true)
       } catch (e: Exception) {
         log.operation("Cyber 首页下拉刷新失败", detail = e.toString(), level = LogLevel.WARNING)
@@ -954,7 +956,7 @@ internal data class CloudScreenState(
   val vehicleLocation: OfficialVehicleLocation?,
   val localVehicleLinks: Map<String, String>,
   val travelDays: List<OfficialTravelDay>,
-  val todayRideMileage: String,
+  val rideStatistics: OfficialRideStatistics?,
   val loading: Boolean,
   val error: String?,
 ) {
@@ -977,7 +979,7 @@ internal data class CloudScreenState(
       vehicleLocation = state.vehicleLocation,
       localVehicleLinks = state.localVehicleLinks,
       travelDays = state.travelDays,
-      todayRideMileage = state.todayRideMileage,
+      rideStatistics = state.rideStatistics,
       loading = state.loading,
       error = state.error,
     )

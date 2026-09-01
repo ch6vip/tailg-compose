@@ -254,9 +254,6 @@ class OfficialCloudService(
     suspend fun refreshFenceData(silent: Boolean = false, force: Boolean = false) =
         refreshLogic.refreshFenceData(silent = silent, force = force)
 
-    suspend fun refreshTodayRideMileage(silent: Boolean = false, force: Boolean = false) =
-        refreshLogic.refreshTodayRideMileage(silent = silent, force = force)
-
     suspend fun refreshRideStatistics(
         period: OfficialRidePeriod,
         silent: Boolean = false,
@@ -495,7 +492,7 @@ class OfficialCloudService(
             failureMessage = "官方 BMS 信息静默刷新失败",
         )
         runSilentRefresh(
-            { refreshLogic.refreshTodayRideMileage(silent = true) },
+            { refreshLogic.refreshRideStatistics(period = OfficialRidePeriod.DAY, silent = true) },
             failureMessage = "官方今日骑行静默刷新失败",
         )
         if (!refreshReplicaDetails) return

@@ -6,6 +6,7 @@ import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
+import com.tailg.plus.data.model.OfficialRideStatistics
 import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.preferences.DistanceUnitPreference
@@ -74,34 +75,15 @@ internal fun rangeLabel(
 }
 
 internal fun todayRideLabel(
-  cloudState: OfficialCloudState,
-  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
-): String {
-  val direct = cloudState.todayRideMileage.trim()
-  if (direct.isNotEmpty()) {
-    return formatDistanceKilometersText(
-      raw = direct,
-      unit = distanceUnit,
-      missing = direct,
-    )
-  }
-  return "--"
-}
-
-/** [CloudScreenState] overload — same behavior, no full-state dependency. */
-internal fun todayRideLabel(
   cloudState: CloudScreenState,
   distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
 ): String {
-  val direct = cloudState.todayRideMileage.trim()
-  if (direct.isNotEmpty()) {
-    return formatDistanceKilometersText(
-      raw = direct,
-      unit = distanceUnit,
-      missing = direct,
-    )
-  }
-  return "--"
+  // Official "今日里程" is `getRidingDetail.dayMileage` (meters); convert to
+  // kilometres first so `formatDistanceKilometersText` renders the right unit.
+  val dayMileage = cloudState.rideStatistics?.dayMileage?.trim()
+  if (dayMileage.isNullOrEmpty()) return "--"
+  val km = OfficialRideStatistics.formatMileageKm(dayMileage)
+  return formatDistanceKilometersText(raw = km, unit = distanceUnit, missing = "--")
 }
 
 internal fun totalMileageLabel(

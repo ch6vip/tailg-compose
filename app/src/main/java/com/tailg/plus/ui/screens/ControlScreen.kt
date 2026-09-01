@@ -329,9 +329,6 @@ fun ControlScreen(
   }
 
   val distanceUnit = LocalDistanceUnitPreference.current
-  val lastRideVisuals = remember(cloudState.travelDays, distanceUnit) {
-    lastRideVisuals(cloudState, distanceUnit)
-  }
   val commandActivities = remember(commandVersion) { commandLog.entries }
 
   // Silent refresh on first composition. Official parity: first paint needs
@@ -873,8 +870,6 @@ fun ControlScreen(
             address = locationTitle(location),
             todayKm = todayRideLabel(cloudState, distanceUnit),
             totalKm = totalMileageLabel(cloudVehicle, distanceUnit),
-            lastDistance = lastRideVisuals.first,
-            lastDuration = lastRideVisuals.second,
             onMapTap = onMapTap,
             onRideStatsTap = onRideStatsTap,
           )

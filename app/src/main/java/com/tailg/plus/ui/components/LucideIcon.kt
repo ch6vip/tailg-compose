@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Circle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.CloudOff
+import androidx.compose.material.icons.filled.CompareArrows
 import androidx.compose.material.icons.filled.ConfirmationNumber
 import androidx.compose.material.icons.filled.Construction
 import androidx.compose.material.icons.filled.ContentCopy
@@ -418,6 +419,8 @@ object Lucide {
   val support: ImageVector = Icons.Filled.SupportAgent
   // Lucide: shield-check (privacy alias)
   val privacy: ImageVector = Icons.Filled.VerifiedUser
+  // Lucide: arrow-left-right (swap alias)
+  val swap: ImageVector = Icons.Filled.CompareArrows
   // Lucide: circle (radio-unchecked alias)
   val radioUnchecked: ImageVector = Icons.Filled.RadioButtonUnchecked
   // Lucide: circle-dot (trip-origin alias)

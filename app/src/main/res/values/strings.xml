@@ -937,11 +937,8 @@
     <string name="control_grid_in_progress_format">%s中</string>
     <string name="map_stats_view_ride">查看骑行统计</string>
     <string name="map_stats_no_location">暂无位置信息</string>
-    <string name="map_stats_ride_data">骑行数据</string>
     <string name="map_stats_today_distance">今日里程</string>
     <string name="map_stats_total_distance">总里程</string>
-    <string name="map_stats_last_ride_distance">上次骑行距离</string>
-    <string name="map_stats_last_ride_duration">上次骑行时长</string>
     <string name="map_stats_vehicle_location">车辆位置 %s</string>
     <string name="garage_scan_torch_off">关闭手电筒</string>
     <string name="garage_scan_torch_on">打开手电筒</string>

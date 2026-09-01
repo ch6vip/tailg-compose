@@ -113,52 +113,6 @@ internal fun totalMileageLabel(
   return "--"
 }
 
-internal fun lastRideVisuals(
-  cloudState: OfficialCloudState,
-  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
-): Pair<String, String> {
-  var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
-  for (day in cloudState.travelDays) {
-    for (record in day.records) {
-      if (latest == null || record.startTime.compareTo(latest.startTime) > 0) {
-        latest = record
-      }
-    }
-  }
-  if (latest == null) return "--" to "--"
-  val distKm = latest.mileageKm
-  val mins = (latest.durationSeconds / 60.0).toInt()
-  val dist = formatDistanceKilometers(distKm, distanceUnit, fractionDigits = 1)
-  val dur = if (mins > 0) "$mins min" else latest.durationLabel
-  return dist to dur
-}
-
-/** [CloudScreenState] overload — same behavior, no full-state dependency. */
-internal fun lastRideVisuals(
-  cloudState: CloudScreenState,
-  distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
-): Pair<String, String> = lastRideVisuals(cloudState.travelDays, distanceUnit)
-
-private fun lastRideVisuals(
-  travelDays: List<OfficialTravelDay>,
-  distanceUnit: DistanceUnitPreference,
-): Pair<String, String> {
-  var latest: com.tailg.plus.data.model.OfficialTravelRecord? = null
-  for (day in travelDays) {
-    for (record in day.records) {
-      if (latest == null || record.startTime.compareTo(latest.startTime) > 0) {
-        latest = record
-      }
-    }
-  }
-  if (latest == null) return "--" to "--"
-  val distKm = latest.mileageKm
-  val mins = (latest.durationSeconds / 60.0).toInt()
-  val dist = formatDistanceKilometers(distKm, distanceUnit, fractionDigits = 1)
-  val dur = if (mins > 0) "$mins min" else latest.durationLabel
-  return dist to dur
-}
-
 internal fun successTitle(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =
   titles[command] ?: format.format(command.label)
 

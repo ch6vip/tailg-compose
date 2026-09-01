@@ -377,20 +377,6 @@
     <string name="diagnostic_no_data">暂无诊断记录</string>
     <string name="diagnostic_history_hint">历史诊断记录将在此显示</string>
 
-    <!-- About -->
-    <string name="about_title">关于台铃智能</string>
-    <string name="about_app_name">台铃智能</string>
-    <string name="about_app_subtitle">智慧用车服务</string>
-    <string name="about_version">应用版本</string>
-    <string name="about_git_commit">Git 提交</string>
-    <string name="about_diagnostic">服务诊断</string>
-    <string name="about_diagnostic_subtitle">复制信息用于客服排查问题</string>
-    <string name="about_agreement">用户协议</string>
-    <string name="about_agreement_subtitle">查看服务使用条款</string>
-    <string name="about_privacy">隐私政策</string>
-    <string name="about_privacy_subtitle">了解个人信息保护规则</string>
-    <string name="about_copyright">Copyright 2026</string>
-
     <!-- App Preferences -->
     <string name="app_language_title">语言设置</string>
     <string name="app_unit_title">单位设置</string>

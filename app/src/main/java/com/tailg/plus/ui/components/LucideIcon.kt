@@ -129,8 +129,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.unit.Dp
-import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppIconSizes
+import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
  * Port of `lib/widgets/lucide_icon.dart`.
@@ -156,7 +156,7 @@ fun LucideIcon(
   icon: ImageVector,
   modifier: Modifier = Modifier,
   size: Dp = AppIconSizes.md,
-  color: Color = AppColorsDark.textSecondary,
+  color: Color = CyberHomeColors.inkMuted,
   strokeWidth: Float = 2f,
   contentDescription: String? = null,
 ) {

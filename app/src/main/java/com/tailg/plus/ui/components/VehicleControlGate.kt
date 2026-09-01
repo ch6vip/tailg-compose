@@ -16,22 +16,21 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.tailg.plus.ui.theme.AppColorsDark
-import com.tailg.plus.ui.theme.AppColorsLight
+import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.AppRadii
 
 /**
  * Port of `lib/widgets/vehicle_control_gate.dart` — 爱车 empty/gate states
  * (未登录 / 无车 / 刷新中 / 错误) and the shared VOID gate banner.
  *
- * Token mapping (Dart → Compose):
- * - `VoidColors.voidPanel(0.85)` → [AppColorsDark.surface].copy(alpha = 0.85f).
- * - `VoidColors.energy(0.28 border)` → [AppColorsDark.energyGreen].copy(alpha = 0.28f).
- * - `VoidGlow.energy(0.25)` → shadow with [AppColorsDark.energyGreen] spot.
- * - `VoidColors.ink / inkMuted / inkFaint` → [AppColorsDark.textPrimary] /
- *   [AppColorsDark.textSecondary] / [AppColorsDark.textTertiary].
+ * Token mapping (Dart → Compose, light Cyber palette):
+ * - `VoidColors.voidPanel(0.85)` → [CyberHomeColors.card].
+ * - `VoidColors.energy(0.28 border)` → [CyberHomeColors.primary].copy(alpha = 0.28f).
+ * - `VoidGlow.energy(0.25)` → shadow with [CyberHomeColors.primary] spot.
+ * - `VoidColors.ink / inkMuted / inkFaint` → [CyberHomeColors.ink] /
+ *   [CyberHomeColors.inkMuted].
  * - `VoidRadii.md` (18) → [AppRadii.sheet]; pill → `RoundedCornerShape(999.dp)`.
- * - Dart `Colors.black` on the energy action → [AppColorsLight.textPrimary].
+ * - Dart `Colors.black` on the energy action → [CyberHomeColors.white].
  */
 enum class VehicleControlHomeGateKind { SignedOut, NoVehicle, Loading, Error, NearField, None }
 
@@ -70,11 +69,11 @@ fun VehicleControlGateBanner(
         shape = RoundedCornerShape(AppRadii.sheet),
         clip = false,
         ambientColor = Color.Transparent,
-        spotColor = AppColorsDark.energyGreen.copy(alpha = 0.045f), // VoidGlow.energy(0.25)
+        spotColor = CyberHomeColors.primary.copy(alpha = 0.05f), // VoidGlow.energy(0.25)
       )
       .clip(RoundedCornerShape(AppRadii.sheet))
-      .background(AppColorsDark.surface.copy(alpha = 0.85f))
-      .border(1.dp, AppColorsDark.energyGreen.copy(alpha = 0.28f), RoundedCornerShape(AppRadii.sheet))
+      .background(CyberHomeColors.card)
+      .border(1.dp, CyberHomeColors.primary.copy(alpha = 0.28f), RoundedCornerShape(AppRadii.sheet))
       .padding(horizontal = 14.dp, vertical = 12.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -83,7 +82,7 @@ fun VehicleControlGateBanner(
       style = androidx.compose.ui.text.TextStyle(
         fontSize = 13.sp,
         fontWeight = FontWeight.W600,
-        color = AppColorsDark.textPrimary,
+        color = CyberHomeColors.ink,
       ),
       modifier = Modifier.weight(1f),
     )
@@ -92,9 +91,9 @@ fun VehicleControlGateBanner(
       enabled = !busy,
       pressedScale = AppMotion.pressScale,
       shape = RoundedCornerShape(999.dp),
-      background = if (busy) AppColorsDark.textTertiary else AppColorsDark.energyGreen,
+      background = if (busy) CyberHomeColors.inkMuted else CyberHomeColors.primary,
       shadowElevation = if (busy) 0.dp else 12.dp,
-      shadowColor = AppColorsDark.energyGreen.copy(alpha = 0.1f),
+      shadowColor = CyberHomeColors.primary.copy(alpha = 0.1f),
       semanticsLabel = actionLabel,
     ) {
       Text(
@@ -102,7 +101,7 @@ fun VehicleControlGateBanner(
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 12.sp,
           fontWeight = FontWeight.W700,
-          color = if (busy) AppColorsDark.textSecondary else AppColorsLight.textPrimary,
+          color = if (busy) CyberHomeColors.inkMuted else CyberHomeColors.white,
         ),
         modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
       )

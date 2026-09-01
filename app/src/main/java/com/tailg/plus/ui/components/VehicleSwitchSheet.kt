@@ -33,8 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.model.OfficialVehicle
-import com.tailg.plus.ui.theme.AppColors
-import com.tailg.plus.ui.theme.AppColorsDark
+import com.tailg.plus.ui.theme.CyberHomeColors
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 import kotlinx.coroutines.launch
@@ -53,9 +52,10 @@ import kotlinx.coroutines.launch
  * so the sheet can dismiss / show error). Selection progress is kept internal
  * like the Dart's `_selectingKey`.
  *
- * Token mapping: sheet bg `Colors.white` → [AppColorsDark.surfaceContainerHigh]
- * (VOID dark); `AppColors.border` → [AppColors.border]; `AppColors.textPrimary/
- * textTertiary/primary` → the same-named [AppColors] tokens.
+ * Token mapping: sheet bg `Colors.white` → [CyberHomeColors.card];
+ * drag handle → [CyberHomeColors.line]; title/name → [CyberHomeColors.ink];
+ * subtitle → [CyberHomeColors.inkMuted]; selection → [CyberHomeColors.primary]
+ * / [CyberHomeColors.primarySoft].
  *
  * Icons: `Lucide.check-circle` → `Icons.Filled.CheckCircle`.
  */
@@ -74,7 +74,7 @@ fun VehicleSwitchSheet(
   ModalBottomSheet(
     onDismissRequest = onDismiss,
     modifier = modifier,
-    containerColor = AppColorsDark.surfaceContainerHigh, // Dart Colors.white → VOID dark
+    containerColor = CyberHomeColors.card,
     dragHandle = null,
   ) {
     Column(modifier = Modifier.fillMaxWidth()) {
@@ -83,7 +83,7 @@ fun VehicleSwitchSheet(
           .align(Alignment.CenterHorizontally)
           .size(width = 36.dp, height = 4.dp)
           .clip(RoundedCornerShape(2.dp))
-          .background(AppColors.border),
+          .background(CyberHomeColors.line),
       )
       Spacer(Modifier.height(16.dp))
       Text(
@@ -91,7 +91,7 @@ fun VehicleSwitchSheet(
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 16.sp,
           fontWeight = FontWeight.W600,
-          color = AppColorsDark.textPrimary,
+          color = CyberHomeColors.ink,
         ),
         modifier = Modifier.align(Alignment.CenterHorizontally),
       )
@@ -138,7 +138,7 @@ private fun VehicleTile(
   Row(
     modifier = Modifier
       .fillMaxWidth()
-      .background(if (selected) AppColors.primary.copy(alpha = 0.06f) else Color.Transparent)
+      .background(if (selected) CyberHomeColors.primary.copy(alpha = 0.06f) else Color.Transparent)
       .padding(horizontal = 20.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
@@ -150,19 +150,19 @@ private fun VehicleTile(
         style = androidx.compose.ui.text.TextStyle(
           fontSize = 15.sp,
           fontWeight = if (selected) FontWeight.W600 else FontWeight.W400,
-          color = AppColorsDark.textPrimary,
+          color = CyberHomeColors.ink,
         ),
       )
       Spacer(Modifier.height(2.dp))
       Text(
         text = subtitle(vehicle),
-        style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = AppColorsDark.textTertiary),
+        style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
       )
     }
     if (selecting) {
-      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = AppColorsDark.textSecondary)
+      CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp, color = CyberHomeColors.inkMuted)
     } else if (selected) {
-      LucideIcon(icon = Lucide.checkCircle, size = 20.dp, color = AppColors.primary)
+      LucideIcon(icon = Lucide.checkCircle, size = 20.dp, color = CyberHomeColors.primary)
     }
   }
 }

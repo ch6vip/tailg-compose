@@ -6,6 +6,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -35,7 +36,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
@@ -91,7 +91,6 @@ fun CyberMapStatsRow(
       MiniMap(
         location = location,
         address = address,
-        height = 260.dp,
         onMapTap = onMapTap,
       )
     }
@@ -104,7 +103,6 @@ fun CyberMapStatsRow(
         shadowElevation = 0.dp,
       ) {
         RideCard(
-          height = 260.dp,
           todayKm = todayKm,
           totalKm = totalKm,
           lastDistance = lastDistance,
@@ -120,7 +118,6 @@ fun CyberMapStatsRow(
 private fun MiniMap(
   location: ResolvedVehicleLocation?,
   address: String,
-  height: Dp,
   onMapTap: () -> Unit,
 ) {
   val hasPin = location?.hasCoordinate == true
@@ -135,7 +132,7 @@ private fun MiniMap(
   Box(
     modifier = Modifier
       .fillMaxWidth()
-      .height(height)
+      .aspectRatio(1f)
       .clip(RoundedCornerShape(AppRadii.sheet))
       .background(CyberHomeColors.mapPlaceholder),
   ) {
@@ -191,7 +188,6 @@ private fun MiniMap(
 
 @Composable
 private fun RideCard(
-  height: Dp,
   todayKm: String,
   totalKm: String,
   lastDistance: String,
@@ -200,10 +196,10 @@ private fun RideCard(
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .height(height)
+      .aspectRatio(1f)
       .clip(RoundedCornerShape(AppRadii.sheet))
       .background(CyberHomeColors.card)
-      .padding(14.dp),
+      .padding(12.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
       Text(
@@ -221,13 +217,13 @@ private fun RideCard(
         LucideIcon(icon = Lucide.chart, size = 16.dp, color = CyberHomeColors.primary)
       }
     }
-    Spacer(Modifier.height(14.dp))
+    Spacer(Modifier.height(8.dp))
     Row(
       modifier = Modifier.fillMaxWidth(),
     ) {
       Column(modifier = Modifier.weight(1f)) {
         ScaleToFit(
-          modifier = Modifier.fillMaxWidth().height(36.dp),
+          modifier = Modifier.fillMaxWidth().height(32.dp),
           contentAlignment = Alignment.CenterStart,
         ) {
           AnimatedValueText(
@@ -246,7 +242,7 @@ private fun RideCard(
       Spacer(Modifier.width(12.dp))
       Column(modifier = Modifier.weight(1f), horizontalAlignment = Alignment.End) {
         ScaleToFit(
-          modifier = Modifier.fillMaxWidth().height(36.dp),
+          modifier = Modifier.fillMaxWidth().height(32.dp),
           contentAlignment = Alignment.CenterEnd,
         ) {
           AnimatedValueText(

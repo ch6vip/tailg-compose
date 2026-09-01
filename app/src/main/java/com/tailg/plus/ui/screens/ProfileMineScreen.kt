@@ -238,7 +238,6 @@ fun ProfileMineScreen(
       MineSectionLabel(stringResource(R.string.profile_section_account))
       SupportCard(
         messageBadge = if (signedIn && unreadCount > 0) unreadCount else null,
-        onSettings = { onNavigate(Routes.SETTINGS) },
         onMessages = {
           val sel = cloudState.selectedVehicle
           if (!signedIn) onNavigate(Routes.LOGIN)
@@ -518,12 +517,10 @@ private fun VehicleCard(
 @Composable
 private fun SupportCard(
   messageBadge: Int?,
-  onSettings: () -> Unit,
   onMessages: () -> Unit,
   onAbout: () -> Unit,
 ) {
   val rows = listOf(
-    SupportRowData(Lucide.tune, stringResource(R.string.profile_settings), onSettings, null),
     SupportRowData(Lucide.message, stringResource(R.string.profile_message_center), onMessages, messageBadge),
     SupportRowData(Lucide.info, stringResource(R.string.profile_about_us), onAbout, null),
   )

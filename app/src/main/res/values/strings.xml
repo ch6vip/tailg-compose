@@ -186,7 +186,6 @@
     <string name="profile_logout_message">下次登录需验证手机号。本机车辆缓存会保留。</string>
     <string name="profile_logout">退出</string>
     <string name="profile_section_account">账户与支持</string>
-    <string name="profile_settings">设置</string>
     <string name="profile_message_center">消息中心</string>
     <string name="profile_about_us">关于我们</string>
     <string name="profile_switch_vehicle">切换默认车辆</string>

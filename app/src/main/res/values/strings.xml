@@ -443,6 +443,7 @@
     <string name="control_confirm_cancelled">目标车辆已变化</string>
     <string name="control_confirm_channel_changed">目标车辆或连接已变化</string>
     <string name="control_seat_unsupported_detail">当前车辆固件不支持开坐垫</string>
+    <string name="control_command_sent_waiting">指令已发送，等待回执</string>
     <string name="control_retry">请稍后重试</string>
     <string name="control_channel_auto">自动</string>
     <string name="control_channel_auto_desc">按官方车型与蓝牙状态自动分流</string>

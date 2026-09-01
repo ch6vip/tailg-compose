@@ -235,6 +235,15 @@
     <string name="control_unconfirmed_unlock">Disarming was not confirmed. Please try again later.</string>
     <string name="control_vehicle_changed">The selected vehicle changed. Please try again.</string>
     <string name="control_vehicle_or_channel_changed">The vehicle or control channel changed, so this command was canceled.</string>
+    <string name="control_busy_format">%s…</string>
+    <string name="control_command_sent_waiting">Command sent, awaiting response</string>
+    <string name="control_confirm_cancelled">Target vehicle changed</string>
+    <string name="control_confirm_channel_changed">Target vehicle or connection changed</string>
+    <string name="control_log_cancelled">cancelled</string>
+    <string name="control_log_failed">failed</string>
+    <string name="control_log_success">succeeded</string>
+    <string name="control_log_unconfirmed">unconfirmed</string>
+    <string name="control_seat_unsupported_detail">The current vehicle firmware does not support opening the seat</string>
     <string name="location_title">Vehicle location</string>
     <string name="map_no_location">No location data</string>
     <string name="map_stats_no_location">No location information</string>

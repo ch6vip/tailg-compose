@@ -207,6 +207,25 @@ fun ControlScreen(
   val strUnconfirmedLock = stringResource(R.string.control_unconfirmed_lock)
   val strUnconfirmedUnlock = stringResource(R.string.control_unconfirmed_unlock)
 
+  val strBleRetry = stringResource(R.string.control_ble_retry)
+  val strTooFrequent = stringResource(R.string.control_too_frequent)
+  val strUnavailableHint = stringResource(R.string.control_unavailable_hint)
+  val strVehicleChanged = stringResource(R.string.control_vehicle_changed)
+  val strChannelChanged = stringResource(R.string.control_channel_changed)
+  val strVehicleOrChannelChanged = stringResource(R.string.control_vehicle_or_channel_changed)
+  val strSeatUnsupported = stringResource(R.string.control_seat_unsupported)
+  val strVehicleUnknown = stringResource(R.string.control_vehicle_unknown)
+  val strBusyFormat = stringResource(R.string.control_busy_format)
+  val strCommandSentWaiting = stringResource(R.string.control_command_sent_waiting)
+  val strLogCancelled = stringResource(R.string.control_log_cancelled)
+  val strLogFailed = stringResource(R.string.control_log_failed)
+  val strLogSuccess = stringResource(R.string.control_log_success)
+  val strLogUnconfirmed = stringResource(R.string.control_log_unconfirmed)
+  val strConfirmCancelled = stringResource(R.string.control_confirm_cancelled)
+  val strConfirmChannelChanged = stringResource(R.string.control_confirm_channel_changed)
+  val strSeatUnsupportedDetail = stringResource(R.string.control_seat_unsupported_detail)
+  val strRetry = stringResource(R.string.control_retry)
+
   val locationService = viewModel.locationService
 
   // Foreground resume → retry a failed/absent MQTT preconnect (Dart 229-237).
@@ -560,18 +579,18 @@ fun ControlScreen(
       AppSnack.error(snackbarHostState, strBlePermission)
     } catch (e: Exception) {
       log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
-      AppSnack.error(snackbarHostState, "蓝牙连接失败,请靠近车辆重试")
+      AppSnack.error(snackbarHostState, strBleRetry)
     }
   }
 
   fun sendCommand(cmd: CommandCode) {
     if (busy) {
-      scope.launch { AppSnack.error(snackbarHostState, "正在执行控车指令，请稍候") }
+      scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
       return
     }
     val now = System.currentTimeMillis()
     if (now - lastCommandAtMs < CONTROL_COMMAND_DEBOUNCE_MS) {
-      scope.launch { AppSnack.info(snackbarHostState, "指令发送过于频繁，请稍候") }
+      scope.launch { AppSnack.info(snackbarHostState, strTooFrequent) }
       return
     }
     val policy = ControlCommandPolicy.evaluate(command = cmd, isPowerOn = isPowerOn == true)
@@ -585,7 +604,7 @@ fun ControlScreen(
       vehicle = cloudVehicle,
     )
     if (!availability.enabled) {
-      scope.launch { AppSnack.error(snackbarHostState, availability.disabledReason.ifEmpty { "当前不可控车，请检查蓝牙或网络" }) }
+      scope.launch { AppSnack.error(snackbarHostState, availability.disabledReason.ifEmpty { strUnavailableHint }) }
       return
     }
     // QGJ open-seat firmware preflight (Dart checkQgjSeatSupport gate) runs
@@ -595,7 +614,7 @@ fun ControlScreen(
     val vehicleAtSend = cloudService.currentState.selectedVehicle
     val vehicleKeyAtSend = vehicleAtSend?.key
     val baseline = vehicleStateSnapshot()
-    val activityId = commandLog.start(cmd, "${cmd.label}中…", "指令已发送，等待回执")
+    val activityId = commandLog.start(cmd, strBusyFormat.format(cmd.label), strCommandSentWaiting)
     viewModel.bumpCommandVersion()
     // Built once per command instead of per recomposition of this screen.
     val strSuccessTitles = mapOf(
@@ -628,15 +647,15 @@ fun ControlScreen(
           val vehicleKeyBeforeGate = cloudService.currentState.selectedVehicle?.key
           val serviceDecision = cloudService.resolveSelectedRemoteControlServiceDecision()
           if (cloudService.currentState.selectedVehicle?.key != vehicleKeyBeforeGate) {
-            AppSnack.error(snackbarHostState, "车辆已变化,请重新操作")
-            commandLog.finish(activityId, "${cmd.label}已取消", "目标车辆已变化", ControlCommandActivityStatus.CANCELLED)
+            AppSnack.error(snackbarHostState, strVehicleChanged)
+            commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmCancelled, ControlCommandActivityStatus.CANCELLED)
             return@launch
           }
           val serviceMessage = serviceDecision.message
           if (serviceMessage != null) {
             if (serviceDecision.blocksControl) {
               AppSnack.error(snackbarHostState, serviceMessage)
-              commandLog.finish(activityId, "${cmd.label}失败", serviceMessage, ControlCommandActivityStatus.FAILED)
+              commandLog.finish(activityId, "${cmd.label}${strLogFailed}", serviceMessage, ControlCommandActivityStatus.FAILED)
               return@launch
             }
             AppSnack.info(snackbarHostState, serviceMessage)
@@ -648,28 +667,28 @@ fun ControlScreen(
             vehicle = cloudVehicle,
           )
           if (availabilityAfterGate.willUseBle) {
-            AppSnack.info(snackbarHostState, "控车渠道已切换,请重新操作")
-            commandLog.finish(activityId, "${cmd.label}已取消", "控车渠道已切换,请重新操作", ControlCommandActivityStatus.CANCELLED)
+            AppSnack.info(snackbarHostState, strChannelChanged)
+            commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strChannelChanged, ControlCommandActivityStatus.CANCELLED)
             return@launch
           }
           if (!availabilityAfterGate.enabled) {
-            val reason = availabilityAfterGate.disabledReason.ifEmpty { "当前不可控车,请检查蓝牙或网络" }
+            val reason = availabilityAfterGate.disabledReason.ifEmpty { strUnavailableHint }
             AppSnack.error(snackbarHostState, reason)
-            commandLog.finish(activityId, "${cmd.label}失败", reason, ControlCommandActivityStatus.FAILED)
+            commandLog.finish(activityId, "${cmd.label}${strLogFailed}", reason, ControlCommandActivityStatus.FAILED)
             return@launch
           }
         }
         // Abort if the selected vehicle changed mid-send (Dart 798-811).
         if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend) {
-          AppSnack.error(snackbarHostState, "车辆或控车渠道已变化，本次指令已取消")
-          commandLog.finish(activityId, "${cmd.label}已取消", "目标车辆或连接已变化", ControlCommandActivityStatus.CANCELLED)
+          AppSnack.error(snackbarHostState, strVehicleOrChannelChanged)
+          commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmChannelChanged, ControlCommandActivityStatus.CANCELLED)
           return@launch
         }
         if (cmd == CommandCode.OPEN_SEAT && availability.willUseBle) {
           val supported = connectionManager.checkQgjSeatSupport()
           if (supported == false) {
-            AppSnack.error(snackbarHostState, "当前车辆固件不支持开坐垫")
-            commandLog.finish(activityId, "${cmd.label}失败", "当前车辆固件不支持开坐垫", ControlCommandActivityStatus.FAILED)
+            AppSnack.error(snackbarHostState, strSeatUnsupported)
+            commandLog.finish(activityId, "${cmd.label}${strLogFailed}", strSeatUnsupportedDetail, ControlCommandActivityStatus.FAILED)
             return@launch
           }
         }
@@ -713,26 +732,26 @@ fun ControlScreen(
             AppSnack.error(snackbarHostState, commandError ?: unconfirmedMessage(cmd, strUnconfirmedTitles, strUnconfirmedFormat))
             commandLog.finish(
               activityId,
-              if (commandError == null) "${cmd.label}未确认" else "${cmd.label}失败",
-              commandError ?: "请稍后重试",
+              if (commandError == null) "${cmd.label}${strLogUnconfirmed}" else "${cmd.label}${strLogFailed}",
+              commandError ?: strRetry,
               ControlCommandActivityStatus.FAILED,
             )
           } else {
-            AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}成功")
+            AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}${strLogSuccess}")
             commandLog.finish(activityId, successTitle(cmd, strSuccessTitles, strSuccessFormat), successSubtitle(cmd, strSuccessSubtitles), ControlCommandActivityStatus.SUCCEEDED)
           }
         } else {
           log.operation("Cyber 控车失败: ${cmd.label}", detail = "渠道=${result.transport} 原因=${result.failureMessage}", level = LogLevel.ERROR)
           refreshStateForConfirmation()
           AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage, strFailureFormat, strFailureDetailFormat))
-          commandLog.finish(activityId, "${cmd.label}失败", result.failureMessage?.trim()?.ifEmpty { null } ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
+          commandLog.finish(activityId, "${cmd.label}${strLogFailed}", result.failureMessage?.trim()?.ifEmpty { null } ?: strRetry, ControlCommandActivityStatus.FAILED)
         }
       } catch (e: kotlinx.coroutines.CancellationException) {
         throw e
       } catch (e: Exception) {
         log.operation("Cyber 控车异常: ${cmd.label}", detail = e.toString(), level = LogLevel.ERROR)
         AppSnack.error(snackbarHostState, failureMessage(cmd, e.message, strFailureFormat, strFailureDetailFormat))
-        commandLog.finish(activityId, "${cmd.label}失败", e.message ?: "请稍后重试", ControlCommandActivityStatus.FAILED)
+        commandLog.finish(activityId, "${cmd.label}${strLogFailed}", e.message ?: strRetry, ControlCommandActivityStatus.FAILED)
       } finally {
         viewModel.setBusy(false)
         viewModel.bumpCommandVersion()
@@ -743,7 +762,7 @@ fun ControlScreen(
   fun sendPowerToggle() {
     val powered = isPowerOn
     if (powered == null) {
-      scope.launch { AppSnack.error(snackbarHostState, "车辆状态未知，请刷新后重试") }
+      scope.launch { AppSnack.error(snackbarHostState, strVehicleUnknown) }
       return
     }
     val cmd = if (powered) CommandCode.POWER_OFF else CommandCode.POWER_ON
@@ -753,7 +772,7 @@ fun ControlScreen(
   fun sendArmToggle() {
     val locked = isArmed
     if (locked == null) {
-      scope.launch { AppSnack.error(snackbarHostState, "车辆状态未知，请刷新后重试") }
+      scope.launch { AppSnack.error(snackbarHostState, strVehicleUnknown) }
       return
     }
     val cmd = if (locked) CommandCode.UNLOCK else CommandCode.LOCK

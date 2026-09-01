@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -27,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.BiasAlignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
@@ -194,31 +196,37 @@ private fun RideCard(
       .fillMaxWidth()
       .aspectRatio(1f)
       .clip(RoundedCornerShape(AppRadii.sheet))
-      .background(CyberHomeColors.card)
-      .padding(16.dp),
+      .background(CyberHomeColors.card),
   ) {
-    RideMetricItem(
+    RideSegment(
       title = stringResource(R.string.map_stats_today_distance),
       valueWithUnit = todayKm,
+      valueFontSize = 48.sp,
+      background = CyberHomeColors.rideAccentSoft,
       showSwapIcon = true,
+      modifier = Modifier.weight(1f),
     )
-    Spacer(Modifier.weight(1f))
     HorizontalDivider(thickness = 1.dp, color = CyberHomeColors.line)
-    Spacer(Modifier.weight(1f))
-    RideMetricItem(
+    RideSegment(
       title = stringResource(R.string.map_stats_total_distance),
       valueWithUnit = totalKm,
+      valueFontSize = 32.sp,
+      background = CyberHomeColors.card,
       showSwapIcon = false,
+      modifier = Modifier.weight(1f),
     )
   }
 }
 
-/** Single ride-stat row (title + big number + small unit) on the RideCard. */
+/** Single segment on the RideCard (title + big number + small unit). */
 @Composable
-private fun RideMetricItem(
+private fun RideSegment(
   title: String,
   valueWithUnit: String,
+  valueFontSize: androidx.compose.ui.unit.TextUnit,
+  background: Color,
   showSwapIcon: Boolean,
+  modifier: Modifier = Modifier,
 ) {
   // Split e.g. "2.7 km" into ("2.7", "km") so the number renders big and the
   // unit renders small beside it, matching the reference card.
@@ -227,32 +235,47 @@ private fun RideMetricItem(
     if (idx > 0) valueWithUnit.substring(0, idx) to valueWithUnit.substring(idx + 1)
     else valueWithUnit to ""
   }
-  Column {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      Text(
-        text = title,
-        style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted),
-      )
-      Spacer(Modifier.weight(1f))
-      if (showSwapIcon) {
-        LucideIcon(icon = Lucide.swap, size = 14.dp, color = CyberHomeColors.inkFaint)
-      }
-    }
-    Spacer(Modifier.height(2.dp))
-    Row(verticalAlignment = Alignment.Bottom) {
-      AnimatedValueText(
-        value = number,
-        maxLines = 1,
-        style = androidx.compose.ui.text.TextStyle(fontSize = 32.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-      )
-      if (unit.isNotEmpty()) {
-        Spacer(Modifier.width(4.dp))
+  Box(
+    modifier = modifier
+      .fillMaxWidth()
+      .background(background)
+      .padding(horizontal = 16.dp, vertical = 14.dp),
+    contentAlignment = Alignment.CenterStart,
+  ) {
+    Column(modifier = Modifier.fillMaxSize()) {
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
         Text(
-          text = unit,
-          maxLines = 1,
-          style = androidx.compose.ui.text.TextStyle(fontSize = 14.sp, color = CyberHomeColors.inkMuted),
-          modifier = Modifier.padding(bottom = 4.dp),
+          text = title,
+          style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkSecondary),
         )
+        Spacer(Modifier.weight(1f))
+        if (showSwapIcon) {
+          LucideIcon(icon = Lucide.swapVert, size = 16.dp, color = CyberHomeColors.inkFaint)
+        }
+      }
+      Spacer(Modifier.weight(1f))
+      Row(verticalAlignment = Alignment.Bottom) {
+        AnimatedValueText(
+          value = number,
+          maxLines = 1,
+          style = androidx.compose.ui.text.TextStyle(
+            fontSize = valueFontSize,
+            fontWeight = FontWeight.W700,
+            color = CyberHomeColors.ink,
+          ),
+        )
+        if (unit.isNotEmpty()) {
+          Spacer(Modifier.width(4.dp))
+          Text(
+            text = unit,
+            maxLines = 1,
+            style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = CyberHomeColors.inkMuted),
+            modifier = Modifier.padding(bottom = 6.dp),
+          )
+        }
       }
     }
   }

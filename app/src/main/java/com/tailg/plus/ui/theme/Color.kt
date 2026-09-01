@@ -112,6 +112,7 @@ object CyberHomeColors {
     val warning = Color(0xFFFF9F0A)
     val danger = Color(0xFFFF3B30)
     val rideAccent = Color(0xFFFF2D68)
+    val rideAccentSoft = Color(0xFFFFF4E6)
     val mapPlaceholder = Color(0xFFE9EEF3)
     val alertSurface = Color(0xFFE9EAED)
     val navSurface = Color(0xF7FFFFFF)

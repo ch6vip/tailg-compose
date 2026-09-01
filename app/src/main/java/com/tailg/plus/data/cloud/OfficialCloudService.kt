@@ -279,7 +279,8 @@ class OfficialCloudService(
 
     // -- public API: operations (delegated) ----------------------------------
 
-    suspend fun requestSmsCode(phone: String) = operationsLogic.requestSmsCode(phone)
+    suspend fun requestSmsCode(phone: String, ticket: String, randstr: String) =
+        operationsLogic.requestSmsCode(phone, ticket, randstr)
 
     suspend fun login(phone: String, smsCode: String) = operationsLogic.login(phone, smsCode)
 

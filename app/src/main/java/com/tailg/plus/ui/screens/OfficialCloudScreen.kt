@@ -59,6 +59,7 @@ import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.CaptchaSliderDialog
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.cyberButtonShape
@@ -101,6 +102,7 @@ fun OfficialCloudScreen(
   var smsCode by remember { mutableStateOf("") }
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsStateWithLifecycle()
+  var showCaptcha by remember { mutableStateOf(false) }
 
   val strSmsSent = stringResource(R.string.cloud_sms_sent)
   val strSmsFailed = stringResource(R.string.cloud_sms_failed)
@@ -112,16 +114,8 @@ fun OfficialCloudScreen(
   fun requestCode() {
     if (smsCountdown.isActive) return
     val normalizedPhone = OfficialCloudLoginValidator.compactPhone(phone)
-    scope.launch {
-      try {
-        cloudService.requestSmsCode(normalizedPhone)
-        smsCountdown.start()
-        AppSnack.success(snackbarHostState, strSmsSent)
-      } catch (e: Exception) {
-        log.operation(strSmsFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
-        AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
-      }
-    }
+    if (!OfficialCloudLoginValidator.isValidPhone(normalizedPhone)) return
+    showCaptcha = true
   }
 
   fun login() {
@@ -232,6 +226,26 @@ fun OfficialCloudScreen(
         }
       }
     }
+  }
+
+  if (showCaptcha) {
+    CaptchaSliderDialog(
+      onResult = { ticket, randstr ->
+        showCaptcha = false
+        val normalizedPhone = OfficialCloudLoginValidator.compactPhone(phone)
+        scope.launch {
+          try {
+            cloudService.requestSmsCode(normalizedPhone, ticket, randstr)
+            smsCountdown.start()
+            AppSnack.success(snackbarHostState, strSmsSent)
+          } catch (e: Exception) {
+            log.operation(strSmsFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+            AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+          }
+        }
+      },
+      onDismiss = { showCaptcha = false },
+    )
   }
 }
 

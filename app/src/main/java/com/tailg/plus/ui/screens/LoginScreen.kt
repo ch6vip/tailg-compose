@@ -62,6 +62,7 @@ import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.CaptchaSliderDialog
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.cyberButtonShape
@@ -143,6 +144,7 @@ fun LoginScreen(
   var busy by remember { mutableStateOf(false) }
   var navigated by remember { mutableStateOf(false) }
   var mode by remember { mutableStateOf(LoginMode.SMS) }
+  var showCaptcha by remember { mutableStateOf(false) }
 
   // React to signed-in state changes (Dart `_onStateChanged`). This is a
   // safety net: the submit handlers call onSignedIn() directly after success
@@ -188,20 +190,7 @@ fun LoginScreen(
           validSms = validSms,
           onRequestCode = {
             if (smsCountdown.isActive || !validPhone) return@SmsLoginForm
-            scope.launch {
-              try {
-                cloudService.requestSmsCode(normalizedPhone)
-                smsCountdown.start()
-                AppSnack.success(snackbarHostState, strSmsSent)
-              } catch (e: Exception) {
-                log.operation(
-                  "官云验证码发送失败",
-                  detail = e.toString(),
-                  level = LogLevel.WARNING,
-                )
-                AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
-              }
-            }
+            showCaptcha = true
           },
           onLogin = {
             if (busy) return@SmsLoginForm
@@ -312,6 +301,29 @@ fun LoginScreen(
         TokenSafetyNote()
       }
     }
+  }
+
+  if (showCaptcha) {
+    CaptchaSliderDialog(
+      onResult = { ticket, randstr ->
+        showCaptcha = false
+        scope.launch {
+          try {
+            cloudService.requestSmsCode(normalizedPhone, ticket, randstr)
+            smsCountdown.start()
+            AppSnack.success(snackbarHostState, strSmsSent)
+          } catch (e: Exception) {
+            log.operation(
+              "官云验证码发送失败",
+              detail = e.toString(),
+              level = LogLevel.WARNING,
+            )
+            AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+          }
+        }
+      },
+      onDismiss = { showCaptcha = false },
+    )
   }
 }
 

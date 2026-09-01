@@ -32,18 +32,35 @@ internal class OfficialCloudOperationLogic(
 
     // -- SMS / login / logout ------------------------------------------------
 
-    suspend fun requestSmsCode(phone: String) {
+    suspend fun requestSmsCode(phone: String, ticket: String, randstr: String) {
         val normalized = phone.trim()
         if (!OfficialCloudLoginValidator.isValidPhone(normalized)) {
             throw OfficialCloudApiException("请输入 11 位手机号")
         }
         service.setLoading(true)
         try {
-            val response = service.apiClient.request(
-                "app/getCode?phone=${URLEncoder.encode(normalized, StandardCharsets.UTF_8.name())}",
+            // 官方 3.6.0 起登录验证码改走「滑块验证 + loginCode」双接口；
+            // 旧 app/getCode 已被后端按 User-Agent 拦截（返回「请升级到最新版本」）。
+            // 1) 用滑块结果 ticket/randstr 换一次性 captchaPassToken。
+            val verifyResponse = service.apiClient.request(
+                "app/captcha/slider/verify",
+                method = "POST",
+                body = mapOf("ticket" to ticket, "randstr" to randstr),
+            )
+            service.ensureSuccess(verifyResponse.body, fallback = "滑块验证失败")
+            val captchaPassToken = parsePersistedMap(verifyResponse.body["data"])
+                ?.get("captchaPassToken")
+                ?.toString()
+                ?.takeIf { it.isNotBlank() }
+                ?: throw OfficialCloudApiException("滑块验证未返回凭证，请重试")
+
+            // 2) 用 captchaPassToken 真正发送验证码。
+            val codeResponse = service.apiClient.request(
+                "app/sms/loginCode?phone=${URLEncoder.encode(normalized, StandardCharsets.UTF_8.name())}" +
+                    "&captchaPassToken=${URLEncoder.encode(captchaPassToken, StandardCharsets.UTF_8.name())}",
                 method = "POST",
             )
-            service.ensureSuccess(response.body, fallback = "验证码发送失败")
+            service.ensureSuccess(codeResponse.body, fallback = "验证码发送失败")
             service.log.operation("官方云验证码已发送")
         } finally {
             service.setLoading(false)

@@ -118,11 +118,16 @@ data class OfficialRideStatistics(
         fun formatMileageKm(value: String): String {
             val normalized = value.trim()
             if (normalized.isEmpty()) return "--"
-            val wholeMeters = normalized.substringBefore('.').toIntOrNull()
-                ?: normalized.toDoubleOrNull()?.toInt()
+            // Accumulated odometers commonly exceed 21,474 km.  Keep the
+            // integer part as Long (and avoid an Int multiplication overflow)
+            // before truncating to kilometre hundredths.
+            val wholeMeters = normalized.substringBefore('.').toLongOrNull()
+                ?: normalized.toDoubleOrNull()?.toLong()
             if (wholeMeters == null) return "--"
             // Dart `~/` is floor division; Math.floorDiv keeps negative parity.
-            val truncatedHundredths = Math.floorDiv(wholeMeters * 100, 1000)
+            // `(meters * 100) / 1000` is equivalent to `meters / 10` here,
+            // so no multiplication can overflow even for a large odometer.
+            val truncatedHundredths = Math.floorDiv(wholeMeters, 10L)
             return formatFixed(truncatedHundredths / 100.0, 2)
         }
 

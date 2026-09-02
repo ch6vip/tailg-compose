@@ -13,4 +13,9 @@ class OfficialRideStatisticsTest {
         assertEquals("--", OfficialRideStatistics.formatMileage("", DistanceUnitPreference.Imperial))
         assertEquals("--", OfficialRideStatistics.formatMileage("invalid", DistanceUnitPreference.Imperial))
     }
+
+    @Test
+    fun formatMileage_handlesLargeCumulativeOdometersWithoutIntegerOverflow() {
+        assertEquals("35000.00", OfficialRideStatistics.formatMileageKm("35000000"))
+    }
 }

@@ -87,12 +87,17 @@ internal fun todayRideLabel(
 }
 
 internal fun totalMileageLabel(
-  vehicle: OfficialVehicle?,
+  cloudState: CloudScreenState,
   distanceUnit: DistanceUnitPreference = DistanceUnitPreference.Metric,
 ): String {
-  val m = vehicle?.mileage
-  if (m != null && m > 0) return formatDistanceKilometers(m, distanceUnit)
-  return "--"
+  // `CarControlInfoBean.mileage` is the estimated/remaining range shown in
+  // the official control header, not the vehicle odometer.  The cumulative
+  // distance is returned by `app/appRiding/getRidingDetail.totalMileage` and
+  // is expressed in metres, just like `dayMileage` above.
+  val totalMileage = cloudState.rideStatistics?.totalMileage?.trim()
+  if (totalMileage.isNullOrEmpty()) return "--"
+  val km = OfficialRideStatistics.formatMileageKm(totalMileage)
+  return formatDistanceKilometersText(raw = km, unit = distanceUnit, missing = "--")
 }
 
 internal fun successTitle(command: CommandCode, titles: Map<CommandCode, String>, format: String): String =

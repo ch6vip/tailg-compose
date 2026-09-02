@@ -890,7 +890,7 @@ fun ControlScreen(
             location = location,
             address = locationTitle(location),
             todayKm = todayRideLabel(cloudState, distanceUnit),
-            totalKm = totalMileageLabel(cloudVehicle, distanceUnit),
+            totalKm = totalMileageLabel(cloudState, distanceUnit),
             onMapTap = onMapTap,
             onRideStatsTap = onRideStatsTap,
           )

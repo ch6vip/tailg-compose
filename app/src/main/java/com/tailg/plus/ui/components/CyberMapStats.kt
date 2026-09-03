@@ -5,7 +5,6 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -14,7 +13,6 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -34,7 +32,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -256,25 +253,36 @@ private fun RideSegment(
           LucideIcon(icon = Lucide.swapVert, size = 16.dp, color = CyberHomeColors.inkFaint)
         }
       }
-      Spacer(Modifier.weight(1f))
-      Row(verticalAlignment = Alignment.Bottom) {
-        AnimatedValueText(
-          value = number,
-          maxLines = 1,
-          style = androidx.compose.ui.text.TextStyle(
-            fontSize = valueFontSize,
-            fontWeight = FontWeight.W700,
-            color = CyberHomeColors.ink,
-          ),
-        )
-        if (unit.isNotEmpty()) {
-          Spacer(Modifier.width(4.dp))
-          Text(
-            text = unit,
+      // The card is square and each segment gets half of its height. Keep the
+      // value row inside the remaining space and scale the complete number +
+      // unit together when the available slot is smaller than the requested
+      // 48sp/32sp typography. Without this bounded slot, the 48sp text can
+      // extend into the next segment and its lower half is painted over.
+      ScaleToFit(
+        modifier = Modifier
+          .fillMaxWidth()
+          .weight(1f),
+        contentAlignment = Alignment.BottomStart,
+      ) {
+        Row(verticalAlignment = Alignment.Bottom) {
+          AnimatedValueText(
+            value = number,
             maxLines = 1,
-            style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = CyberHomeColors.inkMuted),
-            modifier = Modifier.padding(bottom = 6.dp),
+            style = androidx.compose.ui.text.TextStyle(
+              fontSize = valueFontSize,
+              fontWeight = FontWeight.W700,
+              color = CyberHomeColors.ink,
+            ),
           )
+          if (unit.isNotEmpty()) {
+            Spacer(Modifier.width(4.dp))
+            Text(
+              text = unit,
+              maxLines = 1,
+              style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = CyberHomeColors.inkMuted),
+              modifier = Modifier.padding(bottom = 6.dp),
+            )
+          }
         }
       }
     }

@@ -643,8 +643,6 @@
     <string name="settings_account_vehicle">账号与车辆</string>
     <string name="settings_my_vehicle">我的车辆</string>
     <string name="settings_account_vehicle_desc">账号车辆、默认车辆与同步</string>
-    <string name="settings_message_center">消息中心</string>
-    <string name="settings_message_center_desc">系统消息、设备消息和安全提醒</string>
     <string name="settings_vehicle_usage">用车设置</string>
     <string name="settings_vehicle_settings">车辆设置</string>
     <string name="settings_vehicle_settings_desc">声音、灵敏度、车辆功能、骑行设置</string>

@@ -95,12 +95,6 @@ fun SettingsScreen(
           subtitle = stringResource(R.string.settings_account_vehicle_desc),
           onClick = { onNavigate(Routes.GARAGE) },
         ),
-        settingItemModel(
-          icon = Lucide.message,
-          title = stringResource(R.string.settings_message_center),
-          subtitle = stringResource(R.string.settings_message_center_desc),
-          onClick = { onNavigate(Routes.vehicleMessage(vehicleRouteId)) },
-        ),
       )
       CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
       SettingsGroup(

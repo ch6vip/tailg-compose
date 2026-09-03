@@ -116,8 +116,6 @@
     <string name="settings_account_vehicle">Account &amp; vehicle</string>
     <string name="settings_my_vehicle">My vehicle</string>
     <string name="settings_account_vehicle_desc">Account vehicle, default vehicle and sync</string>
-    <string name="settings_message_center">Message center</string>
-    <string name="settings_message_center_desc">System messages, device messages and safety alerts</string>
     <string name="settings_vehicle_usage">Vehicle settings</string>
     <string name="settings_vehicle_settings">Vehicle settings</string>
     <string name="settings_vehicle_settings_desc">Sound, sensitivity, vehicle features and ride settings</string>

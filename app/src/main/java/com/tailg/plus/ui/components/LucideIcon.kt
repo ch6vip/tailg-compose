@@ -49,6 +49,7 @@ import androidx.compose.material.icons.filled.DeviceThermostat
 import androidx.compose.material.icons.filled.DirectionsBike
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.EnergySavingsLeaf
 import androidx.compose.material.icons.filled.ErrorOutline
 import androidx.compose.material.icons.filled.EventAvailable
 import androidx.compose.material.icons.filled.Explore
@@ -82,6 +83,7 @@ import androidx.compose.material.icons.filled.Navigation
 import androidx.compose.material.icons.filled.NearMe
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.Notifications
+import androidx.compose.material.icons.filled.Park
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.PersonAdd
 import androidx.compose.material.icons.filled.PersonRemove
@@ -378,7 +380,9 @@ object Lucide {
   // Lucide: ticket
   val ticket: ImageVector = Icons.Filled.ConfirmationNumber
   // Lucide: leaf
-  val leaf: ImageVector = Icons.Filled.DateRange // closest Material glyph; Lucide swap later
+  val leaf: ImageVector = Icons.Filled.EnergySavingsLeaf
+  // Lucide: tree (park) — tree-absorption metric
+  val tree: ImageVector = Icons.Filled.Park
   // Lucide: headphones
   val headphones: ImageVector = Icons.Filled.Headphones
   // Lucide: users

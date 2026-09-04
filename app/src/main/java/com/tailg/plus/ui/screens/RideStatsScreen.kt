@@ -1,23 +1,31 @@
 package com.tailg.plus.ui.screens
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Scaffold
@@ -25,7 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -34,13 +41,23 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialRidePeriod
@@ -48,24 +65,30 @@ import com.tailg.plus.data.model.OfficialRideStatistics
 import com.tailg.plus.data.model.carbonTitle
 import com.tailg.plus.data.model.mileageTitle
 import com.tailg.plus.data.model.tabLabel
+import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.ui.components.AnimatedValueText
+import com.tailg.plus.ui.components.AppMotion
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.CyberHeaderAction
+import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.LucideIcon
+import com.tailg.plus.ui.components.MotionPolicy
 import com.tailg.plus.ui.components.ScaleToFit
 import com.tailg.plus.ui.components.cyberButtonShape
+import com.tailg.plus.ui.components.cyberCaptionStyle
 import com.tailg.plus.ui.components.cyberFilledButtonColors
+import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
-import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.util.distanceUnitSuffix
 import com.tailg.plus.util.formatSpeedKilometersPerHourValue
 import com.tailg.plus.util.speedUnitSuffix
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
-import com.tailg.plus.R
+import kotlin.math.cos
+import kotlin.math.sin
 
 @Composable
 private fun rideNotice(): String =
@@ -74,9 +97,19 @@ private fun rideNotice(): String =
     stringResource(R.string.ride_stats_desc_3)
 
 /**
- * Port of `lib/pages/ride_stats_page.dart` — ride statistics with period
- * selector (day / week / month), environmental summary (carbon saving +
- * tree absorption), mileage summary, and a metrics grid.
+ * Redesign of `lib/pages/ride_stats_page.dart` — ride statistics as a
+ * data-driven cockpit: a freeform radial mileage dial floats over the page
+ * backdrop, and a single rounded "sheet" caps it holding the period selector,
+ * the day/week/month mileage breakdown, the eco impact, and the metrics grid.
+ *
+ * Design notes:
+ * - Hero dial is a hand-drawn [Canvas] arc whose sweep tracks
+ *   `period mileage / max(day, week, month)` so the ring always reads as a
+ *   filled gauge; a tip dot marks the live end of the arc.
+ * - Entrance is a single clock-driven cascade ([entranceSection]) — hero first,
+ *   then the sheet slides up — honouring [MotionPolicy.reduceMotion].
+ * - Numbers use [AnimatedValueText] so a period switch cross-fades values.
+ * - All glyphs come from the [Lucide] map; no emoji anywhere.
  *
  * Navigation: [onBack] pops; gates route to login / add-vehicle via [Routes].
  */
@@ -130,9 +163,16 @@ fun RideStatsScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      RideStatsHeader(
+      CyberPageHeader(
+        title = stringResource(R.string.ride_stats_title),
         onBack = onBack,
-        onHelp = { showInfoSheet = InfoSheetContent(strHelp, strRideNotice) },
+        actions = {
+          CyberHeaderAction(
+            icon = Lucide.help,
+            label = stringResource(R.string.ride_stats_view_help),
+            onTap = { showInfoSheet = InfoSheetContent(strHelp, strRideNotice) },
+          )
+        },
       )
       Box(
         modifier = Modifier
@@ -164,60 +204,40 @@ fun RideStatsScreen(
               )
             },
           )
-          else -> {
-            Column(
-              modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(bottom = 28.dp),
-            ) {
-              EnvironmentalSummary(
-                period = period,
-                statistics = statistics,
-                onCarbonHelp = {
-                  showInfoSheet = InfoSheetContent(strCarbonHelp, strCarbonDesc)
-                },
-                onTreeHelp = {
-                  showInfoSheet = InfoSheetContent(strTreeHelp, strTreeDesc)
-                },
+          else -> RideStatsContent(
+            period = period,
+            statistics = statistics,
+            onPeriodSelected = { next ->
+              if (period == next) return@RideStatsContent
+              period = next
+              statistics = null
+              error = null
+              loadStatistics(
+                scope = scope,
+                cloudService = cloudService,
+                period = next,
+                onGate = { gate = it },
+                onLoading = { loading = it },
+                onError = { error = it },
+                onStatistics = { statistics = it },
               )
-              Column(
-                modifier = Modifier.padding(start = 20.dp, top = 18.dp, end = 20.dp),
-              ) {
-                PeriodSelector(
-                  selected = period,
-                  onSelected = { next ->
-                    if (period == next) return@PeriodSelector
-                    period = next
-                    statistics = null
-                    error = null
-                    loadStatistics(
-                      scope = scope,
-                      cloudService = cloudService,
-                      period = next,
-                      onGate = { gate = it },
-                      onLoading = { loading = it },
-                      onError = { error = it },
-                      onStatistics = { statistics = it },
-                    )
-                  },
-                )
-                Spacer(Modifier.height(16.dp))
-                MileageNotice()
-                Spacer(Modifier.height(12.dp))
-                MileageSummary(period = period, statistics = statistics)
-                Spacer(Modifier.height(14.dp))
-                MetricsGrid(statistics = statistics)
-              }
-            }
-            if (loading) {
-              LinearProgressIndicator(
-                modifier = Modifier.fillMaxWidth(),
-                color = CyberHomeColors.primary,
-                trackColor = CyberHomeColors.primarySoft,
-              )
-            }
-          }
+            },
+            onCarbonHelp = {
+              showInfoSheet = InfoSheetContent(strCarbonHelp, strCarbonDesc)
+            },
+            onTreeHelp = {
+              showInfoSheet = InfoSheetContent(strTreeHelp, strTreeDesc)
+            },
+          )
+        }
+        if (loading) {
+          LinearProgressIndicator(
+            modifier = Modifier
+              .fillMaxWidth()
+              .align(Alignment.TopCenter),
+            color = CyberHomeColors.primary,
+            trackColor = CyberHomeColors.primarySoft,
+          )
         }
       }
     }
@@ -283,275 +303,460 @@ private fun loadStatistics(
   }
 }
 
-// ── Header ────────────────────────────────────────────────────────────────
+/** Raw mileage fields are meters; parse loosely, non-numeric/empty → 0. */
+private fun parseMeters(raw: String?): Float = raw?.trim()?.toFloatOrNull() ?: 0f
+
+/**
+ * One shared entrance clock drives every section: section [index] reveals over
+ * a sliding window of [progress] so the whole page cascades in with a single
+ * `Animatable` (no per-section timers). When reduce-motion is on the caller
+ * seeds [progress] at 1f so this collapses to a no-op.
+ */
+@Composable
+private fun Modifier.entranceSection(progress: Float, index: Int): Modifier {
+  val offsetPx = with(LocalDensity.current) { 30.dp.toPx() }
+  val local = ((progress - index * 0.14f) / 0.55f).coerceIn(0f, 1f)
+  val eased = AppMotion.entranceCurve.transform(local)
+  return this.graphicsLayer {
+    alpha = eased
+    translationY = (1f - eased) * offsetPx
+  }
+}
+
+// ── Content ───────────────────────────────────────────────────────────────
 
 @Composable
-private fun RideStatsHeader(
-  onBack: () -> Unit,
-  onHelp: () -> Unit,
+private fun RideStatsContent(
+  period: OfficialRidePeriod,
+  statistics: OfficialRideStatistics?,
+  onPeriodSelected: (OfficialRidePeriod) -> Unit,
+  onCarbonHelp: () -> Unit,
+  onTreeHelp: () -> Unit,
 ) {
-  Row(
-    modifier = Modifier
-      .height(64.dp)
-      .padding(horizontal = 12.dp),
-    verticalAlignment = Alignment.CenterVertically,
-  ) {
-    Box(modifier = Modifier.width(92.dp)) {
-      AppPressable(
-        onClick = onBack,
-        semanticsLabel = stringResource(R.string.common_back),
-      ) {
-        Box(
-          modifier = Modifier.size(AppTouchTargets.min),
-          contentAlignment = Alignment.Center,
-        ) {
-          LucideIcon(icon = Lucide.arrowLeft, size = 20.dp, color = CyberHomeColors.inkSecondary)
-        }
-      }
+  val reduceMotion = MotionPolicy.reduceMotion()
+  val entrance = remember { Animatable(if (reduceMotion) 1f else 0f) }
+  LaunchedEffect(Unit) {
+    if (!reduceMotion) {
+      entrance.animateTo(1f, tween(AppMotion.reveal * 2, easing = AppMotion.entranceCurve))
     }
-    ScaleToFit(
-      modifier = Modifier.weight(1f).height(32.dp),
+  }
+
+  Column(
+    modifier = Modifier
+      .fillMaxSize()
+      .verticalScroll(rememberScrollState())
+      .padding(bottom = 28.dp),
+  ) {
+    Box(modifier = Modifier.entranceSection(entrance.value, 0)) {
+      HeroDial(period = period, statistics = statistics)
+    }
+    Column(
+      modifier = Modifier
+        .fillMaxWidth()
+        .entranceSection(entrance.value, 1)
+        .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
+        .background(CyberHomeColors.card)
+        .padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 10.dp),
+    ) {
+      PeriodSelector(selected = period, onSelected = onPeriodSelected)
+      Spacer(Modifier.height(22.dp))
+      MileageBreakdown(statistics = statistics, selected = period)
+      Spacer(Modifier.height(22.dp))
+      EcoStats(
+        period = period,
+        statistics = statistics,
+        onCarbonHelp = onCarbonHelp,
+        onTreeHelp = onTreeHelp,
+      )
+      Spacer(Modifier.height(22.dp))
+      MetricsGrid(statistics = statistics)
+      Spacer(Modifier.height(18.dp))
+      MileageNotice()
+    }
+  }
+}
+
+// ── Hero dial ─────────────────────────────────────────────────────────────
+
+@Composable
+private fun HeroDial(
+  period: OfficialRidePeriod,
+  statistics: OfficialRideStatistics?,
+) {
+  val distanceUnit = LocalDistanceUnitPreference.current
+  val periodValue = OfficialRideStatistics.formatMileage(statistics?.mileageFor(period) ?: "", distanceUnit)
+  val totalValue = OfficialRideStatistics.formatMileage(statistics?.totalMileage ?: "", distanceUnit)
+  val unit = distanceUnitSuffix(distanceUnit)
+
+  val dayM = parseMeters(statistics?.dayMileage)
+  val weekM = parseMeters(statistics?.weekMileage)
+  val monthM = parseMeters(statistics?.monthsMileage)
+  val periodM = parseMeters(statistics?.mileageFor(period))
+  val maxM = maxOf(dayM, weekM, monthM)
+  val targetFraction = if (maxM > 0f && periodM > 0f) (periodM / maxM).coerceIn(0.05f, 1f) else 0f
+
+  val reduceMotion = MotionPolicy.reduceMotion()
+  val sweep = remember { Animatable(if (reduceMotion) targetFraction else 0f) }
+  LaunchedEffect(targetFraction, reduceMotion) {
+    if (reduceMotion) {
+      sweep.snapTo(targetFraction)
+    } else {
+      sweep.animateTo(targetFraction, tween(AppMotion.reveal, easing = AppMotion.entranceCurve))
+    }
+  }
+
+  val track = CyberHomeColors.line
+  val primary = CyberHomeColors.primary
+  val sky = Color(0xFF4FC3FF)
+  val accent = CyberHomeColors.rideAccent
+  val card = CyberHomeColors.card
+
+  Column(
+    modifier = Modifier
+      .fillMaxWidth()
+      .padding(top = 8.dp, bottom = 6.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Box(
+      modifier = Modifier.size(250.dp),
       contentAlignment = Alignment.Center,
     ) {
-      Text(
-        text = stringResource(R.string.ride_stats_title),
-        maxLines = 1,
-        textAlign = TextAlign.Center,
-        style = TextStyle(fontSize = 20.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-      )
-    }
-    AppPressable(
-      onClick = onHelp,
-      semanticsLabel = stringResource(R.string.ride_stats_view_help),
-      modifier = Modifier.width(92.dp),
-    ) {
+      // Soft radial glow bleeding out past the ring.
       Box(
         modifier = Modifier
-          .height(AppTouchTargets.min)
-          .padding(horizontal = 4.dp),
-        contentAlignment = Alignment.CenterEnd,
-      ) {
+          .size(250.dp)
+          .background(
+            Brush.radialGradient(listOf(primary.copy(alpha = 0.14f), Color.Transparent)),
+            CircleShape,
+          ),
+      )
+      Canvas(modifier = Modifier.size(206.dp)) {
+        val stroke = 13.dp.toPx()
+        val inset = stroke / 2f + 2.dp.toPx()
+        val diameter = size.minDimension - inset * 2f
+        val topLeft = Offset((size.width - diameter) / 2f, (size.height - diameter) / 2f)
+        val arcSize = Size(diameter, diameter)
+        val radius = diameter / 2f
+
+        drawArc(
+          color = track,
+          startAngle = 0f,
+          sweepAngle = 360f,
+          useCenter = false,
+          topLeft = topLeft,
+          size = arcSize,
+          style = Stroke(width = stroke, cap = StrokeCap.Round),
+        )
+        val sweepDeg = sweep.value * 360f
+        if (sweepDeg > 0.5f) {
+          drawArc(
+            brush = Brush.sweepGradient(
+              colors = listOf(primary, sky, primary),
+              center = center,
+            ),
+            startAngle = -90f,
+            sweepAngle = sweepDeg,
+            useCenter = false,
+            topLeft = topLeft,
+            size = arcSize,
+            style = Stroke(width = stroke, cap = StrokeCap.Round),
+          )
+          val tipRad = Math.toRadians((-90.0 + sweepDeg))
+          val tip = Offset(
+            x = center.x + radius * cos(tipRad).toFloat(),
+            y = center.y + radius * sin(tipRad).toFloat(),
+          )
+          drawCircle(color = accent, radius = stroke * 0.46f, center = tip)
+          drawCircle(color = card, radius = stroke * 0.20f, center = tip)
+        }
+      }
+      Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Text(
-          text = stringResource(R.string.ride_stats_help_action),
+          text = period.mileageTitle,
+          maxLines = 1,
+          style = TextStyle(
+            fontSize = 13.sp,
+            fontWeight = FontWeight.W700,
+            letterSpacing = 0.6.sp,
+            color = CyberHomeColors.inkMuted,
+          ),
+        )
+        Spacer(Modifier.height(8.dp))
+        ScaleToFit(
+          modifier = Modifier
+            .width(160.dp)
+            .height(56.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          AnimatedValueText(
+            value = periodValue,
+            unit = " $unit",
+            style = TextStyle(fontSize = 50.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.ink),
+            unitStyle = TextStyle(fontSize = 16.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
+            maxLines = 1,
+          )
+        }
+        Spacer(Modifier.height(8.dp))
+        Text(
+          text = "${stringResource(R.string.ride_stats_total_distance)} $totalValue $unit",
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
-          style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.primary),
+          style = cyberCaptionStyle,
         )
       }
     }
   }
 }
 
-// ── Environmental summary ──────────────────────────────────────────────────
-
-@Composable
-private fun EnvironmentalSummary(
-  period: OfficialRidePeriod,
-  statistics: OfficialRideStatistics?,
-  onCarbonHelp: () -> Unit,
-  onTreeHelp: () -> Unit,
-) {
-  Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(start = 20.dp, top = 20.dp, end = 20.dp, bottom = 24.dp)
-      .background(CyberHomeColors.card),
-  ) {
-    EcoMetric(
-      modifier = Modifier.weight(1f),
-      title = period.carbonTitle,
-      value = OfficialRideStatistics.displayValue(statistics?.carbonSaving ?: ""),
-      unit = "kg",
-      icon = Lucide.leaf,
-      accent = CyberHomeColors.success,
-      tooltip = stringResource(R.string.ride_stats_carbon_help),
-      onHelp = onCarbonHelp,
-    )
-    Spacer(Modifier.width(12.dp))
-    EcoMetric(
-      modifier = Modifier.weight(1f),
-      title = stringResource(R.string.ride_stats_tree),
-      value = OfficialRideStatistics.displayValue(statistics?.carbonAbsorption ?: ""),
-      unit = stringResource(R.string.ride_stats_tree_unit),
-      icon = Lucide.activity,
-      accent = CyberHomeColors.warning,
-      tooltip = stringResource(R.string.ride_stats_tree_help),
-      onHelp = onTreeHelp,
-    )
-  }
-}
-
-@Composable
-private fun EcoMetric(
-  title: String,
-  value: String,
-  unit: String,
-  icon: androidx.compose.ui.graphics.vector.ImageVector,
-  accent: Color,
-  tooltip: String,
-  onHelp: () -> Unit,
-  modifier: Modifier = Modifier,
-) {
-  Column(modifier = modifier) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-      LucideIcon(icon = icon, size = 18.dp, color = accent)
-      Spacer(Modifier.width(6.dp))
-      Text(
-        text = title,
-        modifier = Modifier.weight(1f),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = TextStyle(fontSize = 14.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-      )
-      AppPressable(
-        onClick = onHelp,
-        semanticsLabel = tooltip,
-      ) {
-        Box(
-          modifier = Modifier.size(AppTouchTargets.min),
-          contentAlignment = Alignment.Center,
-        ) {
-          LucideIcon(icon = Lucide.help, size = 17.dp, color = CyberHomeColors.inkFaint)
-        }
-      }
-    }
-    Spacer(Modifier.height(10.dp))
-    ScaleToFit(
-      modifier = Modifier.fillMaxWidth().height(36.dp),
-      contentAlignment = Alignment.CenterStart,
-    ) {
-      AnimatedValueText(
-        value = value,
-        style = TextStyle(fontSize = 30.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        unit = " $unit",
-        unitStyle = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-        maxLines = 1,
-      )
-    }
-  }
-}
-
-// ── Period selector ───────────────────────────────────────────────────────
+// ── Period selector (sliding pill) ────────────────────────────────────────
 
 @Composable
 private fun PeriodSelector(
   selected: OfficialRidePeriod,
   onSelected: (OfficialRidePeriod) -> Unit,
 ) {
-  Row(
+  val periods = OfficialRidePeriod.values()
+  val selectedIndex = periods.indexOf(selected).coerceAtLeast(0)
+  val reduceMotion = MotionPolicy.reduceMotion()
+  BoxWithConstraints(
     modifier = Modifier
       .fillMaxWidth()
-      .height(50.dp)
-      .padding(2.dp)
-      .clip(RoundedCornerShape(AppRadii.tile))
+      .clip(RoundedCornerShape(AppRadii.pill))
       .background(CyberHomeColors.control)
-      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.pill))
+      .padding(4.dp),
   ) {
-    OfficialRidePeriod.values().forEach { period ->
-      AppPressable(
-        onClick = { onSelected(period) },
-        semanticsLabel = stringResource(R.string.ride_stats_tab_format, period.tabLabel),
-        modifier = Modifier.weight(1f),
-      ) {
-        Box(
+    val tabWidth = maxWidth / periods.size
+    val indicatorOffset by animateDpAsState(
+      targetValue = tabWidth * selectedIndex,
+      animationSpec = if (reduceMotion) snap() else tween(AppMotion.tabSwitch, easing = AppMotion.pressCurve),
+      label = "periodIndicator",
+    )
+    Box(
+      modifier = Modifier
+        .offset(x = indicatorOffset)
+        .width(tabWidth)
+        .height(44.dp)
+        .clip(RoundedCornerShape(AppRadii.pill))
+        .background(CyberHomeColors.card)
+        .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.pill)),
+    )
+    Row {
+      periods.forEachIndexed { index, item ->
+        val isSelected = index == selectedIndex
+        AppPressable(
+          onClick = { onSelected(item) },
+          semanticsLabel = stringResource(R.string.ride_stats_tab_format, item.tabLabel),
+          semanticsSelected = isSelected,
+          shape = RoundedCornerShape(AppRadii.pill),
           modifier = Modifier
-            .height(AppTouchTargets.min)
-            .clip(RoundedCornerShape(AppRadii.xs))
-            .background(if (selected == period) CyberHomeColors.card else Color.Transparent),
-          contentAlignment = Alignment.Center,
+            .width(tabWidth)
+            .height(44.dp),
         ) {
-          Text(
-            text = period.tabLabel,
-            style = TextStyle(
-              fontSize = 14.sp,
-              fontWeight = FontWeight.W700,
-              color = if (selected == period) CyberHomeColors.primary else CyberHomeColors.inkMuted,
-            ),
-          )
+          Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center,
+          ) {
+            Text(
+              text = item.tabLabel,
+              maxLines = 1,
+              style = TextStyle(
+                fontSize = 15.sp,
+                fontWeight = if (isSelected) FontWeight.W800 else FontWeight.W600,
+                color = if (isSelected) CyberHomeColors.primary else CyberHomeColors.inkMuted,
+              ),
+            )
+          }
         }
       }
     }
   }
 }
 
-// ── Mileage notice ────────────────────────────────────────────────────────
+// ── Mileage breakdown bars (day / week / month) ───────────────────────────
 
 @Composable
-private fun MileageNotice() {
-  Text(
-    text = "* ${rideNotice()}",
-    style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint, lineHeight = 12.sp * 1.45f),
-  )
-}
-
-// ── Mileage summary ───────────────────────────────────────────────────────
-
-@Composable
-private fun MileageSummary(
-  period: OfficialRidePeriod,
+private fun MileageBreakdown(
   statistics: OfficialRideStatistics?,
+  selected: OfficialRidePeriod,
 ) {
   val distanceUnit = LocalDistanceUnitPreference.current
+  val day = statistics?.dayMileage ?: ""
+  val week = statistics?.weekMileage ?: ""
+  val month = statistics?.monthsMileage ?: ""
+  val maxM = maxOf(parseMeters(day), parseMeters(week), parseMeters(month)).takeIf { it > 0f } ?: 1f
+
+  Column(modifier = Modifier.fillMaxWidth()) {
+    BreakdownBar(OfficialRidePeriod.DAY, day, parseMeters(day) / maxM, selected == OfficialRidePeriod.DAY, distanceUnit)
+    Spacer(Modifier.height(16.dp))
+    BreakdownBar(OfficialRidePeriod.WEEK, week, parseMeters(week) / maxM, selected == OfficialRidePeriod.WEEK, distanceUnit)
+    Spacer(Modifier.height(16.dp))
+    BreakdownBar(OfficialRidePeriod.MONTH, month, parseMeters(month) / maxM, selected == OfficialRidePeriod.MONTH, distanceUnit)
+  }
+}
+
+@Composable
+private fun BreakdownBar(
+  period: OfficialRidePeriod,
+  rawValue: String,
+  fraction: Float,
+  highlighted: Boolean,
+  distanceUnit: DistanceUnitPreference,
+) {
+  val reduceMotion = MotionPolicy.reduceMotion()
+  val animatedFraction by animateFloatAsState(
+    targetValue = if (fraction <= 0f) 0f else fraction.coerceIn(0.04f, 1f),
+    animationSpec = if (reduceMotion) snap() else tween(AppMotion.reveal, easing = AppMotion.entranceCurve),
+    label = "breakdownBar",
+  )
+  val value = OfficialRideStatistics.formatMileage(rawValue, distanceUnit)
+  val barBrush = if (highlighted) {
+    Brush.horizontalGradient(listOf(CyberHomeColors.primary, Color(0xFF4FC3FF)))
+  } else {
+    Brush.horizontalGradient(listOf(CyberHomeColors.controlStrong, CyberHomeColors.controlStrong))
+  }
+
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .height(102.dp)
-      .clip(RoundedCornerShape(AppRadii.tile))
-      .background(CyberHomeColors.card)
-      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+    modifier = Modifier.fillMaxWidth(),
+    verticalAlignment = Alignment.CenterVertically,
   ) {
-    MileageValue(
-      modifier = Modifier.weight(1f),
-      label = period.mileageTitle,
-      value = OfficialRideStatistics.formatMileage(statistics?.mileageFor(period) ?: "", distanceUnit),
-      unit = distanceUnitSuffix(distanceUnit),
+    Text(
+      text = period.mileageTitle,
+      modifier = Modifier.width(64.dp),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      style = TextStyle(
+        fontSize = 12.sp,
+        fontWeight = if (highlighted) FontWeight.W700 else FontWeight.W600,
+        color = if (highlighted) CyberHomeColors.ink else CyberHomeColors.inkMuted,
+      ),
     )
+    Spacer(Modifier.width(12.dp))
     Box(
       modifier = Modifier
-        .width(1.dp)
-        .height(50.dp)
-        .align(Alignment.CenterVertically)
-        .background(CyberHomeColors.line),
+        .weight(1f)
+        .height(12.dp)
+        .clip(RoundedCornerShape(AppRadii.pill))
+        .background(CyberHomeColors.control),
+    ) {
+      Box(
+        modifier = Modifier
+          .fillMaxWidth(animatedFraction.coerceIn(0f, 1f))
+          .fillMaxHeight()
+          .clip(RoundedCornerShape(AppRadii.pill))
+          .background(barBrush),
+      )
+    }
+    Spacer(Modifier.width(12.dp))
+    Text(
+      text = value,
+      modifier = Modifier.width(64.dp),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
+      textAlign = TextAlign.End,
+      style = TextStyle(
+        fontSize = 13.sp,
+        fontWeight = FontWeight.W700,
+        color = if (highlighted) CyberHomeColors.primary else CyberHomeColors.ink,
+      ),
     )
-    MileageValue(
+  }
+}
+
+// ── Eco impact ────────────────────────────────────────────────────────────
+
+@Composable
+private fun EcoStats(
+  period: OfficialRidePeriod,
+  statistics: OfficialRideStatistics?,
+  onCarbonHelp: () -> Unit,
+  onTreeHelp: () -> Unit,
+) {
+  Row(modifier = Modifier.fillMaxWidth()) {
+    EcoCard(
       modifier = Modifier.weight(1f),
-      label = stringResource(R.string.ride_stats_total_distance),
-      value = OfficialRideStatistics.formatMileage(statistics?.totalMileage ?: "", distanceUnit),
-      unit = distanceUnitSuffix(distanceUnit),
+      icon = Lucide.leaf,
+      accent = CyberHomeColors.success,
+      title = period.carbonTitle,
+      value = OfficialRideStatistics.displayValue(statistics?.carbonSaving ?: ""),
+      unit = "kg",
+      helpLabel = stringResource(R.string.ride_stats_carbon_help),
+      onHelp = onCarbonHelp,
+    )
+    Spacer(Modifier.width(12.dp))
+    EcoCard(
+      modifier = Modifier.weight(1f),
+      icon = Lucide.tree,
+      accent = CyberHomeColors.warning,
+      title = stringResource(R.string.ride_stats_tree),
+      value = OfficialRideStatistics.displayValue(statistics?.carbonAbsorption ?: ""),
+      unit = stringResource(R.string.ride_stats_tree_unit),
+      helpLabel = stringResource(R.string.ride_stats_tree_help),
+      onHelp = onTreeHelp,
     )
   }
 }
 
 @Composable
-private fun MileageValue(
-  label: String,
+private fun EcoCard(
+  icon: ImageVector,
+  accent: Color,
+  title: String,
   value: String,
   unit: String,
+  helpLabel: String,
+  onHelp: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   Column(
-    modifier = modifier.fillMaxSize(),
-    verticalArrangement = Arrangement.Center,
-    horizontalAlignment = Alignment.CenterHorizontally,
+    modifier = modifier
+      .clip(RoundedCornerShape(AppRadii.lg))
+      .background(CyberHomeColors.cardMuted)
+      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.lg))
+      .padding(horizontal = 14.dp, vertical = 12.dp),
   ) {
-    Text(
-      text = label,
-      modifier = Modifier.fillMaxWidth(),
-      maxLines = 1,
-      overflow = TextOverflow.Ellipsis,
-      textAlign = TextAlign.Center,
-      style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-    )
-    Spacer(Modifier.height(8.dp))
+    Row(verticalAlignment = Alignment.CenterVertically) {
+      Box(
+        modifier = Modifier
+          .size(30.dp)
+          .clip(RoundedCornerShape(AppRadii.tile))
+          .background(accent.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        LucideIcon(icon = icon, size = 16.dp, color = accent)
+      }
+      Spacer(Modifier.width(8.dp))
+      Text(
+        text = title,
+        modifier = Modifier.weight(1f),
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+      )
+      AppPressable(
+        onClick = onHelp,
+        semanticsLabel = helpLabel,
+      ) {
+        Box(
+          modifier = Modifier.size(28.dp),
+          contentAlignment = Alignment.Center,
+        ) {
+          LucideIcon(icon = Lucide.help, size = 16.dp, color = CyberHomeColors.inkFaint)
+        }
+      }
+    }
+    Spacer(Modifier.height(12.dp))
     ScaleToFit(
-      modifier = Modifier.fillMaxWidth().height(32.dp),
-      contentAlignment = Alignment.Center,
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(38.dp),
+      contentAlignment = Alignment.CenterStart,
     ) {
       AnimatedValueText(
         value = value,
-        style = TextStyle(fontSize = 23.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
         unit = " $unit",
-        unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+        style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.ink),
+        unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
         maxLines = 1,
       )
     }
@@ -572,9 +777,9 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
   Column(
     modifier = Modifier
       .fillMaxWidth()
-      .clip(RoundedCornerShape(AppRadii.tile))
-      .background(CyberHomeColors.card)
-      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.tile)),
+      .clip(RoundedCornerShape(AppRadii.lg))
+      .background(CyberHomeColors.cardMuted)
+      .border(1.dp, CyberHomeColors.line, RoundedCornerShape(AppRadii.lg)),
   ) {
     Row {
       MetricCell(
@@ -585,12 +790,7 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
         icon = Lucide.gauge,
         accent = CyberHomeColors.primary,
       )
-      Box(
-        modifier = Modifier
-          .width(1.dp)
-          .height(92.dp)
-          .background(CyberHomeColors.line),
-      )
+      VerticalDividerLine()
       MetricCell(
         modifier = Modifier.weight(1f),
         label = stringResource(R.string.ride_stats_total_duration),
@@ -600,12 +800,7 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
         accent = CyberHomeColors.warning,
       )
     }
-    Box(
-      modifier = Modifier
-        .fillMaxWidth()
-        .height(1.dp)
-        .background(CyberHomeColors.line),
-    )
+    HorizontalDividerLine()
     Row {
       MetricCell(
         modifier = Modifier.weight(1f),
@@ -615,12 +810,7 @@ private fun MetricsGrid(statistics: OfficialRideStatistics?) {
         icon = Lucide.route,
         accent = CyberHomeColors.rideAccent,
       )
-      Box(
-        modifier = Modifier
-          .width(1.dp)
-          .height(92.dp)
-          .background(CyberHomeColors.line),
-      )
+      VerticalDividerLine()
       MetricCell(
         modifier = Modifier.weight(1f),
         label = stringResource(R.string.ride_stats_avg_speed),
@@ -638,45 +828,82 @@ private fun MetricCell(
   label: String,
   value: String,
   unit: String,
-  icon: androidx.compose.ui.graphics.vector.ImageVector,
+  icon: ImageVector,
   accent: Color,
   modifier: Modifier = Modifier,
 ) {
   Column(
     modifier = modifier
-      .height(116.dp)
-      .padding(start = 16.dp, top = 14.dp, end = 12.dp, bottom = 12.dp),
+      .height(118.dp)
+      .padding(horizontal = 16.dp, vertical = 14.dp),
   ) {
     Row(verticalAlignment = Alignment.CenterVertically) {
-      LucideIcon(icon = icon, size = 17.dp, color = accent)
-      Spacer(Modifier.width(7.dp))
+      Box(
+        modifier = Modifier
+          .size(28.dp)
+          .clip(RoundedCornerShape(AppRadii.tile))
+          .background(accent.copy(alpha = 0.12f)),
+        contentAlignment = Alignment.Center,
+      ) {
+        LucideIcon(icon = icon, size = 15.dp, color = accent)
+      }
+      Spacer(Modifier.width(8.dp))
       Text(
         text = label,
         modifier = Modifier.weight(1f),
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
-        style = TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
+        style = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
       )
     }
     Spacer(Modifier.weight(1f))
-    Box(
-      modifier = Modifier.fillMaxWidth().height(31.dp),
+    ScaleToFit(
+      modifier = Modifier
+        .fillMaxWidth()
+        .height(34.dp),
       contentAlignment = Alignment.CenterStart,
     ) {
-      ScaleToFit(
-        modifier = Modifier.fillMaxSize(),
-        contentAlignment = Alignment.CenterStart,
-      ) {
-        AnimatedValueText(
-          value = value,
-          style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-          unit = " $unit",
-          unitStyle = TextStyle(fontSize = 12.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.inkMuted),
-          maxLines = 1,
-        )
-      }
+      AnimatedValueText(
+        value = value,
+        unit = " $unit",
+        style = TextStyle(fontSize = 24.sp, fontWeight = FontWeight.W800, color = CyberHomeColors.ink),
+        unitStyle = TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.inkMuted),
+        maxLines = 1,
+      )
     }
   }
+}
+
+// ── Dividers ──────────────────────────────────────────────────────────────
+
+@Composable
+private fun VerticalDividerLine() {
+  Box(
+    modifier = Modifier
+      .width(1.dp)
+      .height(118.dp)
+      .background(CyberHomeColors.line),
+  )
+}
+
+@Composable
+private fun HorizontalDividerLine() {
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .height(1.dp)
+      .background(CyberHomeColors.line),
+  )
+}
+
+// ── Mileage notice ────────────────────────────────────────────────────────
+
+@Composable
+private fun MileageNotice() {
+  Text(
+    text = "* ${rideNotice()}",
+    style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint, lineHeight = 12.sp * 1.45f),
+  )
 }
 
 // ── Gate / error states ───────────────────────────────────────────────────

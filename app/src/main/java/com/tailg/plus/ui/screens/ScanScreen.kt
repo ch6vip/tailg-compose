@@ -437,6 +437,7 @@ private fun RadarWidget(scanning: Boolean) {
     sweep = 0f
   }
   val activeSweep = if (scanning) sweep else 0f
+  val ringColor = CyberHomeColors.primarySoft
 
   Box(
     modifier = Modifier.size(180.dp),
@@ -448,19 +449,19 @@ private fun RadarWidget(scanning: Boolean) {
       val center = Offset(size.width / 2f, size.height / 2f)
       // Rings.
       drawCircle(
-        color = CyberHomeColors.primarySoft,
+        color = ringColor,
         radius = 30f,
         center = center,
         style = Stroke(width = 1.5f),
       )
       drawCircle(
-        color = CyberHomeColors.primarySoft,
+        color = ringColor,
         radius = 55f,
         center = center,
         style = Stroke(width = 1.5f),
       )
       drawCircle(
-        color = CyberHomeColors.primarySoft,
+        color = ringColor,
         radius = 80f,
         center = center,
         style = Stroke(width = 1.5f),
@@ -470,7 +471,7 @@ private fun RadarWidget(scanning: Boolean) {
         rotate(activeSweep, pivot = center) {
           drawArc(
             brush = Brush.sweepGradient(
-              colors = listOf(CyberHomeColors.primarySoft, Color.Transparent),
+              colors = listOf(ringColor, Color.Transparent),
             ),
             startAngle = -60f,
             sweepAngle = 60f,

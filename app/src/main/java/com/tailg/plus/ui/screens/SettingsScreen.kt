@@ -41,6 +41,7 @@ import com.tailg.plus.ui.components.cyberCaptionStyle
 import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
+import com.tailg.plus.ui.theme.ColorMode
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
@@ -74,6 +75,14 @@ fun SettingsScreen(
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
+  val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
+  val currentColorMode = ColorMode.fromValue(themeMode)
+  val strThemeMode = when (currentColorMode) {
+    ColorMode.SYSTEM -> stringResource(R.string.theme_mode_system)
+    ColorMode.LIGHT -> stringResource(R.string.theme_mode_light)
+    ColorMode.DARK -> stringResource(R.string.theme_mode_dark)
+    ColorMode.DARK_AMOLED -> stringResource(R.string.theme_mode_amoled)
+  }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
 
   Scaffold(
@@ -146,6 +155,24 @@ fun SettingsScreen(
               ),
             )
           },
+        ),
+      )
+      CyberSectionLabel(stringResource(R.string.settings_appearance))
+      SettingsGroup(
+        settingItemModel(
+          icon = Lucide.spark,
+          title = stringResource(R.string.settings_ui_mode),
+          subtitle = strThemeMode,
+          onClick = {
+            val next = ColorMode.entries[(currentColorMode.ordinal + 1) % ColorMode.entries.size]
+            scope.launch { prefs.setThemeMode(next.value) }
+          },
+        ),
+        settingItemModel(
+          icon = Lucide.tune,
+          title = stringResource(R.string.settings_theme),
+          subtitle = stringResource(R.string.settings_theme_desc),
+          onClick = { onNavigate(Routes.THEME) },
         ),
       )
       CyberSectionLabel(stringResource(R.string.settings_about))

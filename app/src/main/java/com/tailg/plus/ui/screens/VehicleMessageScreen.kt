@@ -371,11 +371,15 @@ private fun categoryLabel(category: VehicleMessageCategory): String = when (cate
   VehicleMessageCategory.DEVICE -> stringResource(R.string.msg_device)
 }
 
-enum class VehicleMessageSeverity(val color: Color) {
-  INFO(CyberHomeColors.primary),
-  WARNING(CyberHomeColors.warning),
-  ERROR(CyberHomeColors.danger),
-}
+enum class VehicleMessageSeverity { INFO, WARNING, ERROR }
+
+private val VehicleMessageSeverity.color: Color
+  @Composable
+  get() = when (this) {
+    VehicleMessageSeverity.INFO -> CyberHomeColors.primary
+    VehicleMessageSeverity.WARNING -> CyberHomeColors.warning
+    VehicleMessageSeverity.ERROR -> CyberHomeColors.danger
+  }
 
 private fun mapCloudMessage(message: OfficialCloudMessage, strNoDetail: String, strTypeFault: String, strTypeAlarm: String, strTypeError: String, strTypeFailed: String, strTypeLocation: String, strTypeGps: String, strTypePower: String, strTypeBattery: String): VehicleMessage {
   val isSystem = message.category == OfficialCloudMessageCategory.SYSTEM

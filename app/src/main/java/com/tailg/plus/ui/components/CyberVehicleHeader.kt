@@ -512,6 +512,7 @@ private fun AnimatedStatusIconV2(
 }
 
 /** Dart `_channelDotColor` switch. */
+@Composable
 private fun channelDotColor(kind: ControlTopBarChannelKind): Color = when (kind) {
   ControlTopBarChannelKind.BLE_DIRECT,
   ControlTopBarChannelKind.MQTT_REMOTE,

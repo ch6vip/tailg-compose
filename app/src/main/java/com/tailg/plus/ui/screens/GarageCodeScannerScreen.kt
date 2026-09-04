@@ -331,6 +331,8 @@ private class BarcodeAnalyzer(
  */
 @Composable
 private fun ScannerMask() {
+  val overlayColor = CyberHomeColors.ink.copy(alpha = 0.62f)
+  val frameColor = CyberHomeColors.white
   Canvas(modifier = Modifier.fillMaxSize()) {
     val windowSide = size.width.coerceIn(220f, 290f)
     val window = Rect(
@@ -365,10 +367,10 @@ private fun ScannerMask() {
 
     drawPath(
       path = overlay,
-      color = CyberHomeColors.ink.copy(alpha = 0.62f),
+      color = overlayColor,
     )
     drawRoundRect(
-      color = CyberHomeColors.white,
+      color = frameColor,
       topLeft = window.topLeft,
       size = window.size,
       cornerRadius = CornerRadius(

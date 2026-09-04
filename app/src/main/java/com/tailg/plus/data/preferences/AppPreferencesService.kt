@@ -3,6 +3,7 @@ package com.tailg.plus.data.preferences
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tailg.plus.log.LogService
@@ -54,6 +55,18 @@ class AppPreferencesService(
     private val _respectTextScale = MutableStateFlow(true)
     val respectSystemTextScale: StateFlow<Boolean> = _respectTextScale.asStateFlow()
 
+    // Theme / appearance — Int values mirror `com.tailg.plus.ui.theme.ColorMode`.
+    private val _themeMode = MutableStateFlow(0)
+    val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
+
+    // Key colour ARGB int; 0 = follow system (wallpaper) dynamic colour.
+    private val _keyColor = MutableStateFlow(0)
+    val keyColor: StateFlow<Int> = _keyColor.asStateFlow()
+
+    // PaletteStyle name string (com.materialkolor.PaletteStyle).
+    private val _colorStyle = MutableStateFlow("TonalSpot")
+    val colorStyle: StateFlow<String> = _colorStyle.asStateFlow()
+
     private var initialized = false
 
     suspend fun init() {
@@ -62,6 +75,9 @@ class AppPreferencesService(
         _language.value = AppLanguagePreference.fromValue(prefs[KEY_LANGUAGE])
         _distanceUnit.value = DistanceUnitPreference.fromValue(prefs[KEY_DISTANCE_UNIT])
         _respectTextScale.value = prefs[KEY_RESPECT_TEXT_SCALE] ?: true
+        _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
+        _keyColor.value = prefs[KEY_KEY_COLOR] ?: 0
+        _colorStyle.value = prefs[KEY_COLOR_STYLE] ?: "TonalSpot"
         initialized = true
     }
 
@@ -89,9 +105,36 @@ class AppPreferencesService(
         }.onFailure { logService.operation("setRespectSystemTextScale failed", detail = it.toString()) }
     }
 
+    suspend fun setThemeMode(value: Int) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_THEME_MODE] = value }
+            _themeMode.value = value
+        }.onFailure { logService.operation("setThemeMode failed", detail = it.toString()) }
+    }
+
+    suspend fun setKeyColor(value: Int) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_KEY_COLOR] = value }
+            _keyColor.value = value
+        }.onFailure { logService.operation("setKeyColor failed", detail = it.toString()) }
+    }
+
+    suspend fun setColorStyle(value: String) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_COLOR_STYLE] = value }
+            _colorStyle.value = value
+        }.onFailure { logService.operation("setColorStyle failed", detail = it.toString()) }
+    }
+
     companion object {
         private val KEY_LANGUAGE = stringPreferencesKey("app_language_preference")
         private val KEY_DISTANCE_UNIT = stringPreferencesKey("app_distance_unit_preference")
         private val KEY_RESPECT_TEXT_SCALE = booleanPreferencesKey("app_respect_text_scale")
+        private val KEY_THEME_MODE = intPreferencesKey("app_theme_mode")
+        private val KEY_KEY_COLOR = intPreferencesKey("app_key_color")
+        private val KEY_COLOR_STYLE = stringPreferencesKey("app_color_style")
     }
 }

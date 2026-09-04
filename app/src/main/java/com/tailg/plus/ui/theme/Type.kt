@@ -19,59 +19,59 @@ val TailgTypography = Typography(
     displaySmall = TextStyle(
         fontSize = 24.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     headlineMedium = TextStyle(
         fontSize = 20.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     headlineSmall = TextStyle(
         fontSize = 18.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     titleLarge = TextStyle(
         fontSize = 17.sp,
         fontWeight = FontWeight.W800,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     titleMedium = TextStyle(
         fontSize = 16.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     titleSmall = TextStyle(
         fontSize = 15.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     bodyLarge = TextStyle(
         fontSize = 14.sp,
         fontWeight = FontWeight.W700,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     bodyMedium = TextStyle(
         fontSize = 13.sp,
-        color = CyberHomeColors.inkSecondary,
+        color = LightCyberPalette.inkSecondary,
     ),
     bodySmall = TextStyle(
         fontSize = 13.sp,
-        color = CyberHomeColors.inkMuted,
+        color = LightCyberPalette.inkMuted,
     ),
     labelLarge = TextStyle(
         fontSize = 13.sp,
         fontWeight = FontWeight.W600,
-        color = CyberHomeColors.ink,
+        color = LightCyberPalette.ink,
     ),
     labelMedium = TextStyle(
         fontSize = 12.sp,
-        color = CyberHomeColors.inkSecondary,
+        color = LightCyberPalette.inkSecondary,
     ),
     labelSmall = TextStyle(
         fontSize = 11.sp,
         fontWeight = FontWeight.W700,
         letterSpacing = 1.5.sp,
-        color = CyberHomeColors.inkMuted,
+        color = LightCyberPalette.inkMuted,
     ),
 )

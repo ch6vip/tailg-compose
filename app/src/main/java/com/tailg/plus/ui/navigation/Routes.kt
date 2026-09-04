@@ -43,6 +43,7 @@ object Routes {
     const val LANGUAGE_SETTINGS = APP_PREFERENCES
     const val UNIT_SETTINGS = "unit_settings"
     const val ABOUT_APP = "about_app"
+    const val THEME = "theme_settings"
     const val NOTIFICATION_PREFS = "notification_prefs"
     const val CLOUD_TOKEN = "cloud_token"
     const val LOG = "log"

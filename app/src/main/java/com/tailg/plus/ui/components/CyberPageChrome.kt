@@ -20,6 +20,7 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -36,6 +37,7 @@ import com.tailg.plus.R
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalCyberPalette
 
 /**
  * Port of `lib/widgets/cyber_page_chrome.dart` — light-Cyber page chrome
@@ -48,35 +50,45 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  * Icons: `Lucide.arrow-left` → `Icons.Filled.ArrowBack`.
  */
 
-val cyberPageTitleStyle = TextStyle(
-  fontSize = 24.sp,
-  fontWeight = FontWeight.W700,
-  color = CyberHomeColors.ink,
-)
+val cyberPageTitleStyle: TextStyle
+  @Composable @ReadOnlyComposable
+  get() = TextStyle(
+    fontSize = 24.sp,
+    fontWeight = FontWeight.W700,
+    color = LocalCyberPalette.current.ink,
+  )
 
-val cyberSectionTitleStyle = TextStyle(
-  fontSize = 13.sp,
-  fontWeight = FontWeight.W700,
-  color = CyberHomeColors.inkMuted,
-)
+val cyberSectionTitleStyle: TextStyle
+  @Composable @ReadOnlyComposable
+  get() = TextStyle(
+    fontSize = 13.sp,
+    fontWeight = FontWeight.W700,
+    color = LocalCyberPalette.current.inkMuted,
+  )
 
-val cyberItemTitleStyle = TextStyle(
-  fontSize = 15.sp,
-  fontWeight = FontWeight.W700,
-  color = CyberHomeColors.ink,
-)
+val cyberItemTitleStyle: TextStyle
+  @Composable @ReadOnlyComposable
+  get() = TextStyle(
+    fontSize = 15.sp,
+    fontWeight = FontWeight.W700,
+    color = LocalCyberPalette.current.ink,
+  )
 
-val cyberBodyStyle = TextStyle(
-  fontSize = 13.sp,
-  lineHeight = 13.sp * 1.45f,
-  color = CyberHomeColors.inkMuted,
-)
+val cyberBodyStyle: TextStyle
+  @Composable @ReadOnlyComposable
+  get() = TextStyle(
+    fontSize = 13.sp,
+    lineHeight = 13.sp * 1.45f,
+    color = LocalCyberPalette.current.inkMuted,
+  )
 
-val cyberCaptionStyle = TextStyle(
-  fontSize = 12.sp,
-  lineHeight = 12.sp * 1.4f,
-  color = CyberHomeColors.inkFaint,
-)
+val cyberCaptionStyle: TextStyle
+  @Composable @ReadOnlyComposable
+  get() = TextStyle(
+    fontSize = 12.sp,
+    lineHeight = 12.sp * 1.4f,
+    color = LocalCyberPalette.current.inkFaint,
+  )
 
 /** CyberPageHeader — back circle + title + trailing actions. */
 @Composable
@@ -281,7 +293,9 @@ fun cyberOutlinedButtonColors(): androidx.compose.material3.ButtonColors =
   )
 
 /** Cyber outlined-button border (Dart `BorderSide(lineStrong)`). */
-val cyberOutlinedButtonBorder = BorderStroke(1.dp, CyberHomeColors.lineStrong)
+val cyberOutlinedButtonBorder: BorderStroke
+  @Composable @ReadOnlyComposable
+  get() = BorderStroke(1.dp, LocalCyberPalette.current.lineStrong)
 
 /** Cyber button shape (Dart `AppRadii.tile`). */
 val cyberButtonShape = RoundedCornerShape(AppRadii.tile)

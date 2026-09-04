@@ -1,5 +1,10 @@
 package com.tailg.plus.ui.theme
 
+import androidx.compose.material3.ColorScheme
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.ReadOnlyComposable
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 
 /**
@@ -92,37 +97,214 @@ object AppColorsLight {
     val pageBgBot = Color(0xFFF6F7FA)
 }
 
-/** Cyber control-home palette (2026 light cockpit reconstruction). */
+/**
+ * Cyber control-home palette (2026 light cockpit reconstruction).
+ *
+ * [CyberPalette] is the semantic token set every screen reads. It is provided
+ * as [LocalCyberPalette] and is the only thing that changes when the user
+ * switches theme mode / key colour / palette style — the rest of the app is
+ * unchanged because it still reads the same [CyberHomeColors] accessor, which
+ * now delegates to the active [LocalCyberPalette].
+ */
+@Immutable
+data class CyberPalette(
+    val pageBg: Color,
+    val pageBgTop: Color,
+    val card: Color,
+    val cardMuted: Color,
+    val control: Color,
+    val controlStrong: Color,
+    val line: Color,
+    val lineStrong: Color,
+    val ink: Color,
+    val inkSecondary: Color,
+    val inkMuted: Color,
+    val inkFaint: Color,
+    val primary: Color,
+    val primarySoft: Color,
+    val success: Color,
+    val warning: Color,
+    val danger: Color,
+    val rideAccent: Color,
+    val rideAccentSoft: Color,
+    val mapPlaceholder: Color,
+    val alertSurface: Color,
+    val navSurface: Color,
+    val navSelected: Color,
+    val white75: Color,
+    val white96: Color,
+    val white: Color,
+    val shadow: Color,
+    val actionShadow: Color,
+    val navShadow: Color,
+)
+
+/** The original light Cyber palette — kept byte-for-byte as the default. */
+val LightCyberPalette = CyberPalette(
+    pageBg = Color(0xFFF4F5F7),
+    pageBgTop = Color(0xFFEAF1FC),
+    card = Color(0xFFFFFFFF),
+    cardMuted = Color(0xFFF8F9FB),
+    control = Color(0xFFF0F1F3),
+    controlStrong = Color(0xFFE1E3E7),
+    line = Color(0xFFE5E7EC),
+    lineStrong = Color(0xFFD7DAE1),
+    ink = Color(0xFF15171C),
+    inkSecondary = Color(0xFF33363D),
+    inkMuted = Color(0xFF696D76),
+    inkFaint = Color(0xFF9A9EA7),
+    primary = Color(0xFF168CFF),
+    primarySoft = Color(0xFFDCEEFF),
+    success = Color(0xFF34C759),
+    warning = Color(0xFFFF9F0A),
+    danger = Color(0xFFFF3B30),
+    rideAccent = Color(0xFFFF2D68),
+    rideAccentSoft = Color(0xFFFFF4E6),
+    mapPlaceholder = Color(0xFFE9EEF3),
+    alertSurface = Color(0xFFE9EAED),
+    navSurface = Color(0xF7FFFFFF),
+    navSelected = Color(0xFFE1E2E5),
+    white75 = Color(0xBFFFFFFF),
+    white96 = Color(0xF5FFFFFF),
+    white = Color(0xFFFFFFFF),
+    shadow = Color(0x140D1420),
+    actionShadow = Color(0x120D1420),
+    navShadow = Color(0x24182740),
+)
+
+/** Static dark fallback (used when no dynamic scheme is wired, e.g. previews). */
+val DarkCyberPalette = CyberPalette(
+    pageBg = Color(0xFF0B0E13),
+    pageBgTop = Color(0xFF0B1220),
+    card = Color(0xFF151A22),
+    cardMuted = Color(0xFF1A2029),
+    control = Color(0xFF1F2630),
+    controlStrong = Color(0xFF2A323E),
+    line = Color(0xFF2A323E),
+    lineStrong = Color(0xFF3A434F),
+    ink = Color(0xFFF2F4F8),
+    inkSecondary = Color(0xFFD4D8DE),
+    inkMuted = Color(0xFF9AA1AC),
+    inkFaint = Color(0xFF6C7480),
+    primary = Color(0xFF4FA8FF),
+    primarySoft = Color(0xFF16324E),
+    success = Color(0xFF3EDB6A),
+    warning = Color(0xFFFFB84D),
+    danger = Color(0xFFFF5C6C),
+    rideAccent = Color(0xFFFF5C8A),
+    rideAccentSoft = Color(0xFF33202B),
+    mapPlaceholder = Color(0xFF161C25),
+    alertSurface = Color(0xFF1A2029),
+    navSurface = Color(0xF21A2029),
+    navSelected = Color(0xFF232A35),
+    white75 = Color(0xBFFFFFFF),
+    white96 = Color(0xF5FFFFFF),
+    white = Color(0xFFFFFFFF),
+    shadow = Color(0x3D000000),
+    actionShadow = Color(0x33000000),
+    navShadow = Color(0x66000000),
+)
+
+/** The active semantic palette — set by [com.tailg.plus.ui.theme.TailgTheme]. */
+val LocalCyberPalette = staticCompositionLocalOf { LightCyberPalette }
+
+/** Maps a Material You [ColorScheme] onto the app's semantic token set. */
+fun ColorScheme.toCyberPalette(): CyberPalette = CyberPalette(
+    pageBg = background,
+    pageBgTop = surfaceContainerLow,
+    card = surface,
+    cardMuted = surfaceContainerLow,
+    control = surfaceContainerHighest,
+    controlStrong = surfaceContainerHigh,
+    line = outlineVariant,
+    lineStrong = outline,
+    ink = onSurface,
+    inkSecondary = onSurfaceVariant,
+    inkMuted = onSurfaceVariant,
+    inkFaint = outline,
+    primary = primary,
+    primarySoft = primaryContainer,
+    success = Color(0xFF34C759),
+    warning = Color(0xFFFF9F0A),
+    danger = error,
+    rideAccent = tertiary,
+    rideAccentSoft = tertiaryContainer,
+    mapPlaceholder = surfaceContainerHigh,
+    alertSurface = surfaceContainerHigh,
+    navSurface = surfaceContainerLow,
+    navSelected = surfaceContainerHigh,
+    white75 = Color(0xBFFFFFFF),
+    white96 = Color(0xF5FFFFFF),
+    white = Color.White,
+    shadow = Color(0x14000000),
+    actionShadow = Color(0x12000000),
+    navShadow = Color(0x24000000),
+)
+
+/**
+ * Backward-compatible accessor: every call site keeps reading `CyberHomeColors.xxx`
+ * but now resolves through [LocalCyberPalette], so theme / key-colour changes
+ * recompose automatically. Only valid inside a composable (as before).
+ */
 object CyberHomeColors {
-    val pageBg = Color(0xFFF4F5F7)
-    val pageBgTop = Color(0xFFEAF1FC)
-    val card = Color(0xFFFFFFFF)
-    val cardMuted = Color(0xFFF8F9FB)
-    val control = Color(0xFFF0F1F3)
-    val controlStrong = Color(0xFFE1E3E7)
-    val line = Color(0xFFE5E7EC)
-    val lineStrong = Color(0xFFD7DAE1)
-    val ink = Color(0xFF15171C)
-    val inkSecondary = Color(0xFF33363D)
-    val inkMuted = Color(0xFF696D76)
-    val inkFaint = Color(0xFF9A9EA7)
-    val primary = Color(0xFF168CFF)
-    val primarySoft = Color(0xFFDCEEFF)
-    val success = Color(0xFF34C759)
-    val warning = Color(0xFFFF9F0A)
-    val danger = Color(0xFFFF3B30)
-    val rideAccent = Color(0xFFFF2D68)
-    val rideAccentSoft = Color(0xFFFFF4E6)
-    val mapPlaceholder = Color(0xFFE9EEF3)
-    val alertSurface = Color(0xFFE9EAED)
-    val navSurface = Color(0xF7FFFFFF)
-    val navSelected = Color(0xFFE1E2E5)
-    val white75 = Color(0xBFFFFFFF)
-    val white96 = Color(0xF5FFFFFF)
-    val white = Color(0xFFFFFFFF)
-    val shadow = Color(0x140D1420)
-    val actionShadow = Color(0x120D1420)
-    val navShadow = Color(0x24182740)
+    val pageBg: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.pageBg
+    val pageBgTop: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.pageBgTop
+    val card: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.card
+    val cardMuted: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.cardMuted
+    val control: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.control
+    val controlStrong: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.controlStrong
+    val line: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.line
+    val lineStrong: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.lineStrong
+    val ink: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.ink
+    val inkSecondary: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.inkSecondary
+    val inkMuted: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.inkMuted
+    val inkFaint: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.inkFaint
+    val primary: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.primary
+    val primarySoft: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.primarySoft
+    val success: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.success
+    val warning: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.warning
+    val danger: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.danger
+    val rideAccent: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.rideAccent
+    val rideAccentSoft: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.rideAccentSoft
+    val mapPlaceholder: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.mapPlaceholder
+    val alertSurface: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.alertSurface
+    val navSurface: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.navSurface
+    val navSelected: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.navSelected
+    val white75: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.white75
+    val white96: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.white96
+    val white: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.white
+    val shadow: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.shadow
+    val actionShadow: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.actionShadow
+    val navShadow: Color
+        @Composable @ReadOnlyComposable get() = LocalCyberPalette.current.navShadow
 }
 
 /** Bike-body painter grayscale tokens (replica fidelity). */

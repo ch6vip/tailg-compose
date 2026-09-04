@@ -79,6 +79,7 @@ import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 
+@Composable
 private fun Modifier.batteryCardDecoration(): Modifier =
   this
     .clip(RoundedCornerShape(AppRadii.tile))
@@ -471,6 +472,7 @@ private fun BatteryHero(snapshot: BatterySnapshot) {
   }
 }
 
+@Composable
 private fun batteryColor(percent: Int?): Color {
   if (percent == null) return CyberHomeColors.inkFaint
   if (percent > 60) return CyberHomeColors.success

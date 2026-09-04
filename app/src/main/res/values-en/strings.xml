@@ -139,6 +139,17 @@
     <string name="settings_official_token_desc">Debug: paste or copy official sign-in credentials</string>
     <string name="settings_about_app">About Tailg Smart</string>
     <string name="settings_about_app_desc">Version info, user agreement and privacy policy</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_ui_mode">UI style</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_desc">Key color, palette style and dark mode</string>
+    <string name="theme_mode_system">Follow system</string>
+    <string name="theme_mode_light">Light</string>
+    <string name="theme_mode_dark">Dark</string>
+    <string name="theme_mode_amoled">Dark AMOLED</string>
+    <string name="theme_key_color">Key color</string>
+    <string name="theme_key_color_system">Follow system</string>
+    <string name="theme_color_style">Color style</string>
     <string name="settings_fault_diagnostics">Fault diagnostics</string>
     <string name="settings_fault_diagnostics_desc">Read vehicle error codes</string>
     <string name="settings_logs">Logs</string>

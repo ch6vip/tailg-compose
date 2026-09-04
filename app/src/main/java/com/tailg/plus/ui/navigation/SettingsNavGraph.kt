@@ -17,6 +17,7 @@ import com.tailg.plus.ui.screens.OfficialCloudScreen
 import com.tailg.plus.ui.screens.OfficialReplicaScreen
 import com.tailg.plus.ui.screens.ProfileMineScreen
 import com.tailg.plus.ui.screens.SettingsScreen
+import com.tailg.plus.ui.screens.ThemeSettingsScreen
 import com.tailg.plus.ui.screens.UnitSettingsScreen
 
 /**
@@ -70,6 +71,12 @@ fun NavGraphBuilder.settingsNavGraph(
             vehicleRouteId = vehicleRouteId,
             onBack = { navController.popBackStack() },
             onNavigate = { route -> navController.navigate(route) },
+        )
+    }
+    composable(Routes.THEME) {
+        ThemeSettingsScreen(
+            preferencesService = preferencesService,
+            onBack = { navController.popBackStack() },
         )
     }
     composable(Routes.NOTIFICATION_PREFS) {

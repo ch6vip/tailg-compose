@@ -52,6 +52,7 @@ import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.theme.AppIconSizes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.navigation.Routes
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -204,7 +205,9 @@ fun UnitSettingsScreen(
 /** Dart `AboutAppPage`. */
 @Composable
 fun AboutAppScreen(
+  vehicleRouteId: String,
   onBack: () -> Unit,
+  onNavigate: (String) -> Unit,
 ) {
   val ctx = LocalContext.current
   val strViewSource = stringResource(R.string.prefs_view_source)
@@ -268,6 +271,22 @@ fun AboutAppScreen(
             InfoRow(label = stringResource(R.string.prefs_git_commit), value = BUILD_COMMIT)
           }
         }
+        Spacer(Modifier.height(12.dp))
+        CyberSectionLabel(stringResource(R.string.settings_advanced))
+        SettingsGroup(
+          settingItemModel(
+            icon = Lucide.shieldCheck,
+            title = stringResource(R.string.settings_diagnostics),
+            subtitle = stringResource(R.string.settings_diagnostics_desc),
+            onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
+          ),
+          settingItemModel(
+            icon = Lucide.key,
+            title = stringResource(R.string.settings_official_token),
+            subtitle = stringResource(R.string.settings_official_token_desc),
+            onClick = { onNavigate(Routes.CLOUD_TOKEN) },
+          ),
+        )
         Spacer(Modifier.height(12.dp))
         CyberCard(onClick = { openGitHub() }) {
           Row(

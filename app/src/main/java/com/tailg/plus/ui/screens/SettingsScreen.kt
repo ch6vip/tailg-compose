@@ -148,21 +148,6 @@ fun SettingsScreen(
           },
         ),
       )
-      CyberSectionLabel(stringResource(R.string.settings_advanced))
-      SettingsGroup(
-        settingItemModel(
-          icon = Lucide.shieldCheck,
-          title = stringResource(R.string.settings_diagnostics),
-          subtitle = stringResource(R.string.settings_diagnostics_desc),
-          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
-        ),
-        settingItemModel(
-          icon = Lucide.key,
-          title = stringResource(R.string.settings_official_token),
-          subtitle = stringResource(R.string.settings_official_token_desc),
-          onClick = { onNavigate(Routes.CLOUD_TOKEN) },
-        ),
-      )
       CyberSectionLabel(stringResource(R.string.settings_about))
       SettingsGroup(
         settingItemModel(
@@ -219,7 +204,7 @@ fun AdvancedDiagnosticsScreen(
 
 /** Dart `_group`: a [CyberCard] that stacks [items] with inset dividers between them. */
 @Composable
-private fun SettingsGroup(vararg items: SettingItemModel) {
+internal fun SettingsGroup(vararg items: SettingItemModel) {
   CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
     Column {
       items.forEachIndexed { index, item ->
@@ -237,7 +222,7 @@ private fun SettingsGroup(vararg items: SettingItemModel) {
 }
 
 /** Plain data describing one settings row (keeps the call sites declarative). */
-private data class SettingItemModel(
+internal data class SettingItemModel(
   val icon: androidx.compose.ui.graphics.vector.ImageVector,
   val title: String,
   val subtitle: String? = null,
@@ -246,7 +231,7 @@ private data class SettingItemModel(
   val showChevron: Boolean = true,
 )
 
-private fun settingItemModel(
+internal fun settingItemModel(
   icon: androidx.compose.ui.graphics.vector.ImageVector,
   title: String,
   subtitle: String? = null,

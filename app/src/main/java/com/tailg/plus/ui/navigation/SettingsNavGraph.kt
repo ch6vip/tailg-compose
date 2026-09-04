@@ -67,7 +67,9 @@ fun NavGraphBuilder.settingsNavGraph(
     }
     composable(Routes.ABOUT_APP) {
         AboutAppScreen(
+            vehicleRouteId = vehicleRouteId,
             onBack = { navController.popBackStack() },
+            onNavigate = { route -> navController.navigate(route) },
         )
     }
     composable(Routes.NOTIFICATION_PREFS) {

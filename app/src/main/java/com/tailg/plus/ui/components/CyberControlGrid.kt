@@ -130,7 +130,7 @@ fun CyberControlGrid(
         unavailableReason = seatAvailability.disabledReason,
         busy = active(CommandCode.openSeat),
         subdued = subdued(CommandCode.openSeat),
-        modifier = Modifier.weight(1f),
+        modifier = Modifier.weight(1.8f),
         onTap = onSeat,
       )
       CircleKey(

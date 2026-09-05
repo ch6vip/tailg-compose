@@ -57,7 +57,7 @@ import kotlinx.coroutines.launch
  */
 @Composable
 internal fun FenceTab(
-  cloudState: OfficialCloudState,
+  cloudState: LocationCloudSlice,
   location: ResolvedVehicleLocation?,
   onRefresh: () -> Unit,
   onTabChanged: (Int) -> Unit,

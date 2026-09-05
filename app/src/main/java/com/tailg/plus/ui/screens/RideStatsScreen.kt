@@ -56,7 +56,6 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
@@ -122,7 +121,10 @@ fun RideStatsScreen(
   onNavigate: (String) -> Unit = {},
 ) {
   val scope = rememberCoroutineScope()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // NOTE: no reactive cloudState collection here — the screen reads
+  // cloudService.currentState imperatively inside refresh effects only.
+  // Collecting stateFlow (even unused) made every cloud emission recompose
+  // the whole ride-stats page.
 
   var period by remember { mutableStateOf(OfficialRidePeriod.DAY) }
   var statistics by remember { mutableStateOf<OfficialRideStatistics?>(null) }

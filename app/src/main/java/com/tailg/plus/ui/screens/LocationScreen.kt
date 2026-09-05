@@ -53,7 +53,10 @@ import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.cloud.resolveVehicleLocation
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
 import com.tailg.plus.data.model.OfficialFenceData
+import com.tailg.plus.data.model.OfficialVehicle
+import com.tailg.plus.data.model.OfficialVehicleLocation
 import com.tailg.plus.data.model.OfficialTravelDay
+import com.tailg.plus.data.model.OfficialTravelPoint
 import com.tailg.plus.data.model.OfficialTravelRecord
 import com.tailg.plus.data.model.formatCoordinateText
 import com.tailg.plus.data.model.sumTravelMileageKm
@@ -87,6 +90,8 @@ import com.tailg.plus.util.shiftMonthDate
 import com.tailg.plus.util.formatHourMinuteText
 import com.tailg.plus.util.formatDecimalDown
 import com.tailg.plus.util.ClipboardText
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import androidx.compose.ui.res.stringResource
@@ -115,7 +120,37 @@ fun LocationScreen(
   val scope = rememberCoroutineScope()
   val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
   val log = entryPoint.logService()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — the screen + its three tabs read the
+  // location/travel/fence set only. Collecting the whole `stateFlow`
+  // recomposed the page (including the osmdroid mini-map) on every unrelated
+  // emission: battery refreshes, message arrival, profile updates. Same
+  // pattern as GarageScreen's GarageCloudSlice; `internal` because the tab
+  // composables live in their own files.
+  val cloudState by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        LocationCloudSlice(
+          signedIn = state.signedIn,
+          selectedVehicle = state.selectedVehicle,
+          loading = state.loading,
+          vehicleLocation = state.vehicleLocation,
+          vehicleLocationLoading = state.vehicleLocationLoading,
+          vehicleLocationError = state.vehicleLocationError,
+          travelMonth = state.travelMonth,
+          travelDays = state.travelDays,
+          travelLoading = state.travelLoading,
+          travelError = state.travelError,
+          travelDetails = state.travelDetails,
+          travelDetailLoading = state.travelDetailLoading,
+          fenceData = state.fenceData,
+          fenceLoading = state.fenceLoading,
+          fenceError = state.fenceError,
+        )
+      }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(
+    initialValue = LocationCloudSlice.from(cloudService.currentState),
+  )
   val snackbarHostState = remember { androidx.compose.material3.SnackbarHostState() }
   val ctx = androidx.compose.ui.platform.LocalContext.current
   val clipboard = entryPoint.clipboardText()
@@ -146,8 +181,19 @@ fun LocationScreen(
   val strTravelDetailFailed = stringResource(R.string.location_travel_detail_failed)
   val localVehicle = vehicleStore.defaultVehicle
   val cloudVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null
-  val location = remember(cloudState, localVehicle) {
-    resolveVehicleLocation(cloudState = cloudState, localVehicle = localVehicle)
+  // Narrow keys (same discipline as ControlScreen): any unrelated slice change
+  // (travel flips, fence loading) must not recompute the resolved location.
+  val location = remember(
+    cloudState.vehicleLocation,
+    cloudState.selectedVehicle,
+    cloudState.signedIn,
+    localVehicle,
+  ) {
+    resolveVehicleLocation(
+      vehicleLocation = cloudState.vehicleLocation,
+      officialVehicle = if (cloudState.signedIn) cloudState.selectedVehicle else null,
+      localVehicle = localVehicle,
+    )
   }
   val loading = localLoading || cloudState.loading || cloudState.vehicleLocationLoading ||
     cloudState.travelLoading || cloudState.fenceLoading
@@ -457,7 +503,7 @@ internal fun LocationSegmentedTabs(index: Int, onChanged: (Int) -> Unit) {
 private fun MapTab(
   vehicleName: String?,
   location: ResolvedVehicleLocation?,
-  cloudState: OfficialCloudState,
+  cloudState: LocationCloudSlice,
   error: String?,
   loading: Boolean,
   onRefresh: () -> Unit,
@@ -751,5 +797,49 @@ internal fun ReadOnlyNotice(title: String, subtitle: String) {
         style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.4f, color = CyberHomeColors.inkMuted),
       )
     }
+  }
+}
+
+/**
+ * Narrow cloud projection shared by the location screen and its three tabs
+ * (same pattern as GarageCloudSlice): signed-in gating, the selected vehicle,
+ * resolved location inputs and the travel/fence datasets. `internal` because
+ * TravelTab/FenceTab live in their own files.
+ */
+internal data class LocationCloudSlice(
+  val signedIn: Boolean,
+  val selectedVehicle: OfficialVehicle?,
+  val loading: Boolean,
+  val vehicleLocation: OfficialVehicleLocation?,
+  val vehicleLocationLoading: Boolean,
+  val vehicleLocationError: String?,
+  val travelMonth: String,
+  val travelDays: List<OfficialTravelDay>,
+  val travelLoading: Boolean,
+  val travelError: String?,
+  val travelDetails: Map<String, List<OfficialTravelPoint>>,
+  val travelDetailLoading: Boolean,
+  val fenceData: OfficialFenceData?,
+  val fenceLoading: Boolean,
+  val fenceError: String?,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): LocationCloudSlice = LocationCloudSlice(
+      signedIn = state.signedIn,
+      selectedVehicle = state.selectedVehicle,
+      loading = state.loading,
+      vehicleLocation = state.vehicleLocation,
+      vehicleLocationLoading = state.vehicleLocationLoading,
+      vehicleLocationError = state.vehicleLocationError,
+      travelMonth = state.travelMonth,
+      travelDays = state.travelDays,
+      travelLoading = state.travelLoading,
+      travelError = state.travelError,
+      travelDetails = state.travelDetails,
+      travelDetailLoading = state.travelDetailLoading,
+      fenceData = state.fenceData,
+      fenceLoading = state.fenceLoading,
+      fenceError = state.fenceError,
+    )
   }
 }

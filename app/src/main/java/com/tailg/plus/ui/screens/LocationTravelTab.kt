@@ -67,7 +67,7 @@ import com.tailg.plus.R
  */
 @Composable
 internal fun TravelTab(
-  cloudState: OfficialCloudState,
+  cloudState: LocationCloudSlice,
   onRefresh: () -> Unit,
   onChangeMonth: (Int) -> Unit,
   onRecordTap: (OfficialTravelRecord) -> Unit,

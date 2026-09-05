@@ -53,6 +53,8 @@ import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatteryDataSource
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.BmsField
+import com.tailg.plus.data.model.OfficialBatteryInfo
+import com.tailg.plus.data.model.OfficialBmsInfo
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
@@ -75,6 +77,8 @@ import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import com.tailg.plus.util.BatteryHelpCopy
 import com.tailg.plus.util.formatDistanceKilometersText
 import com.tailg.plus.util.formatRelativeSyncText
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -105,7 +109,28 @@ fun BatteryDetailsScreen(
 ) {
   val scope = rememberCoroutineScope()
   val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this screen reads the battery/bms detail set
+  // only. Collecting the whole `stateFlow` recomposed the page on every
+  // unrelated emission (message arrival, travel flips, profile refresh).
+  // Same pattern as GarageScreen's GarageCloudSlice.
+  val cloudState by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        BatteryCloudSlice(
+          signedIn = state.signedIn,
+          selectedVehicle = state.selectedVehicle,
+          batteryInfo = state.batteryInfo,
+          batteryInfoLoading = state.batteryInfoLoading,
+          batteryInfoError = state.batteryInfoError,
+          bmsInfo = state.bmsInfo,
+          bmsInfoLoading = state.bmsInfoLoading,
+          bmsInfoError = state.bmsInfoError,
+        )
+      }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(
+    initialValue = BatteryCloudSlice.from(cloudService.currentState),
+  )
   val snackbarHostState = remember { SnackbarHostState() }
   val bleState by connectionManager.stateFlow.collectAsStateWithLifecycle()
 
@@ -504,7 +529,7 @@ private fun BatterySyncCard(cloudService: OfficialCloudService) {
 }
 
 @Composable
-private fun SourceStrip(snapshot: BatterySnapshot, cloudState: OfficialCloudState) {
+private fun SourceStrip(snapshot: BatterySnapshot, cloudState: BatteryCloudSlice) {
   val signedIn = cloudState.signedIn
   val loading = cloudState.batteryInfoLoading
   val error = cloudState.batteryInfoError
@@ -1095,4 +1120,34 @@ private fun temperatureDisplay(snapshot: BatterySnapshot): String {
     return raw.replace("℃", "°C")
   }
   return "$raw°C"
+}
+
+/**
+ * Narrow cloud projection for the battery detail page (same pattern as
+ * GarageCloudSlice): signed-in gating, the selected vehicle and the
+ * battery/BMS detail + loading/error set. Emissions that leave these fields
+ * unchanged no longer recompose the page.
+ */
+private data class BatteryCloudSlice(
+  val signedIn: Boolean,
+  val selectedVehicle: OfficialVehicle?,
+  val batteryInfo: OfficialBatteryInfo?,
+  val batteryInfoLoading: Boolean,
+  val batteryInfoError: String?,
+  val bmsInfo: OfficialBmsInfo?,
+  val bmsInfoLoading: Boolean,
+  val bmsInfoError: String?,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): BatteryCloudSlice = BatteryCloudSlice(
+      signedIn = state.signedIn,
+      selectedVehicle = state.selectedVehicle,
+      batteryInfo = state.batteryInfo,
+      batteryInfoLoading = state.batteryInfoLoading,
+      batteryInfoError = state.batteryInfoError,
+      bmsInfo = state.bmsInfo,
+      bmsInfoLoading = state.bmsInfoLoading,
+      bmsInfoError = state.bmsInfoError,
+    )
+  }
 }

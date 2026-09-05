@@ -80,11 +80,11 @@ internal fun resolveVehicleLocation(
     allowCloudMetadataWithoutCoordinate = allowCloudMetadataWithoutCoordinate,
 )
 
-private fun resolveVehicleLocation(
+internal fun resolveVehicleLocation(
     vehicleLocation: OfficialVehicleLocation?,
     officialVehicle: OfficialVehicle?,
     localVehicle: VehicleProfile?,
-    allowCloudMetadataWithoutCoordinate: Boolean,
+    allowCloudMetadataWithoutCoordinate: Boolean = false,
 ): ResolvedVehicleLocation? {
     val cloudLocation: OfficialVehicleLocation? = vehicleLocation
     if (cloudLocation != null) {

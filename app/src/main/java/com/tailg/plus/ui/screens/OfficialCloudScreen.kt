@@ -76,6 +76,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.SmsCountdown
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 /**
@@ -95,7 +97,25 @@ fun OfficialCloudScreen(
 ) {
   val scope = rememberCoroutineScope()
   val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
-  val cloudState by cloudService.stateFlow.collectAsStateWithLifecycle()
+  // Narrow cloud projection — this screen reads signedIn/loading/error plus
+  // the vehicle list (via VehicleListCard). Collecting the whole `stateFlow`
+  // recomposed the page on every unrelated emission (battery refresh, message
+  // arrival, travel flips). Same pattern as GarageScreen's GarageCloudSlice.
+  val cloudState by remember(cloudService) {
+    cloudService.stateFlow
+      .map { state ->
+        CloudScreenSlice(
+          signedIn = state.signedIn,
+          loading = state.loading,
+          error = state.error,
+          vehicles = state.vehicles,
+          selectedVehicle = state.selectedVehicle,
+        )
+      }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(
+    initialValue = CloudScreenSlice.from(cloudService.currentState),
+  )
   val snackbarHostState = remember { SnackbarHostState() }
 
   var phone by remember { mutableStateOf(cloudService.currentState.phone) }
@@ -386,7 +406,7 @@ private fun LoginCard(
 
 @Composable
 private fun VehicleListCard(
-  state: OfficialCloudState,
+  state: CloudScreenSlice,
   onNavigate: (String) -> Unit,
   onSelectVehicle: (OfficialVehicle) -> Unit,
 ) {
@@ -552,4 +572,27 @@ private fun DetailLine(
     }
   }
   row
+}
+
+/**
+ * Narrow cloud projection for this screen (same pattern as GarageCloudSlice):
+ * login gating + the vehicle list. Emissions that leave these fields unchanged
+ * (battery refresh, message arrival, travel flips) no longer recompose the page.
+ */
+private data class CloudScreenSlice(
+  val signedIn: Boolean,
+  val loading: Boolean,
+  val error: String?,
+  val vehicles: List<OfficialVehicle>,
+  val selectedVehicle: OfficialVehicle?,
+) {
+  companion object {
+    fun from(state: OfficialCloudState): CloudScreenSlice = CloudScreenSlice(
+      signedIn = state.signedIn,
+      loading = state.loading,
+      error = state.error,
+      vehicles = state.vehicles,
+      selectedVehicle = state.selectedVehicle,
+    )
+  }
 }

@@ -45,6 +45,14 @@ updates:
       # navigation 2.9+ requires a newer compileSdk than the app's 35.
       - dependency-name: "androidx.navigation:navigation-compose"
         versions: [">=2.9.0"]
+      # Compose 1.8+ (BOM 2025.05+) requires a newer compileSdk than 35.
+      - dependency-name: "androidx.compose:compose-bom"
+        versions: [">=2025.05.00"]
+      # AGP 9 has built-in Kotlin support and conflicts with the separately
+      # applied kotlin-android plugin (extension collision). Part of the
+      # batch AGP-9 migration.
+      - dependency-name: "com.android.application"
+        versions: [">=9.0.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

@@ -118,7 +118,7 @@ jobs:
         run: ./gradlew assembleDebug testDebugUnitTest lintDebug assembleRelease --continue --stacktrace
 
       - name: Upload debug APK
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: app-debug
           path: app/build/outputs/apk/debug/app-debug.apk
@@ -129,7 +129,7 @@ jobs:
       # keystore is moved out of the repo into Secrets — see docs/CI_REVIEW.md.)
       - name: Upload signed release APK
         if: github.event_name != 'pull_request'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: app-release
           path: app/build/outputs/apk/release/app-release.apk
@@ -140,7 +140,7 @@ jobs:
       - name: Upload test, lint & compose reports
         if: always()
         continue-on-error: true
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: reports
           path: |

@@ -74,7 +74,8 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 |------|------|
 | 工程骨架 + M3 主题 + CI | ✅ |
 | 模型 / 平台层（BLE/MQTT/云） | ✅ |
-| 服务层（auto-connect/induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
+| 服务层（induction/location/coulomb/ota/diagnostic/ble-nfc） | ✅ |
+| 自动连接（auto-connect，Flutter 线有） | ⛔ 移植后从未接线（无 UI 入口/零引用），已删除；需要时从 git 历史找回 |
 | UI 29 页 + 导航图 | ✅ |
 | 测试移植 | ✅ (32 个测试文件,224 个测试,全部通过) |
 | CI 全绿 | ✅ `assembleDebug` + `testDebugUnitTest` + `lintDebug` 全部成功 |

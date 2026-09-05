@@ -2195,9 +2195,49 @@ class ConnectionManager(
     _qgjResponseDeferreds.clear()
   }
 
-  /** Port of Dart `_completePendingGattOperations` — fail queued + active GATT ops. */
+  /**
+   * Port of Dart `_completePendingGattOperations` — fail queued + active GATT ops.
+   *
+   * Also fails the parked read/write/descriptor deferreds: after [closeGatt]
+   * Android never fires onCharacteristicWrite/Read again, so without this the
+   * operation lambda inside [gattQueue] stays parked until the drain loop's
+   * 30 s timeout — blocking the first GATT operation of the next connect.
+   */
   private fun completePendingGattOperations(error: Throwable) {
     gattQueue.completePending(error)
+
+    failDeferredMap(readDeferreds, error)
+    failDeferredMap(writeDeferreds, error)
+    failDeferredMap(descriptorWriteDeferreds, error)
+
+    // Same best-effort teardown for the direct-connect deferred slots.
+    val connect = _connectDeferred
+    _connectDeferred = null
+    if (connect != null && !connect.isCompleted) connect.completeExceptionally(error)
+    val discovery = _discoveryDeferred
+    _discoveryDeferred = null
+    if (discovery != null && !discovery.isCompleted) discovery.completeExceptionally(error)
+    val mtu = _mtuDeferred
+    _mtuDeferred = null
+    if (mtu != null && !mtu.isCompleted) mtu.completeExceptionally(error)
+    val rssi = _rssiDeferred
+    _rssiDeferred = null
+    if (rssi != null && !rssi.isCompleted) rssi.completeExceptionally(error)
+  }
+
+  /**
+   * Fail every parked deferred in [map]. The two-arg remove is atomic, so a
+   * deferred registered by a fresh session during this teardown is left alone.
+   */
+  private fun <T> failDeferredMap(
+    map: ConcurrentHashMap<UUID, CompletableDeferred<T>>,
+    error: Throwable,
+  ) {
+    for (entry in map.entries) {
+      if (map.remove(entry.key, entry.value) && !entry.value.isCompleted) {
+        entry.value.completeExceptionally(error)
+      }
+    }
   }
 
   /** Port of Dart `_reset` — drop device, state, characteristics. */

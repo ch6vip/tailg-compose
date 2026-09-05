@@ -50,6 +50,11 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
 
+      # compileSdk 37 (Android 17, minor-version SDK scheme) ships on the
+      # beta channel only — the runner image tops out at platform 36.
+      - name: Install Android 17 platform (API 37.0)
+        run: sdkmanager --channel=1 --install "platforms;android-37.0" > /dev/null
+
       # gradlew now carries the exec bit in git; kept as a cheap safety net
       # in case a checkout on another platform drops it again.
       - name: Make gradlew executable

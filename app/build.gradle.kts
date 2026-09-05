@@ -1,6 +1,8 @@
 plugins {
+    // AGP 9 ships built-in Kotlin support — the separate kotlin-android
+    // plugin must NOT be applied (its `kotlin` extension collides with the
+    // one AGP registers).
     alias(libs.plugins.android.application)
-    alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.compose)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
@@ -13,7 +15,10 @@ val allowInsecureMqttTls = providers.gradleProperty("allowInsecureMqttTls")
 
 android {
     namespace = "com.tailg.plus"
-    compileSdk = 35
+    // 37.0 (Android 17): required by the 2026 androidx/okhttp line
+    // (AAR metadata minCompileSdk=37). targetSdk 36 satisfies the Play
+    // policy window (2026-08 requires 36).
+    compileSdk = 37
 
     // ------------------------------------------------------------------
     // Signing configuration
@@ -63,7 +68,7 @@ android {
     defaultConfig {
         applicationId = "com.tailg.plus"
         minSdk = 26
-        targetSdk = 35
+        targetSdk = 36
         versionCode = 1
         versionName = "0.1.0"
 
@@ -108,9 +113,9 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-    kotlinOptions {
-        jvmTarget = "17"
-    }
+    // AGP 9 built-in Kotlin: kotlinc's jvmTarget is aligned with
+    // compileOptions above (the standalone kotlinOptions{} block was removed
+    // with the kotlin-android plugin and is gone in Kotlin 2.4).
     buildFeatures {
         compose = true
         buildConfig = true

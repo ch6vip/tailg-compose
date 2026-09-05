@@ -123,7 +123,8 @@ private suspend fun loadVehicleImage(url: String): Bitmap? {
       runCatching {
         val request = Request.Builder().url(url).get().build()
         vehicleImageClient.newCall(request).execute().use { response ->
-          val body = response.body ?: return@use null
+          // okhttp 5: Response.body is non-null.
+          val body = response.body
           val declared = body.contentLength()
           if (!response.isSuccessful ||
             (declared >= 0 && declared > MAX_VEHICLE_IMAGE_BYTES)

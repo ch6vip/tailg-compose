@@ -8,55 +8,6 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
-    # Blocked on a coordinated compileSdk/AGP bump: these releases ship AAR
-    # metadata requiring compileSdk >= 37 while the app is on 35 — merging
-    # them standalone fails `checkAarMetadata`. Re-enable after the next
-    # batch SDK/toolchain upgrade.
-    ignore:
-      - dependency-name: "com.squareup.okhttp3:okhttp"
-        versions: [">=5.0.0"]
-        update-types: ["version-update:semver-major"]
-      - dependency-name: "androidx.hilt:hilt-navigation-compose"
-        versions: [">=1.4.0"]
-      # Hilt 2.59/2.60 Gradle plugin requires AGP 9.0+ (app is on 8.9.x) —
-      # fails at apply time. Re-enable after the batch AGP/toolchain upgrade.
-      - dependency-name: "com.google.dagger.hilt.android"
-        versions: [">=2.57.0"]
-      - dependency-name: "hilt"
-        versions: [">=2.57.0"]
-      # Kotlin 2.4 removed the `kotlinOptions{}` DSL and needs a matching KSP
-      # bump dependabot can't coordinate — batch with the toolchain upgrade.
-      - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"
-        versions: [">=2.2.0"]
-      - dependency-name: "kotlin"
-        versions: [">=2.2.0"]
-      # KSP 2.3+ requires AGP 8.10+ (app is on 8.9.x). NOTE: dependabot names
-      # this plugin by its full id, not the catalog alias.
-      - dependency-name: "com.google.devtools.ksp"
-        versions: [">=2.2.0"]
-      - dependency-name: "ksp"
-        versions: [">=2.2.0"]
-      # material-kolor 5.x ships AAR metadata requiring compileSdk >= 37.
-      - dependency-name: "com.materialkolor:material-kolor"
-        versions: [">=3.0.0"]
-      # androidx.core 1.16+ requires a newer compileSdk than the app's 35.
-      - dependency-name: "androidx.core:core-ktx"
-        versions: [">=1.16.0"]
-      # navigation 2.9+ requires a newer compileSdk than the app's 35.
-      - dependency-name: "androidx.navigation:navigation-compose"
-        versions: [">=2.9.0"]
-      # Compose 1.8+ (BOM 2025.05+) requires a newer compileSdk than 35.
-      - dependency-name: "androidx.compose:compose-bom"
-        versions: [">=2025.05.00"]
-      # AGP 8.10+ relies on a Gradle internal API removed in Gradle 9.6
-      # (repo is on Gradle 9.7.1) and AGP 9 additionally conflicts with the
-      # separately applied kotlin-android plugin — one batch AGP upgrade.
-      - dependency-name: "com.android.application"
-        versions: [">=8.10.0"]
-      # play-services-location 21.4+ transitively ships Kotlin metadata 2.3,
-      # unreadable by the Kotlin 2.1.10 compiler.
-      - dependency-name: "com.google.android.gms:play-services-location"
-        versions: [">=21.4.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

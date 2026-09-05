@@ -21,7 +21,7 @@ app/src/main/java/com/tailg/plus/
 ├── data/
 │   ├── model/        # 数据模型
 │   ├── ble/          # BLE 协议（TLink/QGJ + AES）
-│   ├── cloud/        # 云 HTTP（Retrofit + Moshi）
+│   ├── cloud/        # 云 HTTP（手写 OkHttp 传输 + Moshi）
 │   ├── mqtt/         # MQTT（Paho）
 │   ├── network/      # 网络层
 │   ├── preferences/  # DataStore 偏好

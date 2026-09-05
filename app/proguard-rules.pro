@@ -27,9 +27,10 @@
 -dontwarn okio.**
 
 # ---- Hilt / Dagger ----
-# Hilt generated components are looked up via reflection at runtime.
--keep class dagger.hilt.** { *; }
--keep class javax.inject.** { *; }
+# Hilt generated components are looked up via reflection at runtime; the
+# Hilt artifacts ship their own consumer rules, so only the annotation
+# retention below is kept here (a blanket `dagger.hilt.**`/`javax.inject.**`
+# keep defeated shrinking without adding anything the consumer rules lack).
 -keepclassmembers,allowobfuscation class * {
     @dagger.hilt.android.lifecycle.HiltViewModel *;
 }
@@ -54,5 +55,8 @@
 -dontwarn com.google.firebase.**
 
 # ---- Kotlin coroutines / Timber ----
--dontwarn kotlinx.coroutines.**
+# (No -dontwarn kotlinx.coroutines.**: the coroutines artifacts ship complete
+# consumer rules — a blanket dontwarn only masks genuinely missing classes.
+# Run `assembleRelease` after touching these rules: R8 fails loudly on any
+# dangling reference instead of failing at runtime.)
 -dontwarn timber.log.**

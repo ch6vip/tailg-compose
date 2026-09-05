@@ -1,0 +1,15 @@
+# Dependency updates — gradle (version catalog + wrapper) and the CI actions.
+# PR builds run assembleDebug + unit tests + lint, so a breaking bump fails
+# visibly before it reaches master.
+version: 2
+updates:
+  - package-ecosystem: gradle
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

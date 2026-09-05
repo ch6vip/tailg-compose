@@ -26,7 +26,74 @@ import java.time.ZoneOffset
  *   `Instant.toString()`; callers that need local wall-clock semantics must pass
  *   an explicit `ZoneId` conversion (see `OfficialRidePeriod.requestKey`).
  */
-fun parsePersistedString(value: Any?): String = value?.toString()?.trim() ?: ""
+/**
+ * Render a dynamic scalar the way Dart's `jsonDecode` + `toString()` would:
+ * JSON integers stay integers. Moshi's plain `Any` adapter parses every JSON
+ * number as [Double], and Kotlin renders doubles ≥ 1e7 in scientific notation
+ * ("1.71234567895E7") — sending such a string back as carId/uid makes the
+ * official endpoints answer 400. Integral doubles are therefore rendered
+ * losslessly as integer strings (exact up to 2^53, which covers every id the
+ * API returns); fractional doubles keep their normal rendering.
+ */
+fun parsePersistedString(value: Any?): String = renderScalar(value)?.trim() ?: ""
+
+/** Scalar renderer shared with parsers that do raw `.toString()` on JSON maps. */
+internal fun renderScalar(value: Any?): String? = when (value) {
+    null -> null
+    is Double -> renderFiniteDouble(value)
+    is Float -> renderFiniteDouble(value.toDouble())
+    else -> value.toString()
+}
+
+private fun renderFiniteDouble(value: Double): String {
+    // Integral values (the common id case: JSON `171234567895`) render as
+    // integers — exact within the 2^53 double mantissa.
+    if (value == Math.floor(value) && Math.abs(value) <= 9007199254740992.0) {
+        return value.toLong().toString()
+    }
+    // Dart prints doubles ≥ 1e7 in plain decimal ("17123456.7895") while
+    // Java/Kotlin switches to scientific notation at 1e7
+    // ("1.71234567895E7") — the official endpoints accept only the former.
+    // Expand Java's shortest-round-trip form to plain decimal, preserving
+    // the exact digits Dart would have sent.
+    val text = value.toString()
+    val eIndex = text.indexOf('E')
+    if (eIndex <= 0) return text
+    val exponent = text.substring(eIndex + 1).toInt()
+    if (exponent < 0) return text // tiny magnitudes never occur as ids
+    var mantissa = text.substring(0, eIndex)
+    var negative = false
+    if (mantissa.startsWith("-")) {
+        negative = true
+        mantissa = mantissa.substring(1)
+    }
+    val digits = StringBuilder()
+    var pointPos = -1
+    for (char in mantissa) {
+        if (char == '.') {
+            pointPos = digits.length
+            continue
+        }
+        digits.append(char)
+    }
+    if (pointPos < 0) pointPos = digits.length
+    pointPos += exponent
+    val out = StringBuilder()
+    if (negative) out.append('-')
+    when {
+        pointPos >= digits.length -> {
+            out.append(digits)
+            repeat(pointPos - digits.length) { out.append('0') }
+        }
+        pointPos <= 0 -> {
+            out.append("0.")
+            repeat(-pointPos) { out.append('0') }
+            out.append(digits)
+        }
+        else -> out.append(digits, 0, pointPos).append('.').append(digits, pointPos, digits.length)
+    }
+    return out.toString()
+}
 
 fun parsePersistedStringOr(value: Any?, fallback: String): String {
     val parsed = parsePersistedString(value)

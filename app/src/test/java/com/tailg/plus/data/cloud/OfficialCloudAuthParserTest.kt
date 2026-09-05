@@ -1,5 +1,6 @@
 package com.tailg.plus.data.cloud
 
+import com.tailg.plus.data.model.parsePersistedString
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
@@ -140,5 +141,38 @@ class OfficialCloudAuthParserTest {
     val decoded = "c3fwod5KRO6B/PX7o6YOu81xVzPu24uGlaH5jEOudIG2d/KZ6i51depGp9NkWDN"
     val expected = "c3fwod5KRO6B%2FPX7o6YOu81xVzPu24uGlaH5jEOudIG2d%2FKZ6i51depGp9NkWDN"
     assertEquals(expected, OfficialCloudAuthParser.normalizeAuthorizationToken(decoded))
+  }
+}
+
+class NumericIdParsingTest {
+  @Test
+  fun `integral doubles render as plain integers (carId-slash-uid corruption regression)`() {
+    // A JSON number like 171234567895 parsed by Moshi's Any adapter arrives
+    // as Double 1.71234567895E11; Java toString() renders scientific
+    // notation which the official endpoints reject with 400.
+    assertEquals("171234567895", parsePersistedString(1.71234567895E11))
+    assertEquals("5", parsePersistedString(5.0))
+    assertEquals("171234567895", com.tailg.plus.data.model.renderScalar(1.71234567895E11))
+  }
+
+  @Test
+  fun `doubles at or above 1e7 render as plain decimal like Dart`() {
+    // Dart double.toString() keeps plain decimal notation up to 1e21;
+    // Java switches to scientific at 1e7. The device diagnostic showed a
+    // carId of "1.7***5E7" — exactly this corruption.
+    assertEquals("17123456.7895", parsePersistedString(1.71234567895E7))
+    assertEquals("17000000", parsePersistedString(1.7E7))
+  }
+
+  @Test
+  fun `fractional doubles below 1e7 keep their normal rendering`() {
+    assertEquals("82.5", parsePersistedString(82.5))
+    assertEquals("0.5", parsePersistedString(0.5))
+  }
+
+  @Test
+  fun `extractUserId reads numeric uid as integer string`() {
+    val body = mapOf<String, Any?>("data" to mapOf("uid" to 1.71234567895E11))
+    assertEquals("171234567895", OfficialCloudAuthParser.extractUserId(body))
   }
 }

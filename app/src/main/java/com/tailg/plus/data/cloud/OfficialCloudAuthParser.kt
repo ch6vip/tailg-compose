@@ -102,8 +102,10 @@ object OfficialCloudAuthParser {
     private fun findUserId(value: Any?): String? {
         if (value is Map<*, *>) {
             for (key in listOf("uid", "userId")) {
-                val candidate = value[key]
-                val text = candidate?.toString()?.trim()
+                // renderScalar, not toString(): Moshi parses JSON numbers as
+                // Double and 1.71234567895E7-style strings are rejected by
+                // the official endpoints (400).
+                val text = com.tailg.plus.data.model.renderScalar(value[key])?.trim()
                 if (!text.isNullOrEmpty()) return text
             }
             for (child in value.values) {

@@ -458,6 +458,11 @@ class OfficialMqttService(
         _connectedBroker = null
         _connectedTransportSecurity = null
         _connectedImei = null
+        // Forget the bound session identity too: after sign-out + sign-in to
+        // the SAME account/vehicle, onCloudState must re-run preconnect —
+        // keeping the old key silently skipped it and the link stayed down
+        // until the first command send.
+        _lastSessionKey = null
         _pendingCommandApiName = null
         _pendingCommandError = null
         _latestStatusPayload = null

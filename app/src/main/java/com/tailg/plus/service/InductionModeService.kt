@@ -579,21 +579,39 @@ class InductionModeService(
       _rssiSamples.clear()
       _rssiTaskState = RssiTaskState.idle
       _rssiJob = scope.launch {
+        // Start the foreground service FIRST: if it cannot start (Android 12+
+        // bans background FGS starts — a BLE reconnect restarting this loop
+        // while backgrounded used to leave the poll running unprotected, with
+        // the process killable at any moment), cancel the poll instead.
+        if (!startRssiForegroundService()) {
+          _rssiJob?.cancel()
+          return@launch
+        }
+        // stopRssiLoop may have cancelled us while the FGS start was in
+        // flight — sweep the notification we just raised before exiting.
+        if (!isActive) {
+          runCatching { _foregroundService.stopNow() }
+            .onFailure {
+              _log.operation("RSSI 前台服务停止失败", detail = it.toString(), level = LogLevel.WARNING)
+            }
+          return@launch
+        }
+        _log.operation("RSSI 感应轮询已启动", level = LogLevel.INFO)
         while (isActive) {
           delay(rssiPollInterval)
           rssiTick()
         }
       }
     }
-    scope.launch { startRssiForegroundService() }
-    _log.operation("RSSI 感应轮询已启动", level = LogLevel.INFO)
   }
 
-  private suspend fun startRssiForegroundService() {
+  /** Start the RSSI foreground service; returns whether it is running. */
+  private suspend fun startRssiForegroundService(): Boolean {
     val started = _foregroundService.start(vehicleLabel = _boundCarId)
     if (!started) {
       _log.operation("RSSI 前台服务启动失败", level = LogLevel.WARNING)
     }
+    return started
   }
 
   private fun stopRssiLoop() {

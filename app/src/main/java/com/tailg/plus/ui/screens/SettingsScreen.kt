@@ -225,11 +225,11 @@ fun SettingsScreen(
   }
 }
 
-/** Label for the UI-style picker (Cyber / 莫奈). */
+/** Label for the UI-style picker (Cyber / 九号). */
 @Composable
 internal fun uiModeLabel(mode: UiMode): String = when (mode) {
   UiMode.CYBER -> stringResource(R.string.theme_ui_mode_cyber)
-  UiMode.MONET -> stringResource(R.string.theme_ui_mode_monet)
+  UiMode.NINEBOT -> stringResource(R.string.theme_ui_mode_ninebot)
 }
 
 /**

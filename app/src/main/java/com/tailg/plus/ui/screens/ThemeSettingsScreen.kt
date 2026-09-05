@@ -1,22 +1,11 @@
 package com.tailg.plus.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.scaleIn
-import androidx.compose.animation.scaleOut
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -24,7 +13,6 @@ import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.captionBar
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -34,19 +22,12 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.AspectRatio
-import androidx.compose.material.icons.rounded.Check
-import androidx.compose.material.icons.rounded.DesignServices
-import androidx.compose.material.icons.rounded.Style
-import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -65,10 +46,6 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
@@ -79,36 +56,28 @@ import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.materialkolor.PaletteStyle
-import com.materialkolor.dynamiccolor.ColorSpec
 import com.tailg.plus.R
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.ui.components.material.ExpressiveScaffold
 import com.tailg.plus.ui.components.material.ExpressiveToggleButton
-import com.tailg.plus.ui.components.material.SegmentedColumn
-import com.tailg.plus.ui.components.material.SegmentedDropdownItem
-import com.tailg.plus.ui.components.material.SegmentedSwitchItem
 import com.tailg.plus.ui.components.material.TonalCard
 import com.tailg.plus.ui.components.material.TopBarBackButton
 import com.tailg.plus.ui.components.material.expressiveTopAppBarColors
-import com.tailg.plus.ui.theme.ColorMode
 import com.tailg.plus.ui.theme.CyberDarkColorScheme
 import com.tailg.plus.ui.theme.CyberLightColorScheme
+import com.tailg.plus.ui.theme.ColorMode
+import com.tailg.plus.ui.theme.NinebotDarkColorScheme
+import com.tailg.plus.ui.theme.NinebotLightColorScheme
 import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.ui.theme.amoledBackground
-import com.tailg.plus.ui.theme.keyColorOptions
-import com.tailg.plus.ui.theme.rememberTailgColorScheme
 import kotlinx.coroutines.launch
 
 /**
- * Faithful port of KernelSU's theme customiser (ColorPaletteScreen, following
- * the Miuix variant's structure): mini-phone preview card, text mode tabs
- * (跟随系统/浅色/深色), an "启用 Monet 颜色" switch that gates the dynamic
- * colour engine (off = static Cyber brand colours), pie-slice key-colour
- * swatches and segmented dropdowns for palette style / colour spec. Every
- * change persists through [AppPreferencesService] and re-themes the whole app
- * live.
+ * Theme settings — KernelSU-derived chrome with the Tailg skin system:
+ * mini-phone preview (follows the active UI style), text mode tabs
+ * (跟随系统/浅色/深色) and the global page-scale slider. UI style
+ * (Cyber / 九号) is picked in 设置 → 界面风格.
  */
 @Composable
 fun ThemeSettingsScreen(
@@ -119,24 +88,11 @@ fun ThemeSettingsScreen(
     val prefs = preferencesService ?: rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
     val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
-    val keyColor by prefs.keyColor.collectAsStateWithLifecycle(initialValue = 0)
-    val colorStyleName by prefs.colorStyle.collectAsStateWithLifecycle(initialValue = PaletteStyle.TonalSpot.name)
-    val colorSpecName by prefs.colorSpec.collectAsStateWithLifecycle(initialValue = ColorSpec.SpecVersion.SPEC_2025.name)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     LaunchedEffect(Unit) { prefs.init() }
 
     val currentColorMode = ColorMode.fromValue(themeMode)
-    val monetOn = UiMode.fromValue(uiModeValue) == UiMode.MONET
-    val colorStyle = try {
-        PaletteStyle.valueOf(colorStyleName)
-    } catch (_: Exception) {
-        PaletteStyle.TonalSpot
-    }
-    val colorSpec = try {
-        ColorSpec.SpecVersion.valueOf(colorSpecName)
-    } catch (_: Exception) {
-        ColorSpec.SpecVersion.SPEC_2025
-    }
+    val currentUiMode = UiMode.fromValue(uiModeValue)
     val haptic = LocalHapticFeedback.current
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
@@ -168,53 +124,10 @@ fun ThemeSettingsScreen(
             val isDark = currentColorMode.isDark || currentColorMode.isSystem && isSystemInDarkTheme()
             val isAmoled = currentColorMode.isAmoled
             ThemePreviewCard(
-                keyColor = keyColor,
+                uiMode = currentUiMode,
                 isDark = isDark,
                 isAmoled = isAmoled,
-                monet = monetOn,
-                paletteStyle = colorStyle,
-                colorSpec = colorSpec,
             )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Key-colour swatches only drive the Monet engine — hidden while
-            // Monet is off, same as KernelSU Miuix's colour card.
-            AnimatedVisibility(visible = monetOn) {
-                LazyRow(
-                    modifier = Modifier.fillMaxWidth(),
-                    contentPadding = PaddingValues(horizontal = 16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                ) {
-                item {
-                    ColorButtonMaterial(
-                        color = Color.Unspecified,
-                        isSelected = keyColor == 0,
-                        isDark = isDark,
-                        isAmoled = isAmoled,
-                        paletteStyle = colorStyle,
-                        colorSpec = colorSpec,
-                        onClick = {
-                            scope.launch { prefs.setKeyColor(0) }
-                        }
-                    )
-                }
-
-                items(keyColorOptions) { color ->
-                    ColorButtonMaterial(
-                        color = Color(color),
-                        isSelected = keyColor == color,
-                        isDark = isDark,
-                        isAmoled = isAmoled,
-                        paletteStyle = colorStyle,
-                        colorSpec = colorSpec,
-                        onClick = { seed ->
-                            scope.launch { prefs.setKeyColor(seed) }
-                        }
-                    )
-                }
-                }
-            }
 
             Column(
                 modifier = Modifier
@@ -264,51 +177,6 @@ fun ThemeSettingsScreen(
                         }
                     }
                 }
-
-                // Monet switch + colour controls — the dynamic engine is gated
-                // here, exactly like KernelSU Miuix's "启用 Monet 颜色" card.
-                SegmentedColumn(
-                    modifier = Modifier.padding(top = 4.dp),
-                    content = {
-                        item("monet") {
-                            SegmentedSwitchItem(
-                                icon = Icons.Rounded.Wallpaper,
-                                title = stringResource(R.string.theme_enable_monet),
-                                summary = stringResource(R.string.theme_enable_monet_summary),
-                                checked = monetOn,
-                                onCheckedChange = { on ->
-                                    scope.launch {
-                                        prefs.setUiMode(if (on) UiMode.MONET.value else UiMode.CYBER.value)
-                                    }
-                                }
-                            )
-                        }
-                        item("style", visible = monetOn) {
-                            val styles = PaletteStyle.entries
-                            SegmentedDropdownItem(
-                                icon = Icons.Rounded.Style,
-                                title = stringResource(R.string.theme_color_style),
-                                items = styles.map { it.name },
-                                selectedIndex = styles.indexOf(colorStyle),
-                                onItemSelected = { index ->
-                                    scope.launch { prefs.setColorStyle(styles[index].name) }
-                                }
-                            )
-                        }
-                        item("spec", visible = monetOn) {
-                            val specs = ColorSpec.SpecVersion.entries
-                            SegmentedDropdownItem(
-                                icon = Icons.Rounded.DesignServices,
-                                title = stringResource(R.string.theme_color_spec),
-                                items = specs.map { it.name },
-                                selectedIndex = specs.indexOf(colorSpec).coerceAtLeast(0),
-                                onItemSelected = { index ->
-                                    scope.launch { prefs.setColorSpec(specs[index].name) }
-                                }
-                            )
-                        }
-                    }
-                )
 
                 TonalCard(modifier = Modifier.padding(top = 4.dp)) {
                     var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
@@ -367,35 +235,24 @@ fun ThemeSettingsScreen(
 }
 
 /**
- * Mini-phone mockup preview (KernelSU's `ThemePreviewCard`, bottom-bar
- * variant — Tailg has no navigation rail).
+ * Mini-phone mockup preview rendering the active UI style (Cyber or 九号)
+ * under the given dark/AMOLED combination.
  */
 @Composable
 private fun ThemePreviewCard(
-    keyColor: Int,
+    uiMode: UiMode,
     isDark: Boolean,
     isAmoled: Boolean = false,
-    monet: Boolean = true,
-    paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
-    colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.toFloat()
     val screenHeight = configuration.screenHeightDp.toFloat()
     val screenRatio = screenWidth / screenHeight
 
-    val colorScheme = if (monet) {
-        rememberTailgColorScheme(
-            seedColor = if (keyColor == 0) Color.Unspecified else Color(keyColor),
-            isDark = isDark,
-            isAmoled = isAmoled,
-            paletteStyle = paletteStyle,
-            colorSpec = colorSpec,
-        )
-    } else {
-        // Monet off → static Cyber brand colours, mirroring TailgTheme.
-        (if (isDark) CyberDarkColorScheme else CyberLightColorScheme).amoledBackground(isAmoled)
-    }
+    val colorScheme = when (uiMode) {
+        UiMode.CYBER -> (if (isDark) CyberDarkColorScheme else CyberLightColorScheme)
+        UiMode.NINEBOT -> (if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme)
+    }.amoledBackground(isAmoled)
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(
@@ -473,108 +330,6 @@ private fun ThemePreviewCard(
                             Icon(Icons.Filled.Home, null, tint = colorScheme.primary)
                         }
                     }
-                }
-            }
-        }
-    }
-}
-
-/**
- * Pie-slice key-colour swatch (KernelSU's `ColorButtonMaterial`): a half
- * primaryContainer / half tertiaryContainer disc previewing the generated
- * scheme, with an animated selection ring. [onClick] receives the seed ARGB
- * (0 for the dynamic/wallpaper swatch when [color] is unspecified).
- */
-@Composable
-private fun ColorButtonMaterial(
-    color: Color,
-    isSelected: Boolean,
-    isDark: Boolean,
-    isAmoled: Boolean = false,
-    paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
-    colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
-    onClick: (Int) -> Unit
-) {
-    val haptic = LocalHapticFeedback.current
-    val colorScheme = rememberTailgColorScheme(
-        seedColor = color,
-        isDark = isDark,
-        isAmoled = isAmoled,
-        paletteStyle = paletteStyle,
-        colorSpec = colorSpec,
-    )
-
-    Surface(
-        onClick = {
-            haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-            onClick(if (color == Color.Unspecified) 0 else color.toArgb())
-        },
-        shape = RoundedCornerShape(20.dp),
-        color = colorScheme.surfaceContainer,
-        modifier = Modifier.size(72.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Canvas(modifier = Modifier.size(48.dp)) {
-                drawArc(
-                    color = colorScheme.primaryContainer,
-                    startAngle = 180f,
-                    sweepAngle = 180f,
-                    useCenter = true
-                )
-                drawArc(
-                    color = colorScheme.tertiaryContainer,
-                    startAngle = 0f,
-                    sweepAngle = 180f,
-                    useCenter = true
-                )
-            }
-
-            val scale by animateFloatAsState(targetValue = if (isSelected) 1.1f else 1.0f)
-            Box(
-                modifier = Modifier.graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                },
-                contentAlignment = Alignment.Center
-            ) {
-                AnimatedVisibility(
-                    visible = isSelected,
-                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(56.dp)
-                            .border(2.dp, colorScheme.primary, CircleShape),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(24.dp)
-                                .clip(CircleShape)
-                                .background(colorScheme.primary, CircleShape)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Rounded.Check,
-                                contentDescription = null,
-                                tint = colorScheme.onPrimary,
-                                modifier = Modifier
-                                    .align(Alignment.Center)
-                                    .size(16.dp)
-                            )
-                        }
-                    }
-                }
-                AnimatedVisibility(
-                    visible = !isSelected,
-                    enter = fadeIn() + scaleIn(initialScale = 0.8f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.8f)
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(20.dp)
-                            .background(colorScheme.primary, CircleShape)
-                    )
                 }
             }
         }

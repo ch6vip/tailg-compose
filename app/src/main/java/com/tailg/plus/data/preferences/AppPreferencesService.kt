@@ -61,22 +61,9 @@ class AppPreferencesService(
     val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
 
     // UI style — Int values mirror `com.tailg.plus.ui.theme.UiMode`
-    // (0 = static Cyber brand colours, 1 = dynamic Monet scheme).
-    // Cyber is the brand default; Monet is opt-in via 设置 → 界面风格.
+    // (0 = Cyber brand colours, 2 = 九号 skin).
     private val _uiMode = MutableStateFlow(0)
     val uiMode: StateFlow<Int> = _uiMode.asStateFlow()
-
-    // Key colour ARGB int; 0 = follow system (wallpaper) dynamic colour.
-    private val _keyColor = MutableStateFlow(0)
-    val keyColor: StateFlow<Int> = _keyColor.asStateFlow()
-
-    // PaletteStyle name string (com.materialkolor.PaletteStyle).
-    private val _colorStyle = MutableStateFlow("TonalSpot")
-    val colorStyle: StateFlow<String> = _colorStyle.asStateFlow()
-
-    // ColorSpec.SpecVersion name string (com.materialkolor.dynamiccolor.ColorSpec).
-    private val _colorSpec = MutableStateFlow("SPEC_2025")
-    val colorSpec: StateFlow<String> = _colorSpec.asStateFlow()
 
     // Global page scale (KernelSU 界面缩放) — multiplies the root density.
     private val _pageScale = MutableStateFlow(1.0f)
@@ -92,9 +79,6 @@ class AppPreferencesService(
         _respectTextScale.value = prefs[KEY_RESPECT_TEXT_SCALE] ?: true
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
         _uiMode.value = prefs[KEY_UI_MODE] ?: 0
-        _keyColor.value = prefs[KEY_KEY_COLOR] ?: 0
-        _colorStyle.value = prefs[KEY_COLOR_STYLE] ?: "TonalSpot"
-        _colorSpec.value = prefs[KEY_COLOR_SPEC] ?: "SPEC_2025"
         _pageScale.value = prefs[KEY_PAGE_SCALE] ?: 1.0f
         initialized = true
     }
@@ -139,30 +123,6 @@ class AppPreferencesService(
         }.onFailure { logService.operation("setUiMode failed", detail = it.toString()) }
     }
 
-    suspend fun setKeyColor(value: Int) {
-        if (!initialized) init()
-        runCatching {
-            context.dataStore.edit { it[KEY_KEY_COLOR] = value }
-            _keyColor.value = value
-        }.onFailure { logService.operation("setKeyColor failed", detail = it.toString()) }
-    }
-
-    suspend fun setColorStyle(value: String) {
-        if (!initialized) init()
-        runCatching {
-            context.dataStore.edit { it[KEY_COLOR_STYLE] = value }
-            _colorStyle.value = value
-        }.onFailure { logService.operation("setColorStyle failed", detail = it.toString()) }
-    }
-
-    suspend fun setColorSpec(value: String) {
-        if (!initialized) init()
-        runCatching {
-            context.dataStore.edit { it[KEY_COLOR_SPEC] = value }
-            _colorSpec.value = value
-        }.onFailure { logService.operation("setColorSpec failed", detail = it.toString()) }
-    }
-
     suspend fun setPageScale(value: Float) {
         if (!initialized) init()
         runCatching {
@@ -177,9 +137,6 @@ class AppPreferencesService(
         private val KEY_RESPECT_TEXT_SCALE = booleanPreferencesKey("app_respect_text_scale")
         private val KEY_THEME_MODE = intPreferencesKey("app_theme_mode")
         private val KEY_UI_MODE = intPreferencesKey("app_ui_mode")
-        private val KEY_KEY_COLOR = intPreferencesKey("app_key_color")
-        private val KEY_COLOR_STYLE = stringPreferencesKey("app_color_style")
-        private val KEY_COLOR_SPEC = stringPreferencesKey("app_color_spec")
         private val KEY_PAGE_SCALE = floatPreferencesKey("app_page_scale")
     }
 }

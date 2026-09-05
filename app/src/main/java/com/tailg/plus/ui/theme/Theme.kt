@@ -1,13 +1,10 @@
 package com.tailg.plus.ui.theme
 
-import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialExpressiveTheme
 import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -16,25 +13,24 @@ import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.materialkolor.PaletteStyle
-import com.materialkolor.dynamiccolor.ColorSpec
-import com.materialkolor.rememberDynamicColorScheme
 import com.tailg.plus.di.rememberTailgEntryPoint
 
 /**
- * UI style — mirrors KernelSU's `UiMode` (Material/Miuix): the static Cyber
- * brand look vs the dynamic Monet (Material You) scheme. Stored as an Int in
- * [com.tailg.plus.data.preferences.AppPreferencesService].
+ * UI style — the selectable skins in 设置 → 界面风格. Both are static brand
+ * schemes (light/dark follows the theme mode chosen in 主题设置):
+ *  - [CYBER]: VOID COCKPIT — Tailg brand green neon.
+ *  - [NINEBOT]: 九号出行 — ink navy + electric blue on mist gray / near black.
+ * Stored as an Int in [com.tailg.plus.data.preferences.AppPreferencesService];
+ * value 2 chosen so stale MONET(1) entries fall back to the CYBER default.
  */
 enum class UiMode(val value: Int) {
     CYBER(0),
-    MONET(1);
+    NINEBOT(2);
 
     companion object {
         fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: CYBER
@@ -42,8 +38,7 @@ enum class UiMode(val value: Int) {
 }
 
 /**
- * Theme mode — mirrors KernelSU's `ColorMode` minus the Miuix Monet variants
- * (Tailg has no Miuix style). Stored as an Int in
+ * Theme mode — mirrors KernelSU's `ColorMode`. Stored as an Int in
  * [com.tailg.plus.data.preferences.AppPreferencesService].
  */
 enum class ColorMode(val value: Int) {
@@ -60,39 +55,6 @@ enum class ColorMode(val value: Int) {
     val isDark: Boolean get() = this == DARK || this == DARK_AMOLED
     val isAmoled: Boolean get() = this == DARK_AMOLED
 }
-
-/** Seed colour swatches for the key-colour picker (Material primary hues). */
-val keyColorOptions = listOf(
-    Color(0xFFF44336).toArgb(),
-    Color(0xFFE91E63).toArgb(),
-    Color(0xFF9C27B0).toArgb(),
-    Color(0xFF673AB7).toArgb(),
-    Color(0xFF3F51B5).toArgb(),
-    Color(0xFF2196F3).toArgb(),
-    Color(0xFF00BCD4).toArgb(),
-    Color(0xFF009688).toArgb(),
-    Color(0xFF4FAF50).toArgb(),
-    Color(0xFFFFEB3B).toArgb(),
-    Color(0xFFFFC107).toArgb(),
-    Color(0xFFFF9800).toArgb(),
-    Color(0xFF795548).toArgb(),
-    Color(0xFF607D8F).toArgb(),
-    Color(0xFFFF9CA8).toArgb(),
-)
-
-/** Port of KernelSU `ui/theme/Theme.kt` spec-version gating. */
-val PaletteStyle.supportsSpec2025: Boolean
-    get() = this == PaletteStyle.TonalSpot ||
-            this == PaletteStyle.Neutral ||
-            this == PaletteStyle.Vibrant ||
-            this == PaletteStyle.Expressive
-
-fun ColorSpec.SpecVersion.effectiveFor(style: PaletteStyle): ColorSpec.SpecVersion =
-    if (this == ColorSpec.SpecVersion.SPEC_2025 && !style.supportsSpec2025) {
-        ColorSpec.SpecVersion.SPEC_2021
-    } else {
-        this
-    }
 
 /** Static Cyber brand scheme (dark) — primary green neon, deep charcoal surfaces. */
 val CyberDarkColorScheme = darkColorScheme(
@@ -169,46 +131,94 @@ val CyberLightColorScheme = lightColorScheme(
 )
 
 /**
- * Builds the active Material You [ColorScheme]. When [seedColor] is
- * [Color.Unspecified] the system wallpaper's dynamic colour is used (Android 12+
- * Monet), otherwise the custom key colour drives the scheme.
+ * 九号出行 scheme (light) — extracted from the reference shots: mist
+ * lavender-gray page, pure white large-radius cards, ink-navy line icons and
+ * an electric-blue accent (battery bar / controls), warm orange mileage tint.
  */
-@Composable
-fun rememberTailgColorScheme(
-    seedColor: Color,
-    isDark: Boolean,
-    isAmoled: Boolean,
-    paletteStyle: PaletteStyle,
-    colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
-): ColorScheme {
-    val context = LocalContext.current
-    val seed = if (seedColor == Color.Unspecified) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            (if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary
-        } else {
-            // Pre-Android 12 has no Monet wallpaper colour; fall back to the
-            // Cyber brand blue so "follow system" still yields a coherent seed.
-            if (isDark) DarkCyberPalette.primary else LightCyberPalette.primary
-        }
-    } else {
-        seedColor
+val NinebotLightColorScheme = lightColorScheme(
+    primary = Color(0xFF3D7BFF),
+    onPrimary = Color.White,
+    primaryContainer = Color(0xFFDCE7FF),
+    onPrimaryContainer = Color(0xFF0B2E6E),
+    secondary = Color(0xFF1B2438),
+    onSecondary = Color.White,
+    secondaryContainer = Color(0xFFE7EAF3),
+    onSecondaryContainer = Color(0xFF1B2438),
+    tertiary = Color(0xFFE8A15C),
+    onTertiary = Color.White,
+    tertiaryContainer = Color(0xFFF8E4C6),
+    onTertiaryContainer = Color(0xFF4A2E10),
+    background = Color(0xFFDDE0EB),
+    onBackground = Color(0xFF1B2438),
+    surface = Color.White,
+    onSurface = Color(0xFF1B2438),
+    surfaceVariant = Color(0xFFE9EBF3),
+    onSurfaceVariant = Color(0xFF8A90A2),
+    surfaceContainerLowest = Color.White,
+    surfaceContainerLow = Color(0xFFF3F4F9),
+    surfaceContainer = Color(0xFFEDEFF6),
+    surfaceContainerHigh = Color(0xFFE4E7F0),
+    surfaceContainerHighest = Color(0xFFD8DCE8),
+    outline = Color(0xFF9AA1B4),
+    outlineVariant = Color(0xFFE0E3EE),
+    error = Color(0xFFE5484D),
+    onError = Color.White,
+    errorContainer = Color(0xFFFFE4E4),
+    onErrorContainer = Color(0xFF5C0A0E),
+    inverseSurface = Color(0xFF2A3040),
+    inverseOnSurface = Color(0xFFF1F2F8),
+    inversePrimary = Color(0xFF7FA8FF),
+    scrim = Color.Black,
+)
+
+/** 九号出行 scheme (dark) — near-black page, dark gray cards, same blue. */
+val NinebotDarkColorScheme = darkColorScheme(
+    primary = Color(0xFF6B9AFF),
+    onPrimary = Color(0xFF0A2A5E),
+    primaryContainer = Color(0xFF1E3A75),
+    onPrimaryContainer = Color(0xFFD6E3FF),
+    secondary = Color(0xFFE3E7F2),
+    onSecondary = Color(0xFF171E2E),
+    secondaryContainer = Color(0xFF232A3C),
+    onSecondaryContainer = Color(0xFFDCE2F2),
+    tertiary = Color(0xFFF0B57A),
+    onTertiary = Color(0xFF3D2508),
+    tertiaryContainer = Color(0xFF4E3512),
+    onTertiaryContainer = Color(0xFFFFE8CC),
+    background = Color(0xFF0B0D12),
+    onBackground = Color(0xFFF1F3F8),
+    surface = Color(0xFF14161C),
+    onSurface = Color(0xFFF1F3F8),
+    surfaceVariant = Color(0xFF1E2129),
+    onSurfaceVariant = Color(0xFF9AA0B0),
+    surfaceContainerLowest = Color(0xFF0B0D12),
+    surfaceContainerLow = Color(0xFF14161C),
+    surfaceContainer = Color(0xFF1A1D24),
+    surfaceContainerHigh = Color(0xFF22252E),
+    surfaceContainerHighest = Color(0xFF2B2F3A),
+    outline = Color(0xFF4A5060),
+    outlineVariant = Color(0xFF232733),
+    error = Color(0xFFFF7A7F),
+    onError = Color(0xFF4C0A0E),
+    errorContainer = Color(0xFF5C1A1E),
+    onErrorContainer = Color(0xFFFFDAD6),
+    inverseSurface = Color(0xFFF1F3F8),
+    inverseOnSurface = Color(0xFF1A1D24),
+    inversePrimary = Color(0xFF2E62D9),
+    scrim = Color.Black,
+)
+
+private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
+    when (uiMode) {
+        UiMode.CYBER -> if (isDark) CyberDarkColorScheme else CyberLightColorScheme
+        UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }
-    return rememberDynamicColorScheme(
-        seedColor = seed,
-        isDark = isDark,
-        isAmoled = isAmoled,
-        style = paletteStyle,
-        specVersion = colorSpec.effectiveFor(paletteStyle),
-    ).amoledBackground(isAmoled)
-}
 
 /**
- * Root theme. Resolves the persisted theme mode / key colour / palette style /
- * colour spec, derives a dynamic Material You [ColorScheme], maps it onto the
- * semantic [CyberPalette] and provides it via [LocalCyberPalette] so every screen
- * (which still reads [CyberHomeColors]) re-themes automatically. Mirrors
- * KernelSU's `MaterialKernelSUTheme`: expressive motion + animated colour
- * transitions + global page scale.
+ * Root theme. Resolves the persisted UI style (Cyber / 九号) and theme mode
+ * (system / light / dark), maps the resulting scheme onto the semantic
+ * [CyberPalette] and provides it via [LocalCyberPalette]. Mirrors KernelSU's
+ * expressive motion: animated colour transitions + global page scale.
  */
 @Composable
 fun TailgTheme(
@@ -217,9 +227,6 @@ fun TailgTheme(
     val prefs = rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
     val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
-    val keyColor by prefs.keyColor.collectAsStateWithLifecycle(initialValue = 0)
-    val colorStyleName by prefs.colorStyle.collectAsStateWithLifecycle(initialValue = PaletteStyle.TonalSpot.name)
-    val colorSpecName by prefs.colorSpec.collectAsStateWithLifecycle(initialValue = ColorSpec.SpecVersion.SPEC_2025.name)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     LaunchedEffect(Unit) { prefs.init() }
 
@@ -229,33 +236,9 @@ fun TailgTheme(
         ColorMode.LIGHT -> false
         ColorMode.SYSTEM -> isSystemInDarkTheme()
     }
-    val paletteStyle = try {
-        PaletteStyle.valueOf(colorStyleName)
-    } catch (_: Exception) {
-        PaletteStyle.TonalSpot
-    }
-    val colorSpec = try {
-        ColorSpec.SpecVersion.valueOf(colorSpecName)
-    } catch (_: Exception) {
-        ColorSpec.SpecVersion.SPEC_2025
-    }
-    val seed = if (keyColor == 0) Color.Unspecified else Color(keyColor)
-    val uiMode = UiMode.fromValue(uiModeValue)
 
-    // Cyber = static brand scheme (light/dark still follows the theme mode);
-    // Monet = KernelSU-style dynamic scheme from key colour / wallpaper.
-    val scheme = if (uiMode == UiMode.CYBER) {
-        (if (isDark) CyberDarkColorScheme else CyberLightColorScheme)
-            .amoledBackground(colorMode.isAmoled)
-    } else {
-        rememberTailgColorScheme(
-            seedColor = seed,
-            isDark = isDark,
-            isAmoled = colorMode.isAmoled,
-            paletteStyle = paletteStyle,
-            colorSpec = colorSpec,
-        )
-    }
+    val scheme = uiModeColorScheme(UiMode.fromValue(uiModeValue), isDark)
+        .amoledBackground(colorMode.isAmoled)
     val animatedScheme = scheme.animateAsState()
     val palette = animatedScheme.toCyberPalette()
 

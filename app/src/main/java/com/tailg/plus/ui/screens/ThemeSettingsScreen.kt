@@ -547,12 +547,3 @@ private fun ColorButtonMaterial(
         }
     }
 }
-
-/** Shared label helper — also consumed by [SettingsScreen]'s theme row. */
-@Composable
-internal fun colorModeLabel(mode: ColorMode): String = when (mode) {
-    ColorMode.SYSTEM -> stringResource(R.string.theme_mode_system)
-    ColorMode.LIGHT -> stringResource(R.string.theme_mode_light)
-    ColorMode.DARK -> stringResource(R.string.theme_mode_dark)
-    ColorMode.DARK_AMOLED -> stringResource(R.string.theme_mode_amoled)
-}

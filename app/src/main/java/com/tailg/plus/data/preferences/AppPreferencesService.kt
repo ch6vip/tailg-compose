@@ -60,6 +60,11 @@ class AppPreferencesService(
     private val _themeMode = MutableStateFlow(0)
     val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
 
+    // UI style — Int values mirror `com.tailg.plus.ui.theme.UiMode`
+    // (0 = static Cyber brand colours, 1 = dynamic Monet scheme).
+    private val _uiMode = MutableStateFlow(1)
+    val uiMode: StateFlow<Int> = _uiMode.asStateFlow()
+
     // Key colour ARGB int; 0 = follow system (wallpaper) dynamic colour.
     private val _keyColor = MutableStateFlow(0)
     val keyColor: StateFlow<Int> = _keyColor.asStateFlow()
@@ -85,6 +90,7 @@ class AppPreferencesService(
         _distanceUnit.value = DistanceUnitPreference.fromValue(prefs[KEY_DISTANCE_UNIT])
         _respectTextScale.value = prefs[KEY_RESPECT_TEXT_SCALE] ?: true
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
+        _uiMode.value = prefs[KEY_UI_MODE] ?: 1
         _keyColor.value = prefs[KEY_KEY_COLOR] ?: 0
         _colorStyle.value = prefs[KEY_COLOR_STYLE] ?: "TonalSpot"
         _colorSpec.value = prefs[KEY_COLOR_SPEC] ?: "SPEC_2025"
@@ -124,6 +130,14 @@ class AppPreferencesService(
         }.onFailure { logService.operation("setThemeMode failed", detail = it.toString()) }
     }
 
+    suspend fun setUiMode(value: Int) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_UI_MODE] = value }
+            _uiMode.value = value
+        }.onFailure { logService.operation("setUiMode failed", detail = it.toString()) }
+    }
+
     suspend fun setKeyColor(value: Int) {
         if (!initialized) init()
         runCatching {
@@ -161,6 +175,7 @@ class AppPreferencesService(
         private val KEY_DISTANCE_UNIT = stringPreferencesKey("app_distance_unit_preference")
         private val KEY_RESPECT_TEXT_SCALE = booleanPreferencesKey("app_respect_text_scale")
         private val KEY_THEME_MODE = intPreferencesKey("app_theme_mode")
+        private val KEY_UI_MODE = intPreferencesKey("app_ui_mode")
         private val KEY_KEY_COLOR = intPreferencesKey("app_key_color")
         private val KEY_COLOR_STYLE = stringPreferencesKey("app_color_style")
         private val KEY_COLOR_SPEC = stringPreferencesKey("app_color_spec")

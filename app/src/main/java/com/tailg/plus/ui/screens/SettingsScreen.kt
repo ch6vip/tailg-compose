@@ -54,7 +54,7 @@ import com.tailg.plus.ui.components.material.OffsetAnchoredExpressiveMenu
 import com.tailg.plus.ui.components.material.trackPressPosition
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.ColorMode
+import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
@@ -89,14 +89,8 @@ fun SettingsScreen(
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
-  val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
-  val currentColorMode = ColorMode.fromValue(themeMode)
-  val strThemeMode = when (currentColorMode) {
-    ColorMode.SYSTEM -> stringResource(R.string.theme_mode_system)
-    ColorMode.LIGHT -> stringResource(R.string.theme_mode_light)
-    ColorMode.DARK -> stringResource(R.string.theme_mode_dark)
-    ColorMode.DARK_AMOLED -> stringResource(R.string.theme_mode_amoled)
-  }
+  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.MONET.value)
+  val currentUiMode = UiMode.fromValue(uiMode)
   val scope = androidx.compose.runtime.rememberCoroutineScope()
 
   Scaffold(
@@ -182,7 +176,7 @@ fun SettingsScreen(
           settingItemModel(
             icon = Lucide.spark,
             title = stringResource(R.string.settings_ui_mode),
-            subtitle = strThemeMode,
+            subtitle = uiModeLabel(currentUiMode),
             onClick = { showUiModeMenu = true },
           ),
           settingItemModel(
@@ -197,16 +191,16 @@ fun SettingsScreen(
           onDismissRequest = { showUiModeMenu = false },
           anchorOffset = menuAnchorOffset,
         ) {
-          ColorMode.entries.forEachIndexed { index, mode ->
+          UiMode.entries.forEachIndexed { index, mode ->
             SelectableDropdownMenuItem(
-              text = { Text(colorModeLabel(mode)) },
-              selected = mode == currentColorMode,
+              text = { Text(uiModeLabel(mode)) },
+              selected = mode == currentUiMode,
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                scope.launch { prefs.setThemeMode(mode.value) }
+                scope.launch { prefs.setUiMode(mode.value) }
                 showUiModeMenu = false
               },
-              shapes = MenuDefaults.itemShape(index = index, count = ColorMode.entries.size),
+              shapes = MenuDefaults.itemShape(index = index, count = UiMode.entries.size),
               selectedLeadingIcon = {
                 Icon(
                   Icons.Filled.Check,
@@ -229,6 +223,13 @@ fun SettingsScreen(
       )
     }
   }
+}
+
+/** Label for the UI-style picker (Cyber / 莫奈). */
+@Composable
+internal fun uiModeLabel(mode: UiMode): String = when (mode) {
+  UiMode.CYBER -> stringResource(R.string.theme_ui_mode_cyber)
+  UiMode.MONET -> stringResource(R.string.theme_ui_mode_monet)
 }
 
 /**

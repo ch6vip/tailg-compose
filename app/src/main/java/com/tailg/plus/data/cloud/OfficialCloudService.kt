@@ -16,6 +16,7 @@ import com.tailg.plus.log.LogService
 import com.tailg.plus.util.formatMonthText
 import java.time.Duration
 import java.time.LocalDateTime
+import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Deferred
@@ -27,6 +28,7 @@ import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -76,14 +78,28 @@ class OfficialCloudService(
             if (!disposed) _state.value = value
         }
 
-    internal val lastSuccessfulRefresh: MutableMap<String, LocalDateTime> = mutableMapOf()
-    internal val inFlightRefreshes: MutableMap<String, Deferred<Unit>> = mutableMapOf()
-    internal val smartServiceStatuses: MutableMap<String, OfficialSmartServiceStatus> = mutableMapOf()
-    internal val smartServiceStatusLoadedKeys: MutableSet<String> = mutableSetOf()
-    internal var rideStatisticsGeneration: Int = 0
-    internal var initialized: Boolean = false
-    internal var initializing: Deferred<Unit>? = null
-    internal var disposed: Boolean = false
+    /**
+     * Atomic read-modify-write for the session state. Parallel silent
+     * refreshes (refreshVehicleDependents launches several at once) used to
+     * do `state = state.copyWith(...)` — a read-then-write that let the last
+     * writer clobber another refresh's freshly written field. CAS loop via
+     * [MutableStateFlow.update] closes that window.
+     */
+    internal fun updateState(transform: (OfficialCloudState) -> OfficialCloudState) {
+        if (disposed) return
+        _state.update(transform)
+    }
+
+    // Concurrent containers: runSilentRefresh jobs on the multi-threaded
+    // [scope] (and the UI thread) read/write these alongside each other.
+    internal val lastSuccessfulRefresh: MutableMap<String, LocalDateTime> = ConcurrentHashMap()
+    internal val inFlightRefreshes: MutableMap<String, Deferred<Unit>> = ConcurrentHashMap()
+    internal val smartServiceStatuses: MutableMap<String, OfficialSmartServiceStatus> = ConcurrentHashMap()
+    internal val smartServiceStatusLoadedKeys: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    @Volatile internal var rideStatisticsGeneration: Int = 0
+    @Volatile internal var initialized: Boolean = false
+    @Volatile internal var initializing: Deferred<Unit>? = null
+    @Volatile internal var disposed: Boolean = false
 
     private val refreshLogic: OfficialCloudRefreshLogic = OfficialCloudRefreshLogic(this)
     private val operationsLogic: OfficialCloudOperationLogic = OfficialCloudOperationLogic(this, refreshLogic)
@@ -430,13 +446,13 @@ class OfficialCloudService(
     }
 
     internal fun setLoading(loading: Boolean) {
-        state = state.copyWith(loading = loading)
+        updateState { it.copyWith(loading = loading) }
     }
 
     internal suspend fun saveLinks(links: Map<String, String>) {
         val normalized = OfficialCloudVehicleLinks.normalize(links)
         storage.saveLinks(normalized)
-        state = state.copyWith(localVehicleLinks = normalized)
+        updateState { it.copyWith(localVehicleLinks = normalized) }
     }
 
     internal fun selectVehicleKey(
@@ -464,7 +480,7 @@ class OfficialCloudService(
     internal suspend fun handleAuthFailureIfNeeded(error: Throwable) {
         if (!OfficialCloudAuthParser.looksLikeAuthError(error)) return
         logout()
-        state = state.copyWith(error = "官方登录已失效，请重新登录")
+        updateState { it.copyWith(error = "官方登录已失效，请重新登录") }
     }
 
     internal fun isCurrentRideStatisticsRequest(

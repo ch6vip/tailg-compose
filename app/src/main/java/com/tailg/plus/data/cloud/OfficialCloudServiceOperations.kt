@@ -97,7 +97,7 @@ internal class OfficialCloudOperationLogic(
             service.storage.saveCredentials(token = token, phone = normalizedPhone, userId = userId)
             service.clearRefreshCache()
             service.rideStatisticsGeneration++
-            service.state = service.state.copyWith(
+            service.updateState { it.copyWith(
                 token = token,
                 phone = normalizedPhone,
                 userId = userId,
@@ -109,7 +109,7 @@ internal class OfficialCloudOperationLogic(
                 rideStatisticsLoading = false,
                 rideStatisticsError = null,
                 error = null,
-            )
+            ) }
             service.log.operation("官方云登录成功")
             coroutineScope {
                 val vehicles = async {
@@ -160,7 +160,7 @@ internal class OfficialCloudOperationLogic(
         service.clearRefreshCache()
         service.inFlightRefreshes.clear()
         service.rideStatisticsGeneration++
-        service.state = service.state.copyWith(
+        service.updateState { it.copyWith(
             token = "",
             phone = "",
             userId = "",
@@ -196,7 +196,7 @@ internal class OfficialCloudOperationLogic(
             systemMessages = emptyList(),
             messagesLoading = false,
             messagesError = null,
-        )
+        ) }
         // P1-4: tear down MQTT / BLE control sessions after the cloud session
         // is cleared. Registered by the host (e.g. MQTT + control routing).
         val sideEffects = service.afterLogoutSideEffects.toList()
@@ -249,7 +249,7 @@ internal class OfficialCloudOperationLogic(
         service.ensureSuccess(response.body, fallback = "更新昵称失败")
         if (!service.isCurrentSession(token)) return
         val next = (current ?: OfficialUserProfile()).copyWith(nickName = trimmed)
-        service.state = service.state.copyWith(userProfile = next)
+        service.updateState { it.copyWith(userProfile = next) }
         service.runSilentRefresh(
             { service.storage.saveUserProfile(next) },
             failureMessage = "官方用户资料缓存保存失败",
@@ -284,7 +284,7 @@ internal class OfficialCloudOperationLogic(
         if (changed) {
             // Per-vehicle data is stale after switching cars.
             service.rideStatisticsGeneration++
-            service.state = service.state.copyWith(
+            service.updateState { it.copyWith(
                 selectedVehicleKey = vehicle.key,
                 batteryInfo = null,
                 batteryInfoError = null,
@@ -301,9 +301,9 @@ internal class OfficialCloudOperationLogic(
                 ridePeriod = OfficialRidePeriod.DAY,
                 rideStatisticsLoading = false,
                 rideStatisticsError = null,
-            )
+            ) }
         } else {
-            service.state = service.state.copyWith(selectedVehicleKey = vehicle.key)
+            service.updateState { it.copyWith(selectedVehicleKey = vehicle.key) }
         }
         service.applySelectedVehicleToLocalProfile()
         if (changed) {
@@ -346,11 +346,11 @@ internal class OfficialCloudOperationLogic(
             } catch (e: Exception) {
                 if (!service.isCurrentSession(token)) throw e
                 val merged = listOf(vehicle) + service.state.vehicles.filter { it.carId != carId }
-                service.state = service.state.copyWith(
+                service.updateState { it.copyWith(
                     vehicles = merged,
                     selectedVehicleKey = vehicle.key,
                     error = null,
-                )
+                ) }
                 coroutineScope {
                     val saves = listOf(
                         async { service.storage.saveSelectedVehicleKey(vehicle.key) },
@@ -383,7 +383,7 @@ internal class OfficialCloudOperationLogic(
         if (nextAcc == current.acc && nextDefence == current.defenceStatus) return
         val updated = current.copyWith(acc = nextAcc, defenceStatus = nextDefence)
         val vehicles = service.state.vehicles.map { if (it.key == updated.key) updated else it }
-        service.state = service.state.copyWith(vehicles = vehicles)
+        service.updateState { it.copyWith(vehicles = vehicles) }
         service.runSilentRefresh(
             { service.storage.saveCarControlInfo(updated) },
             failureMessage = "官方车辆控制缓存保存失败",
@@ -435,7 +435,7 @@ internal class OfficialCloudOperationLogic(
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null) return
-        service.state = service.state.copyWith(fenceLoading = true, fenceError = null)
+        service.updateState { it.copyWith(fenceLoading = true, fenceError = null) }
         try {
             val response = service.apiClient.request(
                 "app/device/updFenceData",
@@ -458,15 +458,15 @@ internal class OfficialCloudOperationLogic(
             if (!service.isCurrentSession(token)) return
             service.handleAuthFailureIfNeeded(e)
             if (service.state.signedIn) {
-                service.state = service.state.copyWith(
+                service.updateState { it.copyWith(
                     fenceLoading = false,
                     fenceError = OfficialCloudRedactor.errorMessage(e),
-                )
+                ) }
             }
             throw e
         } finally {
             if (service.isCurrentSession(token) && service.state.fenceLoading) {
-                service.state = service.state.copyWith(fenceLoading = false)
+                service.updateState { it.copyWith(fenceLoading = false) }
             }
         }
     }
@@ -507,7 +507,7 @@ internal class OfficialCloudOperationLogic(
             }
             val selected = service.vehicleByKey(vehicles, service.state.selectedVehicleKey)
             service.storage.saveCarControlInfo(selected)
-            service.state = service.state.copyWith(vehicles = vehicles, error = null)
+            service.updateState { it.copyWith(vehicles = vehicles, error = null) }
             service.applySelectedVehicleToLocalProfile()
             service.log.operation("官方车辆昵称已更新", detail = normalizedCarId)
             try {
@@ -595,11 +595,11 @@ internal class OfficialCloudOperationLogic(
                 service.ensureSuccess(response.body, fallback = "清空消息失败")
             }
             if (!service.isCurrentSession(token)) return
-            service.state = service.state.copyWith(
+            service.updateState { it.copyWith(
                 vehicleMessages = emptyList(),
                 systemMessages = emptyList(),
                 messagesError = null,
-            )
+            ) }
             service.log.operation("官方消息已清空")
         } catch (e: Exception) {
             service.handleAuthFailureIfNeeded(e)
@@ -892,7 +892,7 @@ internal class OfficialCloudOperationLogic(
         // Stage candidate session in-memory (unverified). Do NOT save to disk yet.
         service.clearRefreshCache()
         service.rideStatisticsGeneration++
-        service.state = service.state.copyWith(
+        service.updateState { it.copyWith(
             token = token,
             phone = seedPhone.trim(),
             userId = seedUserId.trim(),
@@ -904,7 +904,7 @@ internal class OfficialCloudOperationLogic(
             rideStatisticsLoading = false,
             rideStatisticsError = null,
             error = null,
-        )
+        ) }
         val verifiedUserId: String
         val verifiedPhone = seedPhone.trim()
         try {
@@ -932,7 +932,7 @@ internal class OfficialCloudOperationLogic(
         }
         // Persist only after a successful server round-trip.
         service.storage.saveCredentials(token = token, phone = verifiedPhone, userId = verifiedUserId)
-        service.state = service.state.copyWith(userId = verifiedUserId)
+        service.updateState { it.copyWith(userId = verifiedUserId) }
     }
 
     private suspend fun abortCandidateSession() {
@@ -940,7 +940,7 @@ internal class OfficialCloudOperationLogic(
         service.clearRefreshCache()
         service.inFlightRefreshes.clear()
         service.rideStatisticsGeneration++
-        service.state = service.state.copyWith(
+        service.updateState { it.copyWith(
             token = "",
             phone = "",
             userId = "",
@@ -952,7 +952,7 @@ internal class OfficialCloudOperationLogic(
             rideStatisticsLoading = false,
             rideStatisticsError = null,
             error = null,
-        )
+        ) }
     }
 
     /** Delegates to [OfficialCloudAuthParser.normalizeAuthorizationToken]. */

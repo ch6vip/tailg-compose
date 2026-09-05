@@ -18,12 +18,12 @@ updates:
         update-types: ["version-update:semver-major"]
       - dependency-name: "androidx.hilt:hilt-navigation-compose"
         versions: [">=1.4.0"]
-      # Hilt 2.60+ requires AGP 9.0+ (app is on 8.9.x) — the Gradle plugin
+      # Hilt 2.59/2.60 Gradle plugin requires AGP 9.0+ (app is on 8.9.x) —
       # fails at apply time. Re-enable after the batch AGP/toolchain upgrade.
       - dependency-name: "com.google.dagger.hilt.android"
-        versions: [">=2.60.0"]
+        versions: [">=2.57.0"]
       - dependency-name: "hilt"
-        versions: [">=2.60.0"]
+        versions: [">=2.57.0"]
       # Kotlin 2.4 removed the `kotlinOptions{}` DSL and needs a matching KSP
       # bump dependabot can't coordinate — batch with the toolchain upgrade.
       - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"
@@ -35,6 +35,9 @@ updates:
       # material-kolor 5.x ships AAR metadata requiring compileSdk >= 37.
       - dependency-name: "com.materialkolor:material-kolor"
         versions: [">=3.0.0"]
+      # androidx.core 1.16+ requires a newer compileSdk than the app's 35.
+      - dependency-name: "androidx.core:core-ktx"
+        versions: [">=1.16.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

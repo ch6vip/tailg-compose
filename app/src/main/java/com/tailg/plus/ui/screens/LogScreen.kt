@@ -90,11 +90,15 @@ fun LogScreen(
 
   val cloud = cloudService
   val vehicleStore = entryPoint.vehicleStore()
-  val exportService = remember {
+  // The shared MQTT singleton — a fresh instance would always report
+  // "disconnected" in the diagnostic report.
+  val mqttService = entryPoint.mqttService()
+  val exportService = remember(vehicleStore, mqttService) {
     DiagnosticExportService(
       logService = log,
       vehicleStore = vehicleStore,
       officialCloudService = cloud,
+      officialMqttService = mqttService,
     )
   }
 

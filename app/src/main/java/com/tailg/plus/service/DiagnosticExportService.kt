@@ -50,11 +50,14 @@ class DiagnosticExportService(
   val logService: LogService,
   val vehicleStore: VehicleStore,
   val officialCloudService: OfficialCloudService,
-  officialMqttService: OfficialMqttService? = null,
+  /**
+   * The SHARED [OfficialMqttService] singleton. A freshly constructed instance
+   * would always report "disconnected" (its link state is per-instance), so
+   * callers must pass the DI-provided one — there is deliberately no default.
+   */
+  val officialMqttService: OfficialMqttService,
   clock: (() -> LocalDateTime)? = null,
 ) {
-  /** Dart `officialMqttService ?? OfficialMqttService()`. */
-  val officialMqttService: OfficialMqttService = officialMqttService ?: OfficialMqttService()
 
   /** Dart `_clock` — injectable report time for deterministic tests. */
   private val clock: (() -> LocalDateTime)? = clock

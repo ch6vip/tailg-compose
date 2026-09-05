@@ -15,6 +15,7 @@ import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.OfficialBatteryInfo
 import com.tailg.plus.data.model.OfficialVehicle
+import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
 import io.mockk.every
@@ -49,6 +50,7 @@ class DiagnosticExportServiceTest {
     logService = log,
     vehicleStore = store(),
     officialCloudService = cloud,
+    officialMqttService = OfficialMqttService(),
     clock = { generatedAt },
   )
 

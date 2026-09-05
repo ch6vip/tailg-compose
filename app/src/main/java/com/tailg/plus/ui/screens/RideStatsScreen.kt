@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.snap
@@ -313,13 +314,18 @@ private fun parseMeters(raw: String?): Float = raw?.trim()?.toFloatOrNull() ?: 0
  * a sliding window of [progress] so the whole page cascades in with a single
  * `Animatable` (no per-section timers). When reduce-motion is on the caller
  * seeds [progress] at 1f so this collapses to a no-op.
+ *
+ * [progress] is an [Animatable] read INSIDE the graphicsLayer block — reading
+ * the float in composition (the old `entranceSection(entrance.value, n)`)
+ * recomposed the whole RideStatsContent subtree on every animation frame;
+ * a draw-phase read only invalidates the layer.
  */
 @Composable
-private fun Modifier.entranceSection(progress: Float, index: Int): Modifier {
+private fun Modifier.entranceSection(progress: Animatable<Float, AnimationVector1D>, index: Int): Modifier {
   val offsetPx = with(LocalDensity.current) { 30.dp.toPx() }
-  val local = ((progress - index * 0.14f) / 0.55f).coerceIn(0f, 1f)
-  val eased = AppMotion.entranceCurve.transform(local)
   return this.graphicsLayer {
+    val local = ((progress.value - index * 0.14f) / 0.55f).coerceIn(0f, 1f)
+    val eased = AppMotion.entranceCurve.transform(local)
     alpha = eased
     translationY = (1f - eased) * offsetPx
   }
@@ -349,13 +355,13 @@ private fun RideStatsContent(
       .verticalScroll(rememberScrollState())
       .padding(bottom = 28.dp),
   ) {
-    Box(modifier = Modifier.entranceSection(entrance.value, 0)) {
+    Box(modifier = Modifier.entranceSection(entrance, 0)) {
       HeroDial(period = period, statistics = statistics)
     }
     Column(
       modifier = Modifier
         .fillMaxWidth()
-        .entranceSection(entrance.value, 1)
+        .entranceSection(entrance, 1)
         .clip(RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp))
         .background(CyberHomeColors.card)
         .padding(start = 20.dp, top = 22.dp, end = 20.dp, bottom = 10.dp),

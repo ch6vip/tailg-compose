@@ -665,7 +665,9 @@
     <string name="settings_theme">主题设置</string>
     <string name="settings_theme_desc">主题色、配色风格与明暗模式</string>
     <string name="theme_ui_mode_cyber">Cyber</string>
-    <string name="theme_ui_mode_monet">莫奈</string>
+    <string name="theme_ui_mode_monet">Monet</string>
+    <string name="theme_enable_monet">启用 Monet 颜色</string>
+    <string name="theme_enable_monet_summary">使用动态取色生成配色方案</string>
     <string name="theme_mode_system">跟随系统</string>
     <string name="theme_mode_light">浅色</string>
     <string name="theme_mode_dark">深色</string>

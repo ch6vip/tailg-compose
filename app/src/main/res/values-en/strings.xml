@@ -145,6 +145,8 @@
     <string name="settings_theme_desc">Key color, palette style and dark mode</string>
     <string name="theme_ui_mode_cyber">Cyber</string>
     <string name="theme_ui_mode_monet">Monet</string>
+    <string name="theme_enable_monet">Enable Monet colors</string>
+    <string name="theme_enable_monet_summary">Generate the scheme from dynamic color</string>
     <string name="theme_mode_system">Follow system</string>
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>

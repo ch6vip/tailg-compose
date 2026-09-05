@@ -41,15 +41,12 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Brightness1
-import androidx.compose.material.icons.filled.Brightness3
-import androidx.compose.material.icons.filled.Brightness4
-import androidx.compose.material.icons.filled.Brightness7
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.DesignServices
 import androidx.compose.material.icons.rounded.Style
+import androidx.compose.material.icons.rounded.Wallpaper
 import androidx.compose.material3.ButtonGroupDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.LargeFlexibleTopAppBar
@@ -91,20 +88,27 @@ import com.tailg.plus.ui.components.material.ExpressiveScaffold
 import com.tailg.plus.ui.components.material.ExpressiveToggleButton
 import com.tailg.plus.ui.components.material.SegmentedColumn
 import com.tailg.plus.ui.components.material.SegmentedDropdownItem
+import com.tailg.plus.ui.components.material.SegmentedSwitchItem
 import com.tailg.plus.ui.components.material.TonalCard
 import com.tailg.plus.ui.components.material.TopBarBackButton
 import com.tailg.plus.ui.components.material.expressiveTopAppBarColors
 import com.tailg.plus.ui.theme.ColorMode
+import com.tailg.plus.ui.theme.CyberDarkColorScheme
+import com.tailg.plus.ui.theme.CyberLightColorScheme
+import com.tailg.plus.ui.theme.UiMode
+import com.tailg.plus.ui.theme.amoledBackground
 import com.tailg.plus.ui.theme.keyColorOptions
 import com.tailg.plus.ui.theme.rememberTailgColorScheme
 import kotlinx.coroutines.launch
 
 /**
- * Faithful port of KernelSU's `ColorPaletteScreenMaterial` — the theme
- * customiser rendered with the same Material Expressive chrome: mini-phone
- * preview card, pie-slice key-colour swatches, connected mode button group and
- * segmented dropdowns for palette style / colour spec. Every change persists
- * through [AppPreferencesService] and re-themes the whole app live.
+ * Faithful port of KernelSU's theme customiser (ColorPaletteScreen, following
+ * the Miuix variant's structure): mini-phone preview card, text mode tabs
+ * (跟随系统/浅色/深色), an "启用 Monet 颜色" switch that gates the dynamic
+ * colour engine (off = static Cyber brand colours), pie-slice key-colour
+ * swatches and segmented dropdowns for palette style / colour spec. Every
+ * change persists through [AppPreferencesService] and re-themes the whole app
+ * live.
  */
 @Composable
 fun ThemeSettingsScreen(
@@ -114,6 +118,7 @@ fun ThemeSettingsScreen(
     val scope = rememberCoroutineScope()
     val prefs = preferencesService ?: rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
+    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
     val keyColor by prefs.keyColor.collectAsStateWithLifecycle(initialValue = 0)
     val colorStyleName by prefs.colorStyle.collectAsStateWithLifecycle(initialValue = PaletteStyle.TonalSpot.name)
     val colorSpecName by prefs.colorSpec.collectAsStateWithLifecycle(initialValue = ColorSpec.SpecVersion.SPEC_2025.name)
@@ -121,6 +126,7 @@ fun ThemeSettingsScreen(
     LaunchedEffect(Unit) { prefs.init() }
 
     val currentColorMode = ColorMode.fromValue(themeMode)
+    val monetOn = UiMode.fromValue(uiModeValue) == UiMode.MONET
     val colorStyle = try {
         PaletteStyle.valueOf(colorStyleName)
     } catch (_: Exception) {
@@ -165,17 +171,21 @@ fun ThemeSettingsScreen(
                 keyColor = keyColor,
                 isDark = isDark,
                 isAmoled = isAmoled,
+                monet = monetOn,
                 paletteStyle = colorStyle,
                 colorSpec = colorSpec,
             )
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            LazyRow(
-                modifier = Modifier.fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(16.dp),
-            ) {
+            // Key-colour swatches only drive the Monet engine — hidden while
+            // Monet is off, same as KernelSU Miuix's colour card.
+            AnimatedVisibility(visible = monetOn) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                ) {
                 item {
                     ColorButtonMaterial(
                         color = Color.Unspecified,
@@ -203,6 +213,7 @@ fun ThemeSettingsScreen(
                         }
                     )
                 }
+                }
             }
 
             Column(
@@ -211,20 +222,25 @@ fun ThemeSettingsScreen(
                     .padding(horizontal = 16.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                val options = listOf(
+                // Text mode tabs (KernelSU Miuix variant's TabRow): 跟随系统/浅色/深色.
+                val modeOptions = listOf(
                     ColorMode.SYSTEM to stringResource(R.string.theme_mode_system),
                     ColorMode.LIGHT to stringResource(R.string.theme_mode_light),
                     ColorMode.DARK to stringResource(R.string.theme_mode_dark),
-                    ColorMode.DARK_AMOLED to stringResource(R.string.theme_mode_amoled)
                 )
+                val selectedTabIndex = when (currentColorMode) {
+                    ColorMode.SYSTEM -> 0
+                    ColorMode.LIGHT -> 1
+                    ColorMode.DARK, ColorMode.DARK_AMOLED -> 2
+                }
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
                 ) {
-                    options.forEachIndexed { index, (mode, label) ->
+                    modeOptions.forEachIndexed { index, (mode, label) ->
                         ExpressiveToggleButton(
-                            checked = currentColorMode == mode,
+                            checked = selectedTabIndex == index,
                             onCheckedChange = {
                                 if (it) {
                                     haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
@@ -236,27 +252,38 @@ fun ThemeSettingsScreen(
                                 .semantics { role = Role.RadioButton },
                             shapes = when (index) {
                                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
-                                options.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
+                                modeOptions.lastIndex -> ButtonGroupDefaults.connectedTrailingButtonShapes()
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             },
                         ) {
-                            Icon(
-                                imageVector = when (mode) {
-                                    ColorMode.SYSTEM -> Icons.Filled.Brightness4
-                                    ColorMode.LIGHT -> Icons.Filled.Brightness7
-                                    ColorMode.DARK -> Icons.Filled.Brightness3
-                                    ColorMode.DARK_AMOLED -> Icons.Filled.Brightness1
-                                },
-                                contentDescription = label
+                            Text(
+                                text = label,
+                                style = MaterialTheme.typography.labelLarge,
+                                maxLines = 1
                             )
                         }
                     }
                 }
 
+                // Monet switch + colour controls — the dynamic engine is gated
+                // here, exactly like KernelSU Miuix's "启用 Monet 颜色" card.
                 SegmentedColumn(
                     modifier = Modifier.padding(top = 4.dp),
-                    content = listOf(
-                        {
+                    content = {
+                        item("monet") {
+                            SegmentedSwitchItem(
+                                icon = Icons.Rounded.Wallpaper,
+                                title = stringResource(R.string.theme_enable_monet),
+                                summary = stringResource(R.string.theme_enable_monet_summary),
+                                checked = monetOn,
+                                onCheckedChange = { on ->
+                                    scope.launch {
+                                        prefs.setUiMode(if (on) UiMode.MONET.value else UiMode.CYBER.value)
+                                    }
+                                }
+                            )
+                        }
+                        item("style", visible = monetOn) {
                             val styles = PaletteStyle.entries
                             SegmentedDropdownItem(
                                 icon = Icons.Rounded.Style,
@@ -267,8 +294,8 @@ fun ThemeSettingsScreen(
                                     scope.launch { prefs.setColorStyle(styles[index].name) }
                                 }
                             )
-                        },
-                        {
+                        }
+                        item("spec", visible = monetOn) {
                             val specs = ColorSpec.SpecVersion.entries
                             SegmentedDropdownItem(
                                 icon = Icons.Rounded.DesignServices,
@@ -280,7 +307,7 @@ fun ThemeSettingsScreen(
                                 }
                             )
                         }
-                    )
+                    }
                 )
 
                 TonalCard(modifier = Modifier.padding(top = 4.dp)) {
@@ -348,6 +375,7 @@ private fun ThemePreviewCard(
     keyColor: Int,
     isDark: Boolean,
     isAmoled: Boolean = false,
+    monet: Boolean = true,
     paletteStyle: PaletteStyle = PaletteStyle.TonalSpot,
     colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
 ) {
@@ -356,13 +384,18 @@ private fun ThemePreviewCard(
     val screenHeight = configuration.screenHeightDp.toFloat()
     val screenRatio = screenWidth / screenHeight
 
-    val colorScheme = rememberTailgColorScheme(
-        seedColor = if (keyColor == 0) Color.Unspecified else Color(keyColor),
-        isDark = isDark,
-        isAmoled = isAmoled,
-        paletteStyle = paletteStyle,
-        colorSpec = colorSpec,
-    )
+    val colorScheme = if (monet) {
+        rememberTailgColorScheme(
+            seedColor = if (keyColor == 0) Color.Unspecified else Color(keyColor),
+            isDark = isDark,
+            isAmoled = isAmoled,
+            paletteStyle = paletteStyle,
+            colorSpec = colorSpec,
+        )
+    } else {
+        // Monet off → static Cyber brand colours, mirroring TailgTheme.
+        (if (isDark) CyberDarkColorScheme else CyberLightColorScheme).amoledBackground(isAmoled)
+    }
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(

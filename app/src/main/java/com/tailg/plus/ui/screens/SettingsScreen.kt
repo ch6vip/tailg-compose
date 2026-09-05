@@ -89,7 +89,7 @@ fun SettingsScreen(
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
-  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.MONET.value)
+  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
   val currentUiMode = UiMode.fromValue(uiMode)
   val scope = androidx.compose.runtime.rememberCoroutineScope()
 

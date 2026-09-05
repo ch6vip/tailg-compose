@@ -37,7 +37,7 @@ enum class UiMode(val value: Int) {
     MONET(1);
 
     companion object {
-        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: MONET
+        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: CYBER
     }
 }
 
@@ -216,7 +216,7 @@ fun TailgTheme(
 ) {
     val prefs = rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
-    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.MONET.value)
+    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
     val keyColor by prefs.keyColor.collectAsStateWithLifecycle(initialValue = 0)
     val colorStyleName by prefs.colorStyle.collectAsStateWithLifecycle(initialValue = PaletteStyle.TonalSpot.name)
     val colorSpecName by prefs.colorSpec.collectAsStateWithLifecycle(initialValue = ColorSpec.SpecVersion.SPEC_2025.name)

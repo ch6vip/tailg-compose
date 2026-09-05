@@ -62,7 +62,8 @@ class AppPreferencesService(
 
     // UI style — Int values mirror `com.tailg.plus.ui.theme.UiMode`
     // (0 = static Cyber brand colours, 1 = dynamic Monet scheme).
-    private val _uiMode = MutableStateFlow(1)
+    // Cyber is the brand default; Monet is opt-in via 设置 → 界面风格.
+    private val _uiMode = MutableStateFlow(0)
     val uiMode: StateFlow<Int> = _uiMode.asStateFlow()
 
     // Key colour ARGB int; 0 = follow system (wallpaper) dynamic colour.
@@ -90,7 +91,7 @@ class AppPreferencesService(
         _distanceUnit.value = DistanceUnitPreference.fromValue(prefs[KEY_DISTANCE_UNIT])
         _respectTextScale.value = prefs[KEY_RESPECT_TEXT_SCALE] ?: true
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
-        _uiMode.value = prefs[KEY_UI_MODE] ?: 1
+        _uiMode.value = prefs[KEY_UI_MODE] ?: 0
         _keyColor.value = prefs[KEY_KEY_COLOR] ?: 0
         _colorStyle.value = prefs[KEY_COLOR_STYLE] ?: "TonalSpot"
         _colorSpec.value = prefs[KEY_COLOR_SPEC] ?: "SPEC_2025"

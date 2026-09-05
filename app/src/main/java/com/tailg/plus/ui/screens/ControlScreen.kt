@@ -20,6 +20,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.remember
@@ -639,7 +640,14 @@ fun ControlScreen(
       CommandCode.LOCK to strUnconfirmedLock,
       CommandCode.UNLOCK to strUnconfirmedUnlock,
     )
-    scope.launch {
+    // Launch on the ViewModel scope, NOT the composition scope: the send →
+    // MQTT-push confirmation (up to 8 s) → HTTP fallback chain must survive
+    // the user switching tabs mid-command — leaving composition used to
+    // cancel the coroutine, losing the commandLog.finish record and leaving
+    // the MQTT pending command unconsumed. Durable state (busy flag, command
+    // log) lives in the ViewModel; only the snack lines go stale after
+    // navigation, which is harmless.
+    viewModel.viewModelScope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)
         // Dart 749-777: 云服务决策门控 (非 BLE 路径检查 SIM 状态/服务到期)
@@ -812,7 +820,9 @@ fun ControlScreen(
     Unit
   }
   val latestEnsureNearFieldLink = rememberUpdatedState { auto: Boolean ->
-    scope.launch { ensureNearFieldLink(auto) }
+    // ViewModel scope: the BLE connect handshake must not die when the user
+    // navigates away mid-link (same rationale as the send chain).
+    viewModel.viewModelScope.launch { ensureNearFieldLink(auto) }
     Unit
   }
   val onTitleTap = remember { { latestOpenVehicleHeader.value() } }
@@ -941,10 +951,11 @@ fun ControlScreen(
         viewModel.setControlChannel(channel)
         viewModel.setShowChannelSheet(false)
         if (channel == OfficialControlChannel.BLE) {
-          // Silent BLE path: try linking the official vehicle now.
-          scope.launch { ensureNearFieldLink(auto = true) }
+          // Silent BLE path: try linking the official vehicle now. ViewModel
+          // scope — the connect handshake must survive navigation away.
+          viewModel.viewModelScope.launch { ensureNearFieldLink(auto = true) }
         } else if (channel == OfficialControlChannel.OFFICIAL_CLOUD && cloudState.signedIn) {
-          scope.launch { mqttService.preconnectForCloud(cloudService) }
+          viewModel.viewModelScope.launch { mqttService.preconnectForCloud(cloudService) }
         }
       },
       onDismiss = { viewModel.setShowChannelSheet(false) },

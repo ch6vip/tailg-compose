@@ -206,7 +206,7 @@ private fun ThemeModeSelector(
 }
 
 @Composable
-private fun colorModeLabel(mode: ColorMode): String = when (mode) {
+internal fun colorModeLabel(mode: ColorMode): String = when (mode) {
     ColorMode.SYSTEM -> stringResource(R.string.theme_mode_system)
     ColorMode.LIGHT -> stringResource(R.string.theme_mode_light)
     ColorMode.DARK -> stringResource(R.string.theme_mode_dark)

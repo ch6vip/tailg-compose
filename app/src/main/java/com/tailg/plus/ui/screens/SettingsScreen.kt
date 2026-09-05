@@ -15,23 +15,31 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
+import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.CyberCard
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.CyberSectionLabel
@@ -61,6 +69,7 @@ import com.tailg.plus.R
  * sub-page is folded into a separate [AdvancedDiagnosticsScreen] composable
  * (same file) so the route graph can wire it directly.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
   vehicleRouteId: String,
@@ -84,6 +93,7 @@ fun SettingsScreen(
     ColorMode.DARK_AMOLED -> stringResource(R.string.theme_mode_amoled)
   }
   val scope = androidx.compose.runtime.rememberCoroutineScope()
+  var showThemeModeSheet by remember { mutableStateOf(false) }
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
@@ -163,10 +173,7 @@ fun SettingsScreen(
           icon = Lucide.spark,
           title = stringResource(R.string.settings_ui_mode),
           subtitle = strThemeMode,
-          onClick = {
-            val next = ColorMode.entries[(currentColorMode.ordinal + 1) % ColorMode.entries.size]
-            scope.launch { prefs.setThemeMode(next.value) }
-          },
+          onClick = { showThemeModeSheet = true },
         ),
         settingItemModel(
           icon = Lucide.tune,
@@ -184,6 +191,61 @@ fun SettingsScreen(
           onClick = { onNavigate(Routes.ABOUT_APP) },
         ),
       )
+    }
+  }
+
+  // 界面风格 picker — KernelSU-style: tap the row, then choose from a sheet.
+  if (showThemeModeSheet) {
+    ModalBottomSheet(
+      onDismissRequest = { showThemeModeSheet = false },
+      containerColor = CyberHomeColors.card,
+    ) {
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(start = 20.dp, top = 18.dp, end = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = stringResource(R.string.settings_ui_mode),
+          modifier = Modifier.weight(1f),
+          style = TextStyle(fontSize = 18.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+        )
+        AppPressable(
+          onClick = { showThemeModeSheet = false },
+          semanticsLabel = stringResource(R.string.ride_stats_close),
+        ) {
+          LucideIcon(icon = Lucide.x, size = 20.dp, color = CyberHomeColors.inkMuted)
+        }
+      }
+      Spacer(Modifier.height(8.dp))
+      ColorMode.entries.forEach { mode ->
+        val isSelected = mode == currentColorMode
+        Row(
+          modifier = Modifier
+            .fillMaxWidth()
+            .clickable {
+              scope.launch { prefs.setThemeMode(mode.value) }
+              showThemeModeSheet = false
+            }
+            .padding(horizontal = 20.dp, vertical = 14.dp),
+          verticalAlignment = Alignment.CenterVertically,
+        ) {
+          Text(
+            text = colorModeLabel(mode),
+            modifier = Modifier.weight(1f),
+            style = TextStyle(
+              fontSize = 15.sp,
+              fontWeight = if (isSelected) FontWeight.W700 else FontWeight.W600,
+              color = if (isSelected) CyberHomeColors.primary else CyberHomeColors.ink,
+            ),
+          )
+          if (isSelected) {
+            LucideIcon(icon = Lucide.check, size = 18.dp, color = CyberHomeColors.primary)
+          }
+        }
+      }
+      Spacer(Modifier.height(20.dp))
     }
   }
 }

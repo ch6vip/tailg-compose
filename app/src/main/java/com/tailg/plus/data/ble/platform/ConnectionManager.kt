@@ -529,7 +529,9 @@ class ConnectionManager(
 
     if (context != null) setOfficialConnectionContext(context)
 
-    // Device is set by gattConnection.connectGatt() during connectDeviceWithRetry.
+    // Remember the session device: onDisconnected() needs it to start the
+    // auto-reconnect loop, and the public createBond/removeBond read it.
+    _device = device
     _lastKnownProtocol = ProtocolType.UNKNOWN
     setState(ConnectionState.CONNECTING)
     _reconnectCancelled = false // C-1: reset after setup
@@ -553,6 +555,7 @@ class ConnectionManager(
       log.ble("连接失败", detail = e.toString(), level = LogLevel.ERROR)
       clearRuntimeResources(disconnectDevice = true)
       resetCharacteristics()
+      _device = null
       setState(ConnectionState.DISCONNECTED)
       throw e
     }

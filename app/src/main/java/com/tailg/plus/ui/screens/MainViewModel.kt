@@ -10,6 +10,8 @@ import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
+import com.tailg.plus.service.InductionModeService
+import com.tailg.plus.service.ManualModeService
 import com.tailg.plus.util.ClipboardText
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
@@ -34,4 +36,6 @@ class MainViewModel @Inject constructor(
     val appPreferences: AppPreferencesService,
     val networkAvailability: NetworkAvailabilityService,
     val replicaFeatureStore: ReplicaFeatureStore,
+    val inductionModeService: InductionModeService,
+    val manualModeService: ManualModeService,
 ) : ViewModel()

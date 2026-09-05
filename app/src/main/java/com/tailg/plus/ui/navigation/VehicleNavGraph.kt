@@ -14,6 +14,8 @@ import com.tailg.plus.data.ble.platform.OfficialBleConnectionContext
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.store.VehicleStore
+import com.tailg.plus.service.InductionModeService
+import com.tailg.plus.service.ManualModeService
 import com.tailg.plus.ui.screens.AddVehicleScreen
 import com.tailg.plus.ui.screens.AdvancedDiagnosticsScreen
 import com.tailg.plus.ui.screens.BatteryDetailsScreen
@@ -61,6 +63,8 @@ fun NavGraphBuilder.vehicleNavGraph(
     connectionManager: ConnectionManager,
     mqttService: OfficialMqttService,
     vehicleStore: VehicleStore,
+    inductionService: InductionModeService,
+    manualModeService: ManualModeService,
     vehicleRouteId: String,
     context: Context,
 ) {
@@ -285,6 +289,8 @@ fun NavGraphBuilder.vehicleNavGraph(
             vehicleId = entry.arguments?.getString(Routes.ARG_VEHICLE_ID) ?: "",
             cloudService = cloudService,
             connectionManager = connectionManager,
+            inductionService = inductionService,
+            manualModeService = manualModeService,
             onBack = { navController.popBackStack() },
         )
     }

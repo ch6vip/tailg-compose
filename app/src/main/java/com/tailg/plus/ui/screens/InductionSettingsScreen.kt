@@ -24,7 +24,6 @@ import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -45,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.permission.AppPermissionService
-import com.tailg.plus.service.DataStoreInductionPrefs
 import com.tailg.plus.service.InductionModeService
 import com.tailg.plus.service.InductionModeSnapshot
 import com.tailg.plus.service.InductionStack
@@ -92,6 +90,8 @@ fun InductionSettingsScreen(
   onBack: () -> Unit,
   cloudService: OfficialCloudService,
   connectionManager: ConnectionManager,
+  inductionService: InductionModeService,
+  manualModeService: ManualModeService,
 ) {
   val context = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
@@ -115,26 +115,12 @@ fun InductionSettingsScreen(
   val strEnableFailed = stringResource(R.string.induction_enable_failed)
   val strInductionEnabled = stringResource(R.string.induction_enabled)
 
-  // Always the shared Hilt singleton — a private instance would be a second
-  // BLE manager that stays DISCONNECTED forever (and would hold the Activity
-  // context past this screen's lifetime).
-  val prefs = remember { DataStoreInductionPrefs(context) }
-  val manualModeService = remember { ManualModeService(prefs) }
-  val inductionService = remember {
-    InductionModeService(
-      cm = connectionManager,
-      context = context,
-      manual = manualModeService,
-      cloud = cloudService,
-      prefs = prefs,
-    )
-  }
+  // Shared Hilt singletons (provided via MainViewModel → nav graph) — a
+  // screen-private instance would be a second BLE manager that stays
+  // DISCONNECTED forever, hold the Activity context past this screen's
+  // lifetime, and desync manual-mode state. The singleton is NOT disposed
+  // when this screen leaves composition; it lives for the app lifetime.
   val permissionService = remember { AppPermissionService(context) }
-
-  // The mode service owns a coroutine scope + connection collector.
-  DisposableEffect(inductionService) {
-    onDispose { inductionService.dispose() }
-  }
 
   val snapshot by inductionService.snapshotFlow.collectAsStateWithLifecycle()
   val manualEnabled by manualModeService.enabledFlow.collectAsStateWithLifecycle()

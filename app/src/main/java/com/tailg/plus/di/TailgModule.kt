@@ -15,7 +15,11 @@ import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
 import com.tailg.plus.permission.AppPermissionService
+import com.tailg.plus.service.DataStoreInductionPrefs
+import com.tailg.plus.service.InductionModeService
+import com.tailg.plus.service.InductionPrefs
 import com.tailg.plus.service.LocationService
+import com.tailg.plus.service.ManualModeService
 import com.tailg.plus.ui.screens.VehicleStoreCloudAdapter
 import com.tailg.plus.util.ClipboardText
 import dagger.Module
@@ -157,5 +161,35 @@ object TailgModule {
     vehicleStore = vehicleStore,
     permissionService = permissionService,
     logService = log,
+  )
+
+  @Provides
+  @Singleton
+  fun provideInductionPrefs(
+    @ApplicationContext context: Context,
+  ): InductionPrefs = DataStoreInductionPrefs(context)
+
+  @Provides
+  @Singleton
+  fun provideManualModeService(
+    prefs: InductionPrefs,
+  ): ManualModeService = ManualModeService(prefs)
+
+  @Provides
+  @Singleton
+  fun provideInductionModeService(
+    @ApplicationContext context: Context,
+    cm: ConnectionManager,
+    manual: ManualModeService,
+    prefs: InductionPrefs,
+    cloud: OfficialCloudService,
+    log: LogService,
+  ): InductionModeService = InductionModeService(
+    cm = cm,
+    context = context,
+    manual = manual,
+    log = log,
+    cloud = cloud,
+    prefs = prefs,
   )
 }

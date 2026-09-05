@@ -216,6 +216,8 @@ private fun TailgNavHostContent(vm: MainViewModel) {
         connectionManager = vm.connectionManager,
         mqttService = vm.mqttService,
         vehicleStore = vm.vehicleStore,
+        inductionService = vm.inductionModeService,
+        manualModeService = vm.manualModeService,
         vehicleRouteId = vehicleRouteId,
         context = context,
       )

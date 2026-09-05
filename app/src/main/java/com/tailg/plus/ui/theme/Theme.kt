@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.theme
 
+import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
 import androidx.compose.material3.MaterialTheme
@@ -148,7 +149,13 @@ fun rememberTailgColorScheme(
 ): ColorScheme {
     val context = LocalContext.current
     val seed = if (seedColor == Color.Unspecified) {
-        (if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            (if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)).primary
+        } else {
+            // Pre-Android 12 has no Monet wallpaper colour; fall back to the
+            // Cyber brand blue so "follow system" still yields a coherent seed.
+            if (isDark) DarkCyberPalette.primary else LightCyberPalette.primary
+        }
     } else {
         seedColor
     }

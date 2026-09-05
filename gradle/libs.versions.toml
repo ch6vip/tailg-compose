@@ -29,7 +29,7 @@ androidxTestExtJunit = "1.2.1"
 espresso = "3.6.1"
 mockk = "1.13.14"
 profileinstaller = "1.4.1"
-materialKolor = "2.1.1"
+materialKolor = "5.0.1"
 
 [libraries]
 # AndroidX core

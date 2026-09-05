@@ -11,6 +11,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalDensity
@@ -215,6 +216,13 @@ private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
     }
 
 /**
+ * The active UI skin — set by [TailgTheme] alongside [LocalCyberPalette].
+ * Screens that render a skin-specific layout (e.g. the 九号 control home)
+ * branch on this instead of re-reading the preference store.
+ */
+val LocalUiMode = staticCompositionLocalOf { UiMode.CYBER }
+
+/**
  * Root theme. Resolves the persisted UI style (Cyber / 九号) and theme mode
  * (system / light / dark), maps the resulting scheme onto the semantic
  * [CyberPalette] and provides it via [LocalCyberPalette]. Mirrors KernelSU's
@@ -260,7 +268,10 @@ fun TailgTheme(
     val systemDensity = LocalDensity.current
     val scaledDensity = Density(systemDensity.density * pageScale, systemDensity.fontScale)
 
-    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+    CompositionLocalProvider(
+        LocalUiMode provides UiMode.fromValue(uiModeValue),
+        LocalDensity provides scaledDensity,
+    ) {
         MaterialExpressiveTheme(
             colorScheme = animatedScheme,
             motionScheme = MotionScheme.expressive(),

@@ -280,6 +280,10 @@
     <string name="vehicle_header_switch">Switch vehicle</string>
     <string name="control_card_find">Find vehicle</string>
     <string name="control_card_seat">Open seat</string>
+    <string name="ninebot_tile_battery">Battery</string>
+    <string name="ninebot_tile_horn">Flash &amp; horn</string>
+    <string name="ninebot_tile_induction">Inductive unlock</string>
+    <string name="ninebot_range_prefix">Range</string>
     <string name="control_grid_arm">Arm</string>
     <string name="control_grid_arm_title">Arm / disarm</string>
     <string name="control_grid_disarm">Disarm</string>

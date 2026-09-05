@@ -990,6 +990,10 @@
     <string name="location_refresh_hint">。可点刷新重新同步。</string>
     <string name="control_card_find">寻车</string>
     <string name="control_card_seat">打开坐垫</string>
+    <string name="ninebot_tile_battery">电池信息</string>
+    <string name="ninebot_tile_horn">闪灯鸣笛</string>
+    <string name="ninebot_tile_induction">感应解锁</string>
+    <string name="ninebot_range_prefix">续航</string>
     <string name="vehicle_header_online">在线</string>
     <string name="vehicle_header_offline">离线</string>
     <string name="vehicle_header_connected">已连接</string>

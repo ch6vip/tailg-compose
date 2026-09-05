@@ -112,10 +112,11 @@ fun CyberMapStatsRow(
 
 /** Mini map on osmdroid tiles (Dart flutter_map embed); tap opens the map page. */
 @Composable
-private fun MiniMap(
-  location: ResolvedVehicleLocation?,
-  address: String,
-  onMapTap: () -> Unit,
+internal fun MiniMap(
+    location: ResolvedVehicleLocation?,
+    address: String,
+    onMapTap: () -> Unit,
+    showFooter: Boolean = true,
 ) {
   val hasPin = location?.hasCoordinate == true
   val lat = location?.latitude
@@ -126,61 +127,61 @@ private fun MiniMap(
     "${stringResource(R.string.location_title)}：$address"
   }
 
-  Box(
-    modifier = Modifier
-      .fillMaxWidth()
-      .aspectRatio(1f)
-      .clip(RoundedCornerShape(AppRadii.sheet))
-      .background(CyberHomeColors.mapPlaceholder),
-  ) {
-    if (hasPin && lat != null && lng != null) {
-      MiniMapPreview(
-        latitude = lat,
-        longitude = lng,
-        modifier = Modifier.matchParentSize(),
-      )
-    }
     Box(
-      modifier = Modifier
-        .matchParentSize()
-        .semantics { contentDescription = mapDescription }
-        .clickable(
-          interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-          indication = null,
-          role = Role.Button,
-        ) { onMapTap() },
-    )
-    if (hasPin) {
-      Text(
-        text = "%.5f, %.5f".format(lat ?: 0.0, lng ?: 0.0),
-        style = androidx.compose.ui.text.TextStyle(fontSize = 10.sp, color = CyberHomeColors.inkFaint),
         modifier = Modifier
-          .align(Alignment.BottomCenter)
-          .padding(bottom = 34.dp)
-          .background(CyberHomeColors.card.copy(alpha = 0.85f), RoundedCornerShape(6.dp))
-          .padding(horizontal = 6.dp, vertical = 2.dp),
-      )
-    }
-    // Address footer chip.
-    Row(
-      modifier = Modifier
-        .align(Alignment.BottomStart)
-        .fillMaxWidth()
-        .background(CyberHomeColors.card.copy(alpha = 0.92f))
-        .padding(horizontal = 10.dp, vertical = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
+            .fillMaxWidth()
+            .aspectRatio(1f)
+            .clip(RoundedCornerShape(AppRadii.sheet))
+            .background(CyberHomeColors.mapPlaceholder),
     ) {
-      LucideIcon(icon = Lucide.mapPin, size = 13.dp, color = CyberHomeColors.primary)
-      Spacer(Modifier.width(5.dp))
-      Text(
-        text = address.ifEmpty { stringResource(R.string.map_stats_no_location) },
-        modifier = Modifier.weight(1f),
-        maxLines = 1,
-        overflow = TextOverflow.Ellipsis,
-        style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkMuted),
-      )
+        if (hasPin && lat != null && lng != null) {
+            MiniMapPreview(
+                latitude = lat,
+                longitude = lng,
+                modifier = Modifier.matchParentSize(),
+            )
+        }
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .semantics { contentDescription = mapDescription }
+                .clickable(
+                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
+                    indication = null,
+                    role = Role.Button,
+                ) { onMapTap() },
+        )
+        // Address footer chip — official style: opaque gray strip, dark text,
+        // no icon; raw coordinates (resolver fallback) render as 车辆定位.
+        // Hidden when the host card draws its own inset address strip.
+        if (showFooter) {
+            val footerText = address.trim()
+            val looksLikeCoords = Regex("^-?\\d+(\\.\\d+)?\\s*,\\s*-?\\d+(\\.\\d+)?$").containsMatchIn(footerText)
+            Row(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .background(CyberHomeColors.control)
+                    .padding(horizontal = 12.dp, vertical = 9.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = when {
+                        footerText.isEmpty() || looksLikeCoords -> stringResource(R.string.service_location)
+                        else -> footerText
+                    },
+                    modifier = Modifier.weight(1f),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    style = androidx.compose.ui.text.TextStyle(
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.W500,
+                        color = CyberHomeColors.ink.copy(alpha = 0.9f),
+                    ),
+                )
+            }
+        }
     }
-  }
 }
 
 @Composable

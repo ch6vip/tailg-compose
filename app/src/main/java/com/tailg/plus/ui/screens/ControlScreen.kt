@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import android.os.SystemClock
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
@@ -72,13 +73,20 @@ import com.tailg.plus.ui.components.CyberControlGrid
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
+import com.tailg.plus.ui.components.NinebotControlGrid
+import com.tailg.plus.ui.components.NinebotStatsRow
+import com.tailg.plus.ui.components.NinebotVehicleHeader
 import com.tailg.plus.ui.components.OfficialBleChipState
 import com.tailg.plus.ui.components.VehicleControlHomeGate
 import com.tailg.plus.ui.components.VehicleControlHomeGateKind
 import com.tailg.plus.ui.components.VehicleSwitchSheet
+import com.tailg.plus.ui.components.localizedLabel
+import com.tailg.plus.ui.components.ninebotPageBackground
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
+import com.tailg.plus.ui.theme.LocalUiMode
+import com.tailg.plus.ui.theme.UiMode
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -839,8 +847,15 @@ fun ControlScreen(
   val onSettings = remember { { latestOnNavigate.value(Routes.vehicleSettings("current")) } }
   val onSeat = remember { { latestSendCommand.value(CommandCode.OPEN_SEAT) } }
   val onNfc = remember { { latestOnNavigate.value(Routes.OFFICIAL_REPLICA) } }
+  val onInduction = remember {
+    { latestOnNavigate.value(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current")) }
+  }
   val onMapTap = remember { { latestOnNavigate.value(Routes.location("current")) } }
   val onRideStatsTap = remember { { latestOnNavigate.value(Routes.rideStats("current")) } }
+
+  // Skin switch: 九号 renders its own control home (real Lucide vectors,
+  // watermark vehicle stage, deck grid); Cyber keeps the original widgets.
+  val uiMode = LocalUiMode.current
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -858,52 +873,104 @@ fun ControlScreen(
         Column(
           modifier = Modifier
             .fillMaxSize()
+            .then(
+              if (uiMode == UiMode.NINEBOT) {
+                Modifier.background(ninebotPageBackground())
+              } else {
+                Modifier
+              }
+            )
             .verticalScroll(scrollState),
         ) {
-          CyberVehicleHeader(
-            vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
-            rangeText = rangeLabel(battery, distanceUnit),
-            carPhoto = cloudVehicle?.carPhoto ?: "",
-            batteryPercent = percent,
-            batteryKnown = battery.percent != null,
-            online = cloudVehicle?.online ?: false,
-            bluetoothConnected = connectionManager.isProtocolLoggedIn,
-            isLocked = isArmed ?: true,
-            powered = isPowerOn,
-            bleChip = bleChipState,
-            channelStatus = controlChannelStatus,
-            onTitleTap = onTitleTap,
-            onBatteryTap = onBatteryTap,
-            onBleChipTap = onBleChipTap,
-            onMessages = onMessages,
-            onChannelTap = onChannelTap,
-          )
-          Spacer(Modifier.height(18.dp))
-          CyberControlGrid(
-            powered = isPowerOn,
-            armed = isArmed,
-            busy = busy,
-            activeCommand = activeCommand?.toBleCommandCode(),
-            findAvailability = findAvailability,
-            powerAvailability = powerAvailability,
-            armAvailability = armAvailability,
-            seatAvailability = seatAvailability,
-            onFind = onFind,
-            onPowerToggle = onPowerToggle,
-            onArmToggle = onArmToggle,
-            onSettings = onSettings,
-            onSeat = onSeat,
-            onNfc = onNfc,
-          )
-          Spacer(Modifier.height(32.dp))
-          CyberMapStatsRow(
-            location = location,
-            address = locationTitle(location),
-            todayKm = todayRideLabel(cloudState, distanceUnit),
-            totalKm = totalMileageLabel(cloudState, distanceUnit),
-            onMapTap = onMapTap,
-            onRideStatsTap = onRideStatsTap,
-          )
+          if (uiMode == UiMode.NINEBOT) {
+            NinebotVehicleHeader(
+              vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
+              rangeText = rangeLabel(battery, distanceUnit),
+              carPhoto = cloudVehicle?.carPhoto ?: "",
+              batteryPercent = percent,
+              batteryKnown = battery.percent != null,
+              powered = isPowerOn,
+              channelLabel = controlChannelStatus.localizedLabel(),
+              bluetoothConnected = connectionManager.isProtocolLoggedIn,
+              onTitleTap = onTitleTap,
+              onBatteryTap = onBatteryTap,
+              onBleChipTap = onBleChipTap,
+              onMessages = onMessages,
+              onChannelTap = onChannelTap,
+            )
+            Spacer(Modifier.height(4.dp))
+            NinebotControlGrid(
+              powered = isPowerOn,
+              armed = isArmed,
+              busy = busy,
+              activeCommand = activeCommand?.toBleCommandCode(),
+              findAvailability = findAvailability,
+              powerAvailability = powerAvailability,
+              armAvailability = armAvailability,
+              seatAvailability = seatAvailability,
+              onFind = onFind,
+              onPowerToggle = onPowerToggle,
+              onArmToggle = onArmToggle,
+              onSettings = onSettings,
+              onSeat = onSeat,
+              onBattery = onBatteryTap,
+              onInduction = onInduction,
+            )
+            Spacer(Modifier.height(20.dp))
+            NinebotStatsRow(
+              location = location,
+              address = locationTitle(location),
+              todayKm = todayRideLabel(cloudState, distanceUnit),
+              totalKm = totalMileageLabel(cloudState, distanceUnit),
+              onMapTap = onMapTap,
+              onRideStatsTap = onRideStatsTap,
+            )
+          } else {
+            CyberVehicleHeader(
+              vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
+              rangeText = rangeLabel(battery, distanceUnit),
+              carPhoto = cloudVehicle?.carPhoto ?: "",
+              batteryPercent = percent,
+              batteryKnown = battery.percent != null,
+              online = cloudVehicle?.online ?: false,
+              bluetoothConnected = connectionManager.isProtocolLoggedIn,
+              isLocked = isArmed ?: true,
+              powered = isPowerOn,
+              bleChip = bleChipState,
+              channelStatus = controlChannelStatus,
+              onTitleTap = onTitleTap,
+              onBatteryTap = onBatteryTap,
+              onBleChipTap = onBleChipTap,
+              onMessages = onMessages,
+              onChannelTap = onChannelTap,
+            )
+            Spacer(Modifier.height(18.dp))
+            CyberControlGrid(
+              powered = isPowerOn,
+              armed = isArmed,
+              busy = busy,
+              activeCommand = activeCommand?.toBleCommandCode(),
+              findAvailability = findAvailability,
+              powerAvailability = powerAvailability,
+              armAvailability = armAvailability,
+              seatAvailability = seatAvailability,
+              onFind = onFind,
+              onPowerToggle = onPowerToggle,
+              onArmToggle = onArmToggle,
+              onSettings = onSettings,
+              onSeat = onSeat,
+              onNfc = onNfc,
+            )
+            Spacer(Modifier.height(32.dp))
+            CyberMapStatsRow(
+              location = location,
+              address = locationTitle(location),
+              todayKm = todayRideLabel(cloudState, distanceUnit),
+              totalKm = totalMileageLabel(cloudState, distanceUnit),
+              onMapTap = onMapTap,
+              onRideStatsTap = onRideStatsTap,
+            )
+          }
           if (commandActivities.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             CyberRecentCommands(commands = commandActivities)

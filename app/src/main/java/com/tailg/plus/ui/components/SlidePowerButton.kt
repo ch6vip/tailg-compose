@@ -88,6 +88,12 @@ fun SlidePowerButton(
   busy: Boolean = false,
   unavailableReason: String = "",
   onUnavailable: (suspend () -> Unit)? = null,
+  /** 九号皮肤复刻配色:thumb 深色圆钮/浅色圆钮,默认跟随 Cyber 令牌。 */
+  thumbBackground: androidx.compose.ui.graphics.Color? = null,
+  thumbContentColor: androidx.compose.ui.graphics.Color? = null,
+  trackBackground: androidx.compose.ui.graphics.Color? = null,
+  /** 官方九号轨道没有方向箭头,复刻时传 false 隐藏。 */
+  showTrackChevrons: Boolean = true,
 ) {
   val density = LocalDensity.current
   val haptics = LocalHapticFeedback.current
@@ -213,24 +219,26 @@ fun SlidePowerButton(
         modifier = Modifier
           .matchParentSize()
           .clip(RoundedCornerShape(999.dp))
-          .background(CyberHomeColors.controlStrong),
+          .background(trackBackground ?: CyberHomeColors.controlStrong),
       ) {
-        val arrow = if (isPowered == true) Lucide.chevronLeft else Lucide.chevronRight
-        Row(
-          modifier = Modifier.matchParentSize(),
-          horizontalArrangement = if (isPowered == true) Arrangement.Start else Arrangement.End,
-          verticalAlignment = Alignment.CenterVertically,
-        ) {
-          if (isPowered == true) Spacer(Modifier.width(15.dp))
-          repeat(3) { index ->
-            LucideIcon(
-              icon = arrow,
-              size = 20.dp,
-              color = CyberHomeColors.inkFaint.copy(alpha = 0.62f - index * 0.12f),
-            )
-            if (index < 2) Spacer(Modifier.width(1.dp))
+        if (showTrackChevrons) {
+          val arrow = if (isPowered == true) Lucide.chevronLeft else Lucide.chevronRight
+          Row(
+            modifier = Modifier.matchParentSize(),
+            horizontalArrangement = if (isPowered == true) Arrangement.Start else Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+          ) {
+            if (isPowered == true) Spacer(Modifier.width(15.dp))
+            repeat(3) { index ->
+              LucideIcon(
+                icon = arrow,
+                size = 20.dp,
+                color = CyberHomeColors.inkFaint.copy(alpha = 0.62f - index * 0.12f),
+              )
+              if (index < 2) Spacer(Modifier.width(1.dp))
+            }
+            if (isPowered != true) Spacer(Modifier.width(15.dp))
           }
-          if (isPowered != true) Spacer(Modifier.width(15.dp))
         }
       }
 
@@ -246,8 +254,8 @@ fun SlidePowerButton(
             this.translationX += shakeX.value
           }
           .size(ThumbSize.dp)
-          .background(CyberHomeColors.card, CircleShape)
-          .border(1.dp, CyberHomeColors.line, CircleShape)
+          .background(thumbBackground ?: CyberHomeColors.card, CircleShape)
+          .border(1.dp, thumbBackground?.copy(alpha = 0f) ?: CyberHomeColors.line, CircleShape)
           .pointerInput(canSlide, isPowered, maxDragPx) {
             if (!canSlide) return@pointerInput
             detectHorizontalDragGestures(
@@ -282,10 +290,10 @@ fun SlidePowerButton(
             CircularProgressIndicator(
               modifier = Modifier.size(24.dp),
               strokeWidth = 2.5.dp,
-              color = CyberHomeColors.ink,
+              color = thumbContentColor ?: CyberHomeColors.ink,
             )
           } else {
-            LucideIcon(icon = Lucide.power, size = 28.dp, color = CyberHomeColors.ink)
+            LucideIcon(icon = Lucide.power, size = 28.dp, color = thumbContentColor ?: CyberHomeColors.ink)
           }
         }
       }

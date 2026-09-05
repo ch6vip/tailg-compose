@@ -142,16 +142,23 @@ fun ProfileMineScreen(
   val strLoginNow = stringResource(R.string.profile_login_now)
   val strDefaultName = stringResource(R.string.profile_default_name)
 
-  // Sync message badge + silent profile refresh.
-  LaunchedEffect(cloudState) {
-    if (!signedIn) {
-      messageReadStore.setUnreadCount(0)
+  // Silent profile refresh — once per sign-in / tab entry, keyed on signedIn
+  // alone. Keying on the whole slice relaunched this effect (and re-fired the
+  // HTTP request) on every battery/location/message emission.
+  LaunchedEffect(signedIn) {
+    if (signedIn) {
+      cloudService.refreshUserProfile(silent = true)
     } else {
+      messageReadStore.setUnreadCount(0)
+    }
+  }
+  // Message badge — re-sync whenever the (signed-in) message lists change.
+  LaunchedEffect(signedIn, cloudState.vehicleMessages, cloudState.systemMessages) {
+    if (signedIn) {
       messageReadStore.syncFromCloudMessages(
         vehicleMessages = cloudState.vehicleMessages,
         systemMessages = cloudState.systemMessages,
       )
-      cloudService.refreshUserProfile(silent = true)
     }
   }
 

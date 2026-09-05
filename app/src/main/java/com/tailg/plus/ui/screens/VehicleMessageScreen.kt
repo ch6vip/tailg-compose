@@ -163,8 +163,9 @@ fun VehicleMessageScreen(
     )
   }
 
-  // Sync from cloud state changes.
-  LaunchedEffect(cloudState) {
+  // Sync from cloud state changes — keyed on the message lists only (keying
+  // the whole slice re-ran the badge sync on every unrelated emission).
+  LaunchedEffect(cloudState.vehicleMessages, cloudState.systemMessages) {
     messageReadStore.syncFromCloudMessages(
       vehicleMessages = cloudState.vehicleMessages,
       systemMessages = cloudState.systemMessages,

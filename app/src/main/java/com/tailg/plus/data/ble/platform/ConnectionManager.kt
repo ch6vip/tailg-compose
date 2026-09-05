@@ -108,6 +108,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.delay
@@ -237,7 +238,7 @@ class ConnectionManager(
   // Background jobs.
   private var heartbeatJob: Job? = null
   private var watchdogJob: Job? = null
-  private var reconnectJob: Job? = null
+  @Volatile private var reconnectJob: Job? = null
   private var eventLoopJob: Job? = null
 
   init {
@@ -505,26 +506,34 @@ class ConnectionManager(
       throw IllegalStateException("ConnectionManager disposed")
     }
 
-    // C-1: cancel any ongoing reconnect loop.
+    // C-1: cancel any ongoing reconnect loop and WAIT for it to unwind — the
+    // old 100 ms sleep left its in-flight connectGattOnce racing this connect
+    // (both installing _gatt/_connectDeferred; a failure teardown could then
+    // close the FRESH connection).
     _reconnectCancelled = true
-    if (_reconnecting) {
-      delay(100)
+    reconnectJob?.cancelAndJoin()
+    reconnectJob = null
+
+    // H-1: guard against double invocation. Guard + state flip under [lock]:
+    // the plain check-then-act let two concurrent connects both pass and
+    // overwrite each other's gatt/deferred slots.
+    synchronized(lock) {
+      val current = state
+      if (current == ConnectionState.CONNECTING ||
+        current == ConnectionState.CONNECTED ||
+        current == ConnectionState.READY
+      ) {
+        log.ble("connect() ignored: already in state $current")
+        return
+      }
+
+      _userDisconnected = false
+      _reconnecting = false
+      _reconnectAttempt = 0
+      _disconnectHandled = false
+      setState(ConnectionState.CONNECTING)
     }
 
-    // H-1: guard against double invocation.
-    val current = state
-    if (current == ConnectionState.CONNECTING ||
-      current == ConnectionState.CONNECTED ||
-      current == ConnectionState.READY
-    ) {
-      log.ble("connect() ignored: already in state $current")
-      return
-    }
-
-    _userDisconnected = false
-    _reconnecting = false
-    _reconnectAttempt = 0
-    _disconnectHandled = false
     clearRuntimeResources(disconnectDevice = false)
 
     if (context != null) setOfficialConnectionContext(context)
@@ -533,7 +542,6 @@ class ConnectionManager(
     // auto-reconnect loop, and the public createBond/removeBond read it.
     _device = device
     _lastKnownProtocol = ProtocolType.UNKNOWN
-    setState(ConnectionState.CONNECTING)
     _reconnectCancelled = false // C-1: reset after setup
 
     try {
@@ -2304,64 +2312,69 @@ class ConnectionManager(
     _reconnecting = true
     _reconnectAttempt = 0
 
-    while (_reconnectAttempt < MAX_RECONNECT_ATTEMPTS &&
-      state == ConnectionState.RECONNECTING
-    ) {
-      if (_reconnectCancelled) break
-      _reconnectAttempt++
-      val baseMs = 3000
-      val maxMs = 30000
-      val exponential = (baseMs * 2.0.pow(_reconnectAttempt - 1))
-        .toInt()
-        .coerceIn(baseMs, maxMs)
-      val jitter = Random.nextInt(500)
-      val delayMs = exponential + jitter
-      log.ble(
-        "重连 $_reconnectAttempt/$MAX_RECONNECT_ATTEMPTS，${delayMs / 1000}s 后重试",
-        level = LogLevel.INFO,
-      )
+    try {
+      while (_reconnectAttempt < MAX_RECONNECT_ATTEMPTS &&
+        state == ConnectionState.RECONNECTING
+      ) {
+        if (_reconnectCancelled) break
+        _reconnectAttempt++
+        val baseMs = 3000
+        val maxMs = 30000
+        val exponential = (baseMs * 2.0.pow(_reconnectAttempt - 1))
+          .toInt()
+          .coerceIn(baseMs, maxMs)
+        val jitter = Random.nextInt(500)
+        val delayMs = exponential + jitter
+        log.ble(
+          "重连 $_reconnectAttempt/$MAX_RECONNECT_ATTEMPTS，${delayMs / 1000}s 后重试",
+          level = LogLevel.INFO,
+        )
 
-      delay(delayMs.toLong())
+        delay(delayMs.toLong())
 
-      if (state != ConnectionState.RECONNECTING) break
-      if (_reconnectCancelled) break
+        if (state != ConnectionState.RECONNECTING) break
+        if (_reconnectCancelled) break
 
-      try {
-        connectGattOnce(_device!!, BleTimings.reconnectConnectTimeout)
+        try {
+          connectGattOnce(_device!!, BleTimings.reconnectConnectTimeout)
 
-        if (state != ConnectionState.RECONNECTING || _reconnectCancelled) {
-          try {
-            closeGatt()
-          } catch (e: Exception) {
-            log.ble("取消重连时断开失败", detail = e.toString(), level = LogLevel.DEBUG)
+          if (state != ConnectionState.RECONNECTING || _reconnectCancelled) {
+            try {
+              closeGatt()
+            } catch (e: Exception) {
+              log.ble("取消重连时断开失败", detail = e.toString(), level = LogLevel.DEBUG)
+            }
+            break
           }
-          break
+
+          setState(ConnectionState.CONNECTED)
+          requestQgjMtu(_device!!)
+          delay(BleTimings.serviceSetupDelay)
+          if (state != ConnectionState.CONNECTED || _reconnectCancelled) break
+          discoverAndSetup()
+
+          _reconnecting = false
+          _reconnectAttempt = 0
+          // P0-1: reset the guard so a second disconnect re-enters onDisconnected
+          // (original bug: the flag stayed set after a successful reconnect,
+          // freezing the app in reconnecting/ready).
+          _disconnectHandled = false
+          log.ble("重连成功", level = LogLevel.INFO)
+          return
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
+        } catch (e: Exception) {
+          log.ble("重连失败", detail = e.toString(), level = LogLevel.DEBUG)
+          recoverFailedConnect(e)
         }
-
-        setState(ConnectionState.CONNECTED)
-        requestQgjMtu(_device!!)
-        delay(BleTimings.serviceSetupDelay)
-        if (state != ConnectionState.CONNECTED || _reconnectCancelled) break
-        discoverAndSetup()
-
-        _reconnecting = false
-        _reconnectAttempt = 0
-        // P0-1: reset the guard so a second disconnect re-enters onDisconnected
-        // (original bug: the flag stayed set after a successful reconnect,
-        // freezing the app in reconnecting/ready).
-        _disconnectHandled = false
-        log.ble("重连成功", level = LogLevel.INFO)
-        return
-      } catch (e: kotlinx.coroutines.CancellationException) {
-        throw e
-      } catch (e: Exception) {
-        log.ble("重连失败", detail = e.toString(), level = LogLevel.DEBUG)
-        recoverFailedConnect(e)
       }
+    } finally {
+      // Cancellation (connect()/dispose() cancelled this job) must also clear
+      // the loop flags — the cancelled coroutine skips the tail below.
+      _reconnecting = false
+      _reconnectAttempt = 0
     }
 
-    _reconnecting = false
-    _reconnectAttempt = 0
     // Do NOT clobber a session that became ready/connected while sleeping.
     if (state == ConnectionState.RECONNECTING) {
       setState(ConnectionState.DISCONNECTED)

@@ -24,6 +24,17 @@ updates:
         versions: [">=2.60.0"]
       - dependency-name: "hilt"
         versions: [">=2.60.0"]
+      # Kotlin 2.4 removed the `kotlinOptions{}` DSL and needs a matching KSP
+      # bump dependabot can't coordinate — batch with the toolchain upgrade.
+      - dependency-name: "org.jetbrains.kotlin:kotlin-gradle-plugin"
+        versions: [">=2.2.0"]
+      - dependency-name: "kotlin"
+        versions: [">=2.2.0"]
+      - dependency-name: "ksp"
+        versions: [">=2.2.0"]
+      # material-kolor 5.x ships AAR metadata requiring compileSdk >= 37.
+      - dependency-name: "com.materialkolor:material-kolor"
+        versions: [">=3.0.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

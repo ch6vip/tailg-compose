@@ -218,10 +218,17 @@ private class FusedLocationProvider(
                 // addOnCanceledListener above handles cleanup.
             }
         } ?: throw TimeoutException("定位超时: ${timeout.inWholeSeconds}s 内未获取到位置")
+        // A null success result means no fix is available right now — surface
+        // it as a capture failure instead of fabricating (0,0), which
+        // recordVehicleLocation would otherwise persist as the vehicle's last
+        // known position.
+        if (location == null) {
+            throw LocationCaptureException("未能获取当前位置")
+        }
         return GeoPosition(
-            latitude = location?.latitude ?: 0.0,
-            longitude = location?.longitude ?: 0.0,
-            accuracy = (location?.accuracy ?: 0.0f).toDouble(),
+            latitude = location.latitude,
+            longitude = location.longitude,
+            accuracy = location.accuracy.toDouble(),
         )
     }
 }

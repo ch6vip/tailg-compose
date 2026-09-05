@@ -8,6 +8,16 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 5
+    # Blocked on a coordinated compileSdk/AGP bump: these releases ship AAR
+    # metadata requiring compileSdk >= 37 while the app is on 35 — merging
+    # them standalone fails `checkAarMetadata`. Re-enable after the next
+    # batch SDK/toolchain upgrade.
+    ignore:
+      - dependency-name: "com.squareup.okhttp3:okhttp"
+        versions: [">=5.0.0"]
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "androidx.hilt:hilt-navigation-compose"
+        versions: [">=1.4.0"]
   - package-ecosystem: github-actions
     directory: "/"
     schedule:

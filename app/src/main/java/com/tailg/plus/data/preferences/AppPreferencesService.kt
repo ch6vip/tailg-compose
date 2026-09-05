@@ -3,6 +3,7 @@ package com.tailg.plus.data.preferences
 import android.content.Context
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.floatPreferencesKey
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -67,6 +68,14 @@ class AppPreferencesService(
     private val _colorStyle = MutableStateFlow("TonalSpot")
     val colorStyle: StateFlow<String> = _colorStyle.asStateFlow()
 
+    // ColorSpec.SpecVersion name string (com.materialkolor.dynamiccolor.ColorSpec).
+    private val _colorSpec = MutableStateFlow("SPEC_2025")
+    val colorSpec: StateFlow<String> = _colorSpec.asStateFlow()
+
+    // Global page scale (KernelSU 界面缩放) — multiplies the root density.
+    private val _pageScale = MutableStateFlow(1.0f)
+    val pageScale: StateFlow<Float> = _pageScale.asStateFlow()
+
     private var initialized = false
 
     suspend fun init() {
@@ -78,6 +87,8 @@ class AppPreferencesService(
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
         _keyColor.value = prefs[KEY_KEY_COLOR] ?: 0
         _colorStyle.value = prefs[KEY_COLOR_STYLE] ?: "TonalSpot"
+        _colorSpec.value = prefs[KEY_COLOR_SPEC] ?: "SPEC_2025"
+        _pageScale.value = prefs[KEY_PAGE_SCALE] ?: 1.0f
         initialized = true
     }
 
@@ -129,6 +140,22 @@ class AppPreferencesService(
         }.onFailure { logService.operation("setColorStyle failed", detail = it.toString()) }
     }
 
+    suspend fun setColorSpec(value: String) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_COLOR_SPEC] = value }
+            _colorSpec.value = value
+        }.onFailure { logService.operation("setColorSpec failed", detail = it.toString()) }
+    }
+
+    suspend fun setPageScale(value: Float) {
+        if (!initialized) init()
+        runCatching {
+            context.dataStore.edit { it[KEY_PAGE_SCALE] = value }
+            _pageScale.value = value
+        }.onFailure { logService.operation("setPageScale failed", detail = it.toString()) }
+    }
+
     companion object {
         private val KEY_LANGUAGE = stringPreferencesKey("app_language_preference")
         private val KEY_DISTANCE_UNIT = stringPreferencesKey("app_distance_unit_preference")
@@ -136,5 +163,7 @@ class AppPreferencesService(
         private val KEY_THEME_MODE = intPreferencesKey("app_theme_mode")
         private val KEY_KEY_COLOR = intPreferencesKey("app_key_color")
         private val KEY_COLOR_STYLE = stringPreferencesKey("app_color_style")
+        private val KEY_COLOR_SPEC = stringPreferencesKey("app_color_spec")
+        private val KEY_PAGE_SCALE = floatPreferencesKey("app_page_scale")
     }
 }

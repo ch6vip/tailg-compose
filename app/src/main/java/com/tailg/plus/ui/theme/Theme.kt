@@ -3,11 +3,10 @@ package com.tailg.plus.ui.theme
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.darkColorScheme
+import androidx.compose.material3.MaterialExpressiveTheme
+import androidx.compose.material3.MotionScheme
 import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
-import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
@@ -16,10 +15,13 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.unit.Density
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.materialkolor.PaletteStyle
+import com.materialkolor.dynamiccolor.ColorSpec
 import com.materialkolor.rememberDynamicColorScheme
 import com.tailg.plus.di.rememberTailgEntryPoint
 
@@ -38,6 +40,7 @@ enum class ColorMode(val value: Int) {
         fun fromValue(value: Int): ColorMode = entries.firstOrNull { it.value == value } ?: SYSTEM
     }
 
+    val isSystem: Boolean get() = this == SYSTEM
     val isDark: Boolean get() = this == DARK || this == DARK_AMOLED
     val isAmoled: Boolean get() = this == DARK_AMOLED
 }
@@ -61,79 +64,19 @@ val keyColorOptions = listOf(
     Color(0xFFFF9CA8).toArgb(),
 )
 
-/** Dark VOID scheme — primary green neon, deep charcoal surfaces. */
-private val DarkColorScheme = darkColorScheme(
-    primary = AppColorsDark.primary,
-    onPrimary = Color(0xFF00382B),
-    primaryContainer = Color(0xFF0F3B31),
-    onPrimaryContainer = Color(0xFFB3FFE0),
-    secondary = AppColorsDark.accentSky,
-    onSecondary = Color(0xFF003355),
-    secondaryContainer = Color(0xFF123044),
-    onSecondaryContainer = Color(0xFFC9E8FF),
-    tertiary = AppColorsDark.accentViolet,
-    onTertiary = Color(0xFF241A5C),
-    tertiaryContainer = Color(0xFF33276B),
-    onTertiaryContainer = Color(0xFFE4DEFF),
-    background = AppColorsDark.pageBg,
-    onBackground = AppColorsDark.textPrimary,
-    surface = AppColorsDark.surface,
-    onSurface = AppColorsDark.textPrimary,
-    surfaceVariant = AppColorsDark.surfaceContainerHigh,
-    onSurfaceVariant = AppColorsDark.textSecondary,
-    surfaceContainerLowest = AppColorsDark.pageBg,
-    surfaceContainerLow = AppColorsDark.surfaceContainerLow,
-    surfaceContainer = AppColorsDark.surface,
-    surfaceContainerHigh = AppColorsDark.surfaceContainerHigh,
-    surfaceContainerHighest = Color(0xFF232C3E),
-    outline = AppColorsDark.outlineVariant,
-    outlineVariant = AppColorsDark.outlineVariant,
-    error = AppColorsDark.danger,
-    onError = Color(0xFF2A0008),
-    errorContainer = Color(0xFF3B0D18),
-    onErrorContainer = Color(0xFFFFDAD6),
-    inverseSurface = AppColorsDark.textPrimary,
-    inverseOnSurface = Color(0xFF2A2F3A),
-    inversePrimary = Color(0xFF006B4F),
-    scrim = Color.Black,
-)
+/** Port of KernelSU `ui/theme/Theme.kt` spec-version gating. */
+val PaletteStyle.supportsSpec2025: Boolean
+    get() = this == PaletteStyle.TonalSpot ||
+            this == PaletteStyle.Neutral ||
+            this == PaletteStyle.Vibrant ||
+            this == PaletteStyle.Expressive
 
-/** Light companion scheme. */
-private val LightColorScheme = lightColorScheme(
-    primary = AppColorsLight.primary,
-    onPrimary = Color.White,
-    primaryContainer = Color(0xFFB3F2E0),
-    onPrimaryContainer = Color(0xFF00382B),
-    secondary = AppColorsLight.accentSky,
-    onSecondary = Color.White,
-    secondaryContainer = Color(0xFFD6EBFF),
-    onSecondaryContainer = Color(0xFF0A3B5C),
-    tertiary = AppColorsLight.accentViolet,
-    onTertiary = Color.White,
-    tertiaryContainer = Color(0xFFE4DEFF),
-    onTertiaryContainer = Color(0xFF241A5C),
-    background = AppColorsLight.pageBg,
-    onBackground = AppColorsLight.textPrimary,
-    surface = AppColorsLight.surface,
-    onSurface = AppColorsLight.textPrimary,
-    surfaceVariant = AppColorsLight.surfaceContainerHigh,
-    onSurfaceVariant = AppColorsLight.textSecondary,
-    surfaceContainerLowest = Color.White,
-    surfaceContainerLow = AppColorsLight.surfaceContainerLow,
-    surfaceContainer = AppColorsLight.surface,
-    surfaceContainerHigh = AppColorsLight.surfaceContainerHigh,
-    surfaceContainerHighest = Color(0xFFDDE3EA),
-    outline = Color(0xFF8A93A5),
-    outlineVariant = AppColorsLight.outlineVariant,
-    error = AppColorsLight.danger,
-    onError = Color.White,
-    errorContainer = Color(0xFFFFDAD6),
-    onErrorContainer = Color(0xFF2A0008),
-    inverseSurface = Color(0xFF2A2F3A),
-    inverseOnSurface = Color(0xFFF4F6FA),
-    inversePrimary = Color(0xFF00A57C),
-    scrim = Color.Black,
-)
+fun ColorSpec.SpecVersion.effectiveFor(style: PaletteStyle): ColorSpec.SpecVersion =
+    if (this == ColorSpec.SpecVersion.SPEC_2025 && !style.supportsSpec2025) {
+        ColorSpec.SpecVersion.SPEC_2021
+    } else {
+        this
+    }
 
 /**
  * Builds the active Material You [ColorScheme]. When [seedColor] is
@@ -146,6 +89,7 @@ fun rememberTailgColorScheme(
     isDark: Boolean,
     isAmoled: Boolean,
     paletteStyle: PaletteStyle,
+    colorSpec: ColorSpec.SpecVersion = ColorSpec.SpecVersion.SPEC_2025,
 ): ColorScheme {
     val context = LocalContext.current
     val seed = if (seedColor == Color.Unspecified) {
@@ -164,14 +108,17 @@ fun rememberTailgColorScheme(
         isDark = isDark,
         isAmoled = isAmoled,
         style = paletteStyle,
-    )
+        specVersion = colorSpec.effectiveFor(paletteStyle),
+    ).amoledBackground(isAmoled)
 }
 
 /**
- * Root theme. Resolves the persisted theme mode / key colour / palette style,
- * derives a dynamic Material You [ColorScheme], maps it onto the semantic
- * [CyberPalette] and provides it via [LocalCyberPalette] so every screen (which
- * still reads [CyberHomeColors]) re-themes automatically.
+ * Root theme. Resolves the persisted theme mode / key colour / palette style /
+ * colour spec, derives a dynamic Material You [ColorScheme], maps it onto the
+ * semantic [CyberPalette] and provides it via [LocalCyberPalette] so every screen
+ * (which still reads [CyberHomeColors]) re-themes automatically. Mirrors
+ * KernelSU's `MaterialKernelSUTheme`: expressive motion + animated colour
+ * transitions + global page scale.
  */
 @Composable
 fun TailgTheme(
@@ -181,6 +128,8 @@ fun TailgTheme(
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
     val keyColor by prefs.keyColor.collectAsStateWithLifecycle(initialValue = 0)
     val colorStyleName by prefs.colorStyle.collectAsStateWithLifecycle(initialValue = PaletteStyle.TonalSpot.name)
+    val colorSpecName by prefs.colorSpec.collectAsStateWithLifecycle(initialValue = ColorSpec.SpecVersion.SPEC_2025.name)
+    val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     LaunchedEffect(Unit) { prefs.init() }
 
     val colorMode = ColorMode.fromValue(themeMode)
@@ -194,6 +143,11 @@ fun TailgTheme(
     } catch (_: Exception) {
         PaletteStyle.TonalSpot
     }
+    val colorSpec = try {
+        ColorSpec.SpecVersion.valueOf(colorSpecName)
+    } catch (_: Exception) {
+        ColorSpec.SpecVersion.SPEC_2025
+    }
     val seed = if (keyColor == 0) Color.Unspecified else Color(keyColor)
 
     val scheme = rememberTailgColorScheme(
@@ -201,8 +155,10 @@ fun TailgTheme(
         isDark = isDark,
         isAmoled = colorMode.isAmoled,
         paletteStyle = paletteStyle,
+        colorSpec = colorSpec,
     )
-    val palette = scheme.toCyberPalette()
+    val animatedScheme = scheme.animateAsState()
+    val palette = animatedScheme.toCyberPalette()
 
     // Keep the system bars legible as the theme flips between light and dark:
     // dark page → light status/nav icons, and a nav bar tinted to the page bg.
@@ -217,9 +173,15 @@ fun TailgTheme(
         window.navigationBarColor = palette.pageBg.toArgb()
     }
 
-    CompositionLocalProvider(LocalCyberPalette provides palette) {
-        MaterialTheme(
-            colorScheme = scheme,
+    // KernelSU's 界面缩放: scale the whole content by overriding the root
+    // density (font scale is preserved).
+    val systemDensity = LocalDensity.current
+    val scaledDensity = Density(systemDensity.density * pageScale, systemDensity.fontScale)
+
+    CompositionLocalProvider(LocalDensity provides scaledDensity) {
+        MaterialExpressiveTheme(
+            colorScheme = animatedScheme,
+            motionScheme = MotionScheme.expressive(),
             typography = TailgTypography,
             shapes = TailgShapes,
             content = content,

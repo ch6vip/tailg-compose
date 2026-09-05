@@ -224,7 +224,7 @@ fun ReplaceBatteryScreen(
                 shape = cyberTextFieldShape,
                 modifier = Modifier
                   .fillMaxWidth()
-                  .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
+                  .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable),
               )
               androidx.compose.material3.DropdownMenu(
                 expanded = expanded,
@@ -321,7 +321,7 @@ fun ReplaceBatteryScreen(
                     shape = cyberTextFieldShape,
                     modifier = Modifier
                       .fillMaxWidth()
-                      .menuAnchor(androidx.compose.material3.MenuAnchorType.PrimaryNotEditable),
+                      .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable),
                   )
                   androidx.compose.material3.DropdownMenu(
                     expanded = specExpanded,

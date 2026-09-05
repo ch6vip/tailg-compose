@@ -150,6 +150,9 @@
     <string name="theme_key_color">Key color</string>
     <string name="theme_key_color_system">Follow system</string>
     <string name="theme_color_style">Color style</string>
+    <string name="theme_color_spec">Color spec</string>
+    <string name="theme_page_scale">Page scale</string>
+    <string name="theme_page_scale_summary">Adjust the global display scale</string>
     <string name="settings_fault_diagnostics">Fault diagnostics</string>
     <string name="settings_fault_diagnostics_desc">Read vehicle error codes</string>
     <string name="settings_logs">Logs</string>

@@ -671,6 +671,9 @@
     <string name="theme_key_color">主题色</string>
     <string name="theme_key_color_system">跟随系统</string>
     <string name="theme_color_style">配色风格</string>
+    <string name="theme_color_spec">色彩标准</string>
+    <string name="theme_page_scale">界面缩放</string>
+    <string name="theme_page_scale_summary">调整全局显示比例</string>
     <string name="settings_fault_diagnostics">故障诊断</string>
     <string name="settings_fault_diagnostics_desc">读取车辆错误码</string>
     <string name="settings_logs">日志</string>

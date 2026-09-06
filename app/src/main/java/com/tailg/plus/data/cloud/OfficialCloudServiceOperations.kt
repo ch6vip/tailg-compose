@@ -14,7 +14,10 @@ import timber.log.Timber
 import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.withContext
 
 /**
  * Operation logic of `OfficialCloudService` — port of the login / logout /
@@ -76,7 +79,7 @@ internal class OfficialCloudOperationLogic(
         if (!OfficialCloudLoginValidator.isValidSmsCode(normalizedSms)) {
             throw OfficialCloudApiException("请输入短信验证码")
         }
-        service.setLoading(true)
+        val attempt = beginLogin()
         try {
             val response = service.apiClient.request(
                 "app/login",
@@ -94,22 +97,11 @@ internal class OfficialCloudOperationLogic(
                 throw OfficialCloudApiException("登录失败，未返回 token")
             }
             val userId = OfficialCloudAuthParser.extractUserId(response.body)
-            service.storage.saveCredentials(token = token, phone = normalizedPhone, userId = userId)
-            service.clearRefreshCache()
-            service.rideStatisticsGeneration++
-            service.updateState { it.copyWith(
-                token = token,
-                phone = normalizedPhone,
-                userId = userId,
-                userProfile = null,
-                vehicles = emptyList(),
-                selectedVehicleKey = null,
-                rideStatistics = null,
-                ridePeriod = OfficialRidePeriod.DAY,
-                rideStatisticsLoading = false,
-                rideStatisticsError = null,
-                error = null,
-            ) }
+            service.withSessionWrite {
+                ensureLoginAttempt(attempt)
+                service.replaceSession(token, normalizedPhone, userId, loading = true)
+                service.storage.saveCredentials(token = token, phone = normalizedPhone, userId = userId)
+            }
             service.log.operation("官方云登录成功")
             coroutineScope {
                 val vehicles = async {
@@ -125,7 +117,7 @@ internal class OfficialCloudOperationLogic(
                 profile.await()
             }
         } finally {
-            service.setLoading(false)
+            finishLogin(attempt)
         }
     }
 
@@ -142,76 +134,47 @@ internal class OfficialCloudOperationLogic(
             Timber.tag("TokenLogin").w("token empty after normalize, throwing")
             throw OfficialCloudApiException("请粘贴有效的官方 Token")
         }
-        service.setLoading(true)
+        val attempt = beginLogin()
         try {
-            hydrateOfficialSession(token = token, seedPhone = phone, seedUserId = userId)
+            hydrateOfficialSession(token = token, seedPhone = phone, seedUserId = userId, attempt = attempt)
             Timber.tag("TokenLogin").d("hydrateOfficialSession succeeded")
             service.log.operation("官方云 Token 登录成功")
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             Timber.tag("TokenLogin").e(e, "hydrateOfficialSession failed: ${e::class.simpleName}: ${e.message}")
             throw e
         } finally {
-            service.setLoading(false)
+            finishLogin(attempt)
         }
     }
 
-    suspend fun logout() {
-        service.storage.clearCredentialsAndSelection()
-        service.clearRefreshCache()
-        service.inFlightRefreshes.clear()
-        service.rideStatisticsGeneration++
-        service.updateState { it.copyWith(
-            token = "",
-            phone = "",
-            userId = "",
-            userProfile = null,
-            loading = false,
-            vehicles = emptyList(),
-            selectedVehicleKey = null,
-            error = null,
-            batteryInfo = null,
-            batteryInfoLoading = false,
-            batteryInfoError = null,
-            bmsInfo = null,
-            bmsInfoLoading = false,
-            bmsInfoError = null,
-            vehicleLocation = null,
-            vehicleLocationLoading = false,
-            vehicleLocationError = null,
-            fenceData = null,
-            fenceLoading = false,
-            fenceError = null,
-            travelDays = emptyList(),
-            travelMonth = "",
-            travelLoading = false,
-            travelError = null,
-            travelDetails = emptyMap(),
-            travelDetailLoading = false,
-            travelDetailError = null,
-            rideStatistics = null,
-            ridePeriod = OfficialRidePeriod.DAY,
-            rideStatisticsLoading = false,
-            rideStatisticsError = null,
-            vehicleMessages = emptyList(),
-            systemMessages = emptyList(),
-            messagesLoading = false,
-            messagesError = null,
-        ) }
-        // P1-4: tear down MQTT / BLE control sessions after the cloud session
-        // is cleared. Registered by the host (e.g. MQTT + control routing).
-        val sideEffects = service.afterLogoutSideEffects.toList()
-        for (effect in sideEffects) {
-            try {
-                effect()
-            } catch (e: Exception) {
-                service.log.operation(
-                    "退出登录后通道清理失败",
-                    detail = e.toString(),
-                    level = LogLevel.WARNING,
-                )
+    suspend fun logout(expectedToken: String? = null, expectedAttempt: Long? = null, error: String? = null) {
+        withContext(NonCancellable) {
+            service.withSessionWrite {
+                if (expectedToken != null && !service.isCurrentSession(expectedToken)) return@withSessionWrite
+                if (expectedAttempt != null && service.loginGeneration != expectedAttempt) return@withSessionWrite
+                service.loginGeneration++
+                // Invalidate in-memory state before the first disk suspension.
+                service.replaceSession()
+                service.updateState { it.copyWith(error = error) }
+                try {
+                    service.storage.clearCredentialsAndSelection()
+                } finally {
+                    for (effect in service.afterLogoutSideEffects.toList()) {
+                        try {
+                            effect()
+                        } catch (e: Exception) {
+                            service.log.operation(
+                                "退出登录后通道清理失败",
+                                detail = OfficialCloudRedactor.errorMessage(e),
+                                level = LogLevel.WARNING,
+                            )
+                        }
+                    }
+                }
+                service.log.operation("官方云已退出登录")
             }
         }
-        service.log.operation("官方云已退出登录")
     }
 
     // -- profile -------------------------------------------------------------
@@ -249,9 +212,9 @@ internal class OfficialCloudOperationLogic(
         service.ensureSuccess(response.body, fallback = "更新昵称失败")
         if (!service.isCurrentSession(token)) return
         val next = (current ?: OfficialUserProfile()).copyWith(nickName = trimmed)
-        service.updateState { it.copyWith(userProfile = next) }
+        service.updateSessionState(token) { it.copyWith(userProfile = next) }
         service.runSilentRefresh(
-            { service.storage.saveUserProfile(next) },
+            { service.persistCurrentUserProfile(token) },
             failureMessage = "官方用户资料缓存保存失败",
         )
         service.log.operation(
@@ -273,38 +236,23 @@ internal class OfficialCloudOperationLogic(
             override(vehicle)
             return
         }
-        val changed = service.state.selectedVehicleKey != vehicle.key
-        coroutineScope {
-            val saves = listOf(
-                async { service.storage.saveSelectedVehicleKey(vehicle.key) },
-                async { service.storage.saveCarControlInfo(vehicle) },
-            )
-            saves.forEach { it.await() }
+        val token = service.state.token
+        val changed = service.withSessionWrite {
+            service.ensureCurrentSession(token)
+            if (service.state.vehicles.none { it.key == vehicle.key }) {
+                throw OfficialCloudApiException("车辆列表已变化，请刷新后重试")
+            }
+            val changed = service.state.selectedVehicle?.key != vehicle.key
+            if (changed) {
+                service.lastSuccessfulRefresh.clear()
+                service.rideStatisticsGeneration.incrementAndGet()
+            }
+            service.updateSessionState(token) { it.withVehicleSelection(selectedKey = vehicle.key) }
+            service.storage.saveSelectedVehicleKey(vehicle.key)
+            service.storage.saveCarControlInfo(service.state.selectedVehicle)
+            changed
         }
-        if (changed) {
-            // Per-vehicle data is stale after switching cars.
-            service.rideStatisticsGeneration++
-            service.updateState { it.copyWith(
-                selectedVehicleKey = vehicle.key,
-                batteryInfo = null,
-                batteryInfoError = null,
-                bmsInfo = null,
-                bmsInfoError = null,
-                vehicleLocation = null,
-                vehicleLocationError = null,
-                fenceData = null,
-                fenceError = null,
-                travelDays = emptyList(),
-                travelDetails = emptyMap(),
-                travelError = null,
-                rideStatistics = null,
-                ridePeriod = OfficialRidePeriod.DAY,
-                rideStatisticsLoading = false,
-                rideStatisticsError = null,
-            ) }
-        } else {
-            service.updateState { it.copyWith(selectedVehicleKey = vehicle.key) }
-        }
+        service.ensureCurrentSession(token)
         service.applySelectedVehicleToLocalProfile()
         if (changed) {
             service.refreshVehicleDependents(refreshReplicaDetails = true)
@@ -344,19 +292,18 @@ internal class OfficialCloudOperationLogic(
                     preferredVehicleKey = vehicle.key,
                 )
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (!service.isCurrentSession(token)) throw e
-                val merged = listOf(vehicle) + service.state.vehicles.filter { it.carId != carId }
-                service.updateState { it.copyWith(
-                    vehicles = merged,
-                    selectedVehicleKey = vehicle.key,
-                    error = null,
-                ) }
-                coroutineScope {
-                    val saves = listOf(
-                        async { service.storage.saveSelectedVehicleKey(vehicle.key) },
-                        async { service.storage.saveCarControlInfo(vehicle) },
-                    )
-                    saves.forEach { it.await() }
+                service.withSessionWrite {
+                    service.ensureCurrentSession(token)
+                    service.lastSuccessfulRefresh.clear()
+                    service.rideStatisticsGeneration.incrementAndGet()
+                    service.updateSessionState(token) {
+                        val merged = listOf(vehicle) + it.vehicles.filter { existing -> existing.carId != carId }
+                        it.withVehicleSelection(merged, vehicle.key)
+                    }
+                    service.storage.saveSelectedVehicleKey(vehicle.key)
+                    service.storage.saveCarControlInfo(vehicle)
                 }
                 service.applySelectedVehicleToLocalProfile()
                 service.log.operation(
@@ -367,8 +314,9 @@ internal class OfficialCloudOperationLogic(
             }
             service.log.operation("官方当前车辆已切换", detail = carId)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -377,6 +325,7 @@ internal class OfficialCloudOperationLogic(
     fun applyMqttVehicleStatus(acc: Int?, defenceStatus: Int?) {
         if (service.disposed) return
         if (acc == null && defenceStatus == null) return
+        val token = service.state.token
         // Read-modify-write INSIDE the CAS transform: reading selectedVehicle
         // outside and then replacing the whole list used to clobber a
         // concurrent refreshVehicles result (the stale list snapshot won the
@@ -384,12 +333,12 @@ internal class OfficialCloudOperationLogic(
         val appliedHolder = java.util.concurrent.atomic.AtomicReference<
             com.tailg.plus.data.model.OfficialVehicle?
         >()
-        service.updateState { state ->
-            val current = state.selectedVehicle ?: return@updateState state
+        service.updateSessionState(token) { state ->
+            val current = state.selectedVehicle ?: return@updateSessionState state
             val nextAcc = acc ?: current.acc
             val nextDefence = defenceStatus ?: current.defenceStatus
             if (nextAcc == current.acc && nextDefence == current.defenceStatus) {
-                return@updateState state
+                return@updateSessionState state
             }
             val updated = current.copyWith(acc = nextAcc, defenceStatus = nextDefence)
             appliedHolder.set(updated)
@@ -401,7 +350,7 @@ internal class OfficialCloudOperationLogic(
         }
         val updated = appliedHolder.get() ?: return
         service.runSilentRefresh(
-            { service.storage.saveCarControlInfo(updated) },
+            { service.persistCurrentVehicle(token) },
             failureMessage = "官方车辆控制缓存保存失败",
         )
         service.log.operation(
@@ -443,7 +392,8 @@ internal class OfficialCloudOperationLogic(
                 refreshes.forEach { it.await() }
             }
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -454,7 +404,7 @@ internal class OfficialCloudOperationLogic(
         val token = service.state.token
         val vehicle = service.state.selectedVehicle
         if (token.isEmpty() || vehicle == null) return
-        service.updateState { it.copyWith(fenceLoading = true, fenceError = null) }
+        service.updateVehicleState(token, vehicle.key) { it.copyWith(fenceLoading = true, fenceError = null) }
         try {
             val response = service.apiClient.request(
                 "app/device/updFenceData",
@@ -470,22 +420,23 @@ internal class OfficialCloudOperationLogic(
                 retryPolicy = OfficialCloudRetryPolicy.TRANSPORT_ONLY,
             )
             service.ensureSuccess(response.body, fallback = "围栏设置保存失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
             refresh.refreshFenceData(silent = true, force = true)
             service.log.operation("官方电子围栏已更新")
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(
                     fenceLoading = false,
                     fenceError = OfficialCloudRedactor.errorMessage(e),
                 ) }
             }
             throw e
         } finally {
-            if (service.isCurrentSession(token) && service.state.fenceLoading) {
-                service.updateState { it.copyWith(fenceLoading = false) }
+            if (service.isCurrentVehicleSession(token, vehicle.key) && service.state.fenceLoading) {
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(fenceLoading = false) }
             }
         }
     }
@@ -517,21 +468,24 @@ internal class OfficialCloudOperationLogic(
             )
             service.ensureSuccess(response.body, fallback = "车辆昵称保存失败")
             if (!service.isCurrentSession(token)) return
-            val vehicles = service.state.vehicles.map { vehicle ->
-                if (vehicle.carId == normalizedCarId) {
-                    OfficialVehicle.fromJson(vehicle.toJson() + ("carNickName" to nick))
-                } else {
-                    vehicle
+            service.updateSessionState(token) { current ->
+                val vehicles = current.vehicles.map { vehicle ->
+                    if (vehicle.carId == normalizedCarId) {
+                        OfficialVehicle.fromJson(vehicle.toJson() + ("carNickName" to nick))
+                    } else {
+                        vehicle
+                    }
                 }
+                current.copyWith(vehicles = vehicles, error = null)
             }
-            val selected = service.vehicleByKey(vehicles, service.state.selectedVehicleKey)
-            service.storage.saveCarControlInfo(selected)
-            service.updateState { it.copyWith(vehicles = vehicles, error = null) }
+            service.persistCurrentVehicle(token)
+            service.ensureCurrentSession(token)
             service.applySelectedVehicleToLocalProfile()
             service.log.operation("官方车辆昵称已更新", detail = normalizedCarId)
             try {
                 refresh.refreshVehicles(silent = true, refreshReplicaDetails = true, force = true, preferredVehicleKey = null)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 // Keep the optimistic local nick if the status refresh fails.
                 service.log.operation(
                     "官方车辆列表刷新失败（昵称已写回）",
@@ -540,8 +494,9 @@ internal class OfficialCloudOperationLogic(
                 )
             }
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -567,7 +522,8 @@ internal class OfficialCloudOperationLogic(
                 key.toString() to (value == true || value == "1" || value == 1)
             }
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -592,7 +548,8 @@ internal class OfficialCloudOperationLogic(
             }
             service.log.operation("消息推送偏好已更新")
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -621,7 +578,8 @@ internal class OfficialCloudOperationLogic(
             ) }
             service.log.operation("官方消息已清空")
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -679,8 +637,9 @@ internal class OfficialCloudOperationLogic(
             )
             return result
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             service.log.operation(
                 "官方云端自检失败",
                 detail = OfficialCloudRedactor.errorMessage(e),
@@ -723,8 +682,9 @@ internal class OfficialCloudOperationLogic(
             service.refreshVehiclesAfterCommand(command)
             return if (message.isNullOrEmpty()) "success" else message
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -766,8 +726,9 @@ internal class OfficialCloudOperationLogic(
                 detail = "carId=${SensitiveValueMasker.compact(id)} flag=$operatorFlag",
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -801,8 +762,9 @@ internal class OfficialCloudOperationLogic(
             service.ensureCurrentSession(token)
             service.log.operation(if (enabled) "KKS 感应解锁已开启" else "KKS 感应解锁已关闭")
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -836,8 +798,9 @@ internal class OfficialCloudOperationLogic(
             refresh.refreshVehicles(silent = false, refreshReplicaDetails = true, force = true, preferredVehicleKey = null)
             service.log.operation("官方 IMEI 绑车成功")
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -869,8 +832,9 @@ internal class OfficialCloudOperationLogic(
             refresh.refreshVehicles(silent = false, refreshReplicaDetails = true, force = true, preferredVehicleKey = null)
             service.log.operation("官方解绑成功", detail = id)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -892,7 +856,10 @@ internal class OfficialCloudOperationLogic(
             method = "POST",
             token = token,
             body = mapOf("imei" to id),
+            retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
         )
+        service.ensureSuccess(response.body, fallback = "获取固件版本失败")
+        service.ensureCurrentSession(token)
         val data = response.body["data"]
         if (data is Map<*, *>) {
             return parsePersistedMap(data) ?: emptyMap()
@@ -907,71 +874,57 @@ internal class OfficialCloudOperationLogic(
      * verify it with a real server round-trip, then persist. Any failure
      * aborts the candidate session.
      */
-    private suspend fun hydrateOfficialSession(token: String, seedPhone: String, seedUserId: String) {
-        // Stage candidate session in-memory (unverified). Do NOT save to disk yet.
-        service.clearRefreshCache()
-        service.rideStatisticsGeneration++
-        service.updateState { it.copyWith(
-            token = token,
-            phone = seedPhone.trim(),
-            userId = seedUserId.trim(),
-            userProfile = null,
-            vehicles = emptyList(),
-            selectedVehicleKey = null,
-            rideStatistics = null,
-            ridePeriod = OfficialRidePeriod.DAY,
-            rideStatisticsLoading = false,
-            rideStatisticsError = null,
-            error = null,
-        ) }
-        val verifiedUserId: String
+    private suspend fun hydrateOfficialSession(token: String, seedPhone: String, seedUserId: String, attempt: Long) {
         val verifiedPhone = seedPhone.trim()
         try {
-            Timber.tag("TokenLogin").d("hydrate: calling refreshVehicles to verify token")
-            refresh.refreshVehicles(silent = false, refreshReplicaDetails = true, force = false, preferredVehicleKey = null)
-            Timber.tag("TokenLogin").d("hydrate: refreshVehicles succeeded, vehicles=${service.state.vehicles.size}")
-            refresh.refreshUserProfile(silent = true, force = false)
-            Timber.tag("TokenLogin").d("hydrate: refreshUserProfile succeeded")
-            // userId first from profile, then from current state, then the seed.
-            val profileUserId = service.state.userProfile?.id?.trim() ?: ""
-            val stateUserId = service.state.userId.trim()
-            verifiedUserId = if (profileUserId.isNotEmpty()) {
-                profileUserId
-            } else if (stateUserId.isNotEmpty()) {
-                stateUserId
-            } else {
-                seedUserId.trim()
+            service.withSessionWrite {
+                ensureLoginAttempt(attempt)
+                service.replaceSession(token, verifiedPhone, seedUserId.trim(), loading = true)
+                service.storage.clearCredentialsAndSelection()
             }
-            Timber.tag("TokenLogin").d("hydrate: verifiedUserId=$verifiedUserId")
+            Timber.tag("TokenLogin").d("hydrate: calling refreshVehicles to verify token")
+            refresh.refreshVehicles(silent = false, force = true, refreshDependents = false)
+            service.ensureCurrentSession(token)
+            Timber.tag("TokenLogin").d("hydrate: refreshVehicles succeeded, vehicles=${service.state.vehicles.size}")
+            refresh.refreshUserProfile(silent = true, force = true)
+            service.ensureCurrentSession(token)
+            Timber.tag("TokenLogin").d("hydrate: refreshUserProfile succeeded")
+            service.withSessionWrite {
+                ensureLoginAttempt(attempt)
+                service.ensureCurrentSession(token)
+                val verifiedUserId = service.state.userProfile?.id?.trim()?.takeIf { it.isNotEmpty() }
+                    ?: service.state.userId.trim().ifEmpty { seedUserId.trim() }
+                service.storage.saveCredentials(token = token, phone = verifiedPhone, userId = verifiedUserId)
+                // saveCredentials deliberately removes the previous account's cache.
+                // Restore this verified session only after credentials have been saved.
+                service.storage.saveSelectedVehicleKey(service.state.selectedVehicleKey)
+                service.storage.saveCarControlInfo(service.state.selectedVehicle)
+                service.storage.saveUserProfile(service.state.userProfile)
+                service.updateSessionState(token) { it.copyWith(userId = verifiedUserId) }
+            }
+            service.refreshVehicleDependents(refreshReplicaDetails = true)
         } catch (e: Exception) {
-            // Verification failed: the token is not a usable session.
-            Timber.tag("TokenLogin").e(e, "hydrate: verification FAILED: ${e::class.simpleName}: ${e.message}")
-            abortCandidateSession()
+            logout(expectedAttempt = attempt)
             throw e
         }
-        // Persist only after a successful server round-trip.
-        service.storage.saveCredentials(token = token, phone = verifiedPhone, userId = verifiedUserId)
-        service.updateState { it.copyWith(userId = verifiedUserId) }
     }
 
-    private suspend fun abortCandidateSession() {
-        service.storage.clearCredentialsAndSelection()
-        service.clearRefreshCache()
-        service.inFlightRefreshes.clear()
-        service.rideStatisticsGeneration++
-        service.updateState { it.copyWith(
-            token = "",
-            phone = "",
-            userId = "",
-            userProfile = null,
-            vehicles = emptyList(),
-            selectedVehicleKey = null,
-            rideStatistics = null,
-            ridePeriod = OfficialRidePeriod.DAY,
-            rideStatisticsLoading = false,
-            rideStatisticsError = null,
-            error = null,
-        ) }
+    private suspend fun beginLogin(): Long = service.withSessionWrite {
+        service.loginGeneration++
+        service.setLoading(true)
+        service.loginGeneration
+    }
+
+    private fun ensureLoginAttempt(attempt: Long) {
+        if (service.disposed || service.loginGeneration != attempt) {
+            throw OfficialCloudApiException("官方登录状态已变化，请重试")
+        }
+    }
+
+    private suspend fun finishLogin(attempt: Long) = withContext(NonCancellable) {
+        service.withSessionWrite {
+            if (service.loginGeneration == attempt) service.setLoading(false)
+        }
     }
 
     /** Delegates to [OfficialCloudAuthParser.normalizeAuthorizationToken]. */

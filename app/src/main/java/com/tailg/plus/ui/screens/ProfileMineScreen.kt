@@ -61,7 +61,7 @@ import com.tailg.plus.data.model.OfficialCloudMessage
 import com.tailg.plus.data.model.OfficialCloudMessageCategory
 import com.tailg.plus.data.model.OfficialUserProfile
 import com.tailg.plus.data.model.OfficialVehicle
-import com.tailg.plus.data.store.MessageReadStore
+import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.ui.components.AppPressable
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
@@ -99,8 +99,7 @@ fun ProfileMineScreen(
   modifier: Modifier = Modifier,
   onSignedOut: () -> Unit = { onNavigate(com.tailg.plus.ui.navigation.Routes.LOGIN) },
 ) {
-  val context = androidx.compose.ui.platform.LocalContext.current
-  val messageReadStore = remember { MessageReadStore(context) }
+  val messageReadStore = rememberTailgEntryPoint().messageReadStore()
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   // Narrow cloud projection — this tab reads login identity (signedIn / phone /

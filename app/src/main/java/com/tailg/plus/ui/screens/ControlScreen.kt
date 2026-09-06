@@ -273,8 +273,6 @@ fun ControlScreen(
       allowCloudMetadataWithoutCoordinate = true,
     )
   }
-  val isPowerOn = currentPowerState(bleBikeState, cloudVehicle)
-  val isArmed = currentLockState(bleBikeState, cloudVehicle)
   val percent = battery.percent ?: 0
   val signedIn = cloudState.signedIn
   val hasVehicle = cloudVehicle != null
@@ -289,22 +287,25 @@ fun ControlScreen(
   }
 
   val controlAvailability = remember(controlCloudState, bleState, busy, controlChannel, networkReady) {
-    ControlChannelResolver.resolve(
+    connectionManager.resolveControlAvailability(
       cloudState = controlCloudState,
-      bleReady = connectionManager.isProtocolLoggedIn,
-      bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-      defaultVehicleId = vehicleStore.defaultVehicle?.id,
       channel = controlChannel,
       busy = busy,
       networkReady = networkReady,
     )
   }
 
+  val selectedBleReady = remember(controlCloudState, bleState) {
+    connectionManager.resolveControlAvailability(controlCloudState, OfficialControlChannel.BLE).canUseBle
+  }
+  val isPowerOn = currentPowerState(bleBikeState.takeIf { selectedBleReady }, cloudVehicle)
+  val isArmed = currentLockState(bleBikeState.takeIf { selectedBleReady }, cloudVehicle)
+
   val controlChannelStatus = remember(controlAvailability, bleState, mqttLinkState) {
     ControlTopBarChannel.resolve(
       availability = controlAvailability,
       bleState = bleState,
-      bleProtocolLoggedIn = connectionManager.isProtocolLoggedIn,
+      bleProtocolLoggedIn = selectedBleReady,
       mqttLinkState = mqttLinkState,
       mqttPreconnectInFlight = mqttService.preconnectInFlight,
       mqttLastPreconnectError = mqttService.lastPreconnectError,
@@ -315,11 +316,8 @@ fun ControlScreen(
   // once avoids four identical ControlChannelResolver.resolve() passes per
   // recomposition (each keyed remember block used to re-run the same resolve).
   val baseAvailability = remember(controlCloudState, bleState, controlChannel, networkReady) {
-    ControlChannelResolver.resolve(
+    connectionManager.resolveControlAvailability(
       cloudState = controlCloudState,
-      bleReady = connectionManager.isProtocolLoggedIn,
-      bleNotReadyReason = connectionManager.protocolLoginUnavailableReason,
-      defaultVehicleId = vehicleStore.defaultVehicle?.id,
       channel = controlChannel,
       busy = false,
       networkReady = networkReady,
@@ -382,17 +380,20 @@ fun ControlScreen(
           refreshDependents = false,
         )
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Cyber 首页静默刷新失败", detail = e.toString(), level = LogLevel.WARNING)
       }
       try {
         cloudService.refreshMessages(silent = true)
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Cyber 首页消息静默刷新失败", detail = e.toString(), level = LogLevel.WARNING)
       }
       delay(CONTROL_ENTRY_DEPENDENTS_DELAY_MS)
       try {
         cloudService.refreshVehicles(silent = true, refreshReplicaDetails = true)
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Cyber 首页依赖数据刷新失败", detail = e.toString(), level = LogLevel.WARNING)
       }
     }
@@ -401,7 +402,7 @@ fun ControlScreen(
 
   fun handleRefresh() {
     if (!cloudService.currentState.signedIn) {
-      scope.launch { AppSnack.info(snackbarHostState, OfficialCloudMessages.SIGN_IN_REQUIRED) }
+      AppSnack.info(scope, snackbarHostState, OfficialCloudMessages.SIGN_IN_REQUIRED)
       return
     }
     scope.launch {
@@ -412,8 +413,9 @@ fun ControlScreen(
         cloudService.refreshRideStatistics(period = OfficialRidePeriod.DAY, force = true, silent = true)
         cloudService.refreshMessages(force = true, silent = true)
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Cyber 首页下拉刷新失败", detail = e.toString(), level = LogLevel.WARNING)
-        AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+        AppSnack.error(scope, snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
     }
   }
@@ -441,6 +443,7 @@ fun ControlScreen(
         )
       }
     } catch (e: Exception) {
+      if (e is CancellationException) throw e
       log.operation("Cyber 控车后确认车辆状态失败", detail = e.toString(), level = LogLevel.WARNING)
     }
   }
@@ -488,10 +491,8 @@ fun ControlScreen(
     // stretch or truncate the confirmation window.
     val startedAt = SystemClock.elapsedRealtime()
 
-    fun mqttAckedNow(): Boolean = ControlCommandConfirmation.mqttPendingAcknowledged(
-      pendingAtSend = mqttPendingAtSend,
-      pendingNow = mqttService.pendingCommandApiName,
-    )
+    fun mqttAckedNow(): Boolean = !mqttPendingAtSend.isNullOrBlank() &&
+      mqttService.acknowledgedCommandApiName == mqttPendingAtSend
 
     // Snapshot check. For commands that only need the MQTT response, only the
     // ACK (plus the same-vehicle guard) confirms — poll-loop semantics before
@@ -560,8 +561,8 @@ fun ControlScreen(
    *  path for channel-switch auto-link).
    */
   suspend fun ensureNearFieldLink(auto: Boolean = false) {
-    if (connectionManager.isProtocolLoggedIn) {
-      AppSnack.info(snackbarHostState, strBleConnected)
+    if (connectionManager.resolveControlAvailability(cloudService.currentState.asControlCloudState(), OfficialControlChannel.BLE).canUseBle) {
+      AppSnack.info(scope, snackbarHostState, strBleConnected)
       return
     }
     val state = cloudService.currentState
@@ -569,19 +570,20 @@ fun ControlScreen(
     val mac = vehicle?.normalizedDeviceMac
     if (vehicle == null || mac.isNullOrEmpty()) {
       if (!auto) {
-        AppSnack.info(snackbarHostState, strBleNoAddress)
+        AppSnack.info(scope, snackbarHostState, strBleNoAddress)
         onNavigate(Routes.SCAN)
       }
       return
     }
-    AppSnack.info(snackbarHostState, strBleConnecting)
+    AppSnack.info(scope, snackbarHostState, strBleConnecting)
     try {
       val adapter = ctx.getSystemService(android.bluetooth.BluetoothManager::class.java)?.adapter
       val device = adapter?.getRemoteDevice(mac)
       if (device == null) {
-        AppSnack.error(snackbarHostState, strBleUnavailable)
+        AppSnack.error(scope, snackbarHostState, strBleUnavailable)
         return
       }
+      if (connectionManager.device != null) connectionManager.disconnect()
       connectionManager.connect(
         device,
         com.tailg.plus.data.ble.platform.OfficialBleConnectionContext.fromVehicle(
@@ -589,37 +591,34 @@ fun ControlScreen(
           state.userId,
         ),
       )
-      AppSnack.success(snackbarHostState, strBleConnected)
+      AppSnack.success(scope, snackbarHostState, strBleConnected)
     } catch (e: SecurityException) {
-      AppSnack.error(snackbarHostState, strBlePermission)
+      AppSnack.error(scope, snackbarHostState, strBlePermission)
     } catch (e: Exception) {
+      if (e is CancellationException) throw e
       log.operation("蓝牙连接失败", detail = e.toString(), level = LogLevel.WARNING)
-      AppSnack.error(snackbarHostState, strBleRetry)
+      AppSnack.error(scope, snackbarHostState, strBleRetry)
     }
   }
 
   fun sendCommand(cmd: CommandCode) {
-    if (busy) {
-      scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
+    if (viewModel.uiState.value.busy) {
+      AppSnack.error(scope, snackbarHostState, strBusyHint)
       return
     }
-    val now = System.currentTimeMillis()
-    if (now - lastCommandAtMs < CONTROL_COMMAND_DEBOUNCE_MS) {
-      scope.launch { AppSnack.info(snackbarHostState, strTooFrequent) }
+    val now = SystemClock.elapsedRealtime()
+    if (now - viewModel.uiState.value.lastCommandAtMs < CONTROL_COMMAND_DEBOUNCE_MS) {
+      AppSnack.info(scope, snackbarHostState, strTooFrequent)
       return
     }
     val policy = ControlCommandPolicy.evaluate(command = cmd, isPowerOn = isPowerOn == true)
     if (!policy.allowed) {
-      scope.launch { AppSnack.error(snackbarHostState, policy.disabledReason ?: strDisabledFormat.format(cmd.label)) }
+      AppSnack.error(scope, snackbarHostState, policy.disabledReason ?: strDisabledFormat.format(cmd.label))
       return
     }
-    val availability = ControlCommandRoute.resolve(
-      base = controlAvailability,
-      command = cmd,
-      vehicle = cloudVehicle,
-    )
+    var availability = viewModel.availabilityFor(cmd)
     if (!availability.enabled) {
-      scope.launch { AppSnack.error(snackbarHostState, availability.disabledReason.ifEmpty { strUnavailableHint }) }
+      AppSnack.error(scope, snackbarHostState, availability.disabledReason.ifEmpty { strUnavailableHint })
       return
     }
     // QGJ open-seat firmware preflight (Dart checkQgjSeatSupport gate) runs
@@ -628,6 +627,7 @@ fun ControlScreen(
     viewModel.setBusy(true, cmd)
     val vehicleAtSend = cloudService.currentState.selectedVehicle
     val vehicleKeyAtSend = vehicleAtSend?.key
+    val tokenAtSend = cloudService.currentState.token
     val baseline = vehicleStateSnapshot()
     val activityId = commandLog.start(cmd, strBusyFormat.format(cmd.label), strCommandSentWaiting)
     viewModel.bumpCommandVersion()
@@ -659,8 +659,8 @@ fun ControlScreen(
     // the user switching tabs mid-command — leaving composition used to
     // cancel the coroutine, losing the commandLog.finish record and leaving
     // the MQTT pending command unconsumed. Durable state (busy flag, command
-    // log) lives in the ViewModel; only the snack lines go stale after
-    // navigation, which is harmless.
+    // log) lives in the ViewModel; notifications use the composition scope so they cannot
+    // suspend this command when the SnackbarHost leaves the screen.
     viewModel.viewModelScope.launch {
       try {
         delay(CONTROL_COMMAND_SEND_DELAY_MS)
@@ -669,57 +669,64 @@ fun ControlScreen(
           val vehicleKeyBeforeGate = cloudService.currentState.selectedVehicle?.key
           val serviceDecision = cloudService.resolveSelectedRemoteControlServiceDecision()
           if (cloudService.currentState.selectedVehicle?.key != vehicleKeyBeforeGate) {
-            AppSnack.error(snackbarHostState, strVehicleChanged)
+            AppSnack.error(scope, snackbarHostState, strVehicleChanged)
             commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmCancelled, ControlCommandActivityStatus.CANCELLED)
             return@launch
           }
           val serviceMessage = serviceDecision.message
           if (serviceMessage != null) {
             if (serviceDecision.blocksControl) {
-              AppSnack.error(snackbarHostState, serviceMessage)
+              AppSnack.error(scope, snackbarHostState, serviceMessage)
               commandLog.finish(activityId, "${cmd.label}${strLogFailed}", serviceMessage, ControlCommandActivityStatus.FAILED)
               return@launch
             }
-            AppSnack.info(snackbarHostState, serviceMessage)
+            AppSnack.info(scope, snackbarHostState, serviceMessage)
           }
           // 重新计算 availability,渠道可能因 SIM 状态变化而切换
-          val availabilityAfterGate = ControlCommandRoute.resolve(
-            base = controlAvailability,
-            command = cmd,
-            vehicle = cloudVehicle,
-          )
+          val availabilityAfterGate = viewModel.availabilityFor(cmd, includeBusy = false)
           if (availabilityAfterGate.willUseBle) {
-            AppSnack.info(snackbarHostState, strChannelChanged)
+            AppSnack.info(scope, snackbarHostState, strChannelChanged)
             commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strChannelChanged, ControlCommandActivityStatus.CANCELLED)
             return@launch
           }
           if (!availabilityAfterGate.enabled) {
             val reason = availabilityAfterGate.disabledReason.ifEmpty { strUnavailableHint }
-            AppSnack.error(snackbarHostState, reason)
+            AppSnack.error(scope, snackbarHostState, reason)
             commandLog.finish(activityId, "${cmd.label}${strLogFailed}", reason, ControlCommandActivityStatus.FAILED)
             return@launch
           }
         }
         // Abort if the selected vehicle changed mid-send (Dart 798-811).
-        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend) {
-          AppSnack.error(snackbarHostState, strVehicleOrChannelChanged)
+        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend || cloudService.currentState.token != tokenAtSend) {
+          AppSnack.error(scope, snackbarHostState, strVehicleOrChannelChanged)
           commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmChannelChanged, ControlCommandActivityStatus.CANCELLED)
           return@launch
         }
         if (cmd == CommandCode.OPEN_SEAT && availability.willUseBle) {
           val supported = connectionManager.checkQgjSeatSupport()
           if (supported == false) {
-            AppSnack.error(snackbarHostState, strSeatUnsupported)
+            AppSnack.error(scope, snackbarHostState, strSeatUnsupported)
             commandLog.finish(activityId, "${cmd.label}${strLogFailed}", strSeatUnsupportedDetail, ControlCommandActivityStatus.FAILED)
             return@launch
           }
         }
+        val currentAvailability = viewModel.availabilityFor(cmd, includeBusy = false)
+        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend ||
+          cloudService.currentState.token != tokenAtSend ||
+          currentAvailability.channel != availability.channel || currentAvailability.willUseBle != availability.willUseBle
+        ) {
+          AppSnack.error(scope, snackbarHostState, strVehicleOrChannelChanged)
+          commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmChannelChanged, ControlCommandActivityStatus.CANCELLED)
+          return@launch
+        }
+        availability = currentAvailability
         val result = commandExecutor.send(command = cmd, availability = availability)
         if (result.success) {
           if (vehicleAtSend != null) {
             try {
               cloudService.syncCarOperatorAfterCommand(command = cmd, vehicle = vehicleAtSend)
             } catch (e: Exception) {
+              if (e is CancellationException) throw e
               log.operation("同步官方车辆操作人失败", detail = e.toString(), level = LogLevel.WARNING)
             }
           }
@@ -729,6 +736,7 @@ fun ControlScreen(
           try {
             locationService.recordDefaultVehicleLocation()
           } catch (e: Exception) {
+            if (e is CancellationException) throw e
             log.operation("控车后记录车辆位置失败", detail = e.toString(), level = LogLevel.WARNING)
           }
           // Capture the pending command set by the MQTT publish, if any.
@@ -751,7 +759,7 @@ fun ControlScreen(
           if (!confirmed) {
             refreshStateForConfirmation()
             val commandError = mqttService.pendingCommandError
-            AppSnack.error(snackbarHostState, commandError ?: unconfirmedMessage(cmd, strUnconfirmedTitles, strUnconfirmedFormat))
+            AppSnack.error(scope, snackbarHostState, commandError ?: unconfirmedMessage(cmd, strUnconfirmedTitles, strUnconfirmedFormat))
             commandLog.finish(
               activityId,
               if (commandError == null) "${cmd.label}${strLogUnconfirmed}" else "${cmd.label}${strLogFailed}",
@@ -759,20 +767,22 @@ fun ControlScreen(
               ControlCommandActivityStatus.FAILED,
             )
           } else {
-            AppSnack.info(snackbarHostState, result.successMessage ?: "${cmd.label}${strLogSuccess}")
+            AppSnack.info(scope, snackbarHostState, result.successMessage ?: "${cmd.label}${strLogSuccess}")
             commandLog.finish(activityId, successTitle(cmd, strSuccessTitles, strSuccessFormat), successSubtitle(cmd, strSuccessSubtitles), ControlCommandActivityStatus.SUCCEEDED)
           }
         } else {
           log.operation("Cyber 控车失败: ${cmd.label}", detail = "渠道=${result.transport} 原因=${result.failureMessage}", level = LogLevel.ERROR)
           refreshStateForConfirmation()
-          AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage, strFailureFormat, strFailureDetailFormat))
+          AppSnack.error(scope, snackbarHostState, failureMessage(cmd, result.failureMessage, strFailureFormat, strFailureDetailFormat))
           commandLog.finish(activityId, "${cmd.label}${strLogFailed}", result.failureMessage?.trim()?.ifEmpty { null } ?: strRetry, ControlCommandActivityStatus.FAILED)
         }
       } catch (e: CancellationException) {
+        commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmCancelled, ControlCommandActivityStatus.CANCELLED)
         throw e
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Cyber 控车异常: ${cmd.label}", detail = e.toString(), level = LogLevel.ERROR)
-        AppSnack.error(snackbarHostState, failureMessage(cmd, e.message, strFailureFormat, strFailureDetailFormat))
+        AppSnack.error(scope, snackbarHostState, failureMessage(cmd, e.message, strFailureFormat, strFailureDetailFormat))
         commandLog.finish(activityId, "${cmd.label}${strLogFailed}", e.message ?: strRetry, ControlCommandActivityStatus.FAILED)
       } finally {
         viewModel.setBusy(false)
@@ -784,7 +794,7 @@ fun ControlScreen(
   fun sendPowerToggle() {
     val powered = isPowerOn
     if (powered == null) {
-      scope.launch { AppSnack.error(snackbarHostState, strVehicleUnknown) }
+      AppSnack.error(scope, snackbarHostState, strVehicleUnknown)
       return
     }
     val cmd = if (powered) CommandCode.POWER_OFF else CommandCode.POWER_ON
@@ -794,7 +804,7 @@ fun ControlScreen(
   fun sendArmToggle() {
     val locked = isArmed
     if (locked == null) {
-      scope.launch { AppSnack.error(snackbarHostState, strVehicleUnknown) }
+      AppSnack.error(scope, snackbarHostState, strVehicleUnknown)
       return
     }
     val cmd = if (locked) CommandCode.UNLOCK else CommandCode.LOCK
@@ -826,7 +836,7 @@ fun ControlScreen(
   val latestOpenVehicleHeader = rememberUpdatedState {
     when {
       latestBusy.value -> {
-        scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
+        AppSnack.error(scope, snackbarHostState, strBusyHint)
       }
       latestVehicleCount.value > 1 -> viewModel.setShowVehicleSwitchSheet(true)
       else -> latestOnNavigate.value(Routes.OFFICIAL_CLOUD)
@@ -904,7 +914,7 @@ fun ControlScreen(
               batteryKnown = battery.percent != null,
               powered = isPowerOn,
               channelLabel = controlChannelStatus.localizedLabel(),
-              bluetoothConnected = connectionManager.isProtocolLoggedIn,
+              bluetoothConnected = selectedBleReady,
               onTitleTap = onTitleTap,
               onBatteryTap = onBatteryTap,
               onBleChipTap = onBleChipTap,
@@ -944,7 +954,7 @@ fun ControlScreen(
               batteryPercent = percent,
               batteryKnown = battery.percent != null,
               online = cloudVehicle?.online ?: false,
-              bluetoothConnected = connectionManager.isProtocolLoggedIn,
+              bluetoothConnected = selectedBleReady,
               isLocked = isArmed ?: true,
               powered = isPowerOn,
               bleChip = bleChipState,
@@ -1011,7 +1021,8 @@ fun ControlScreen(
           viewModel.setShowVehicleSwitchSheet(false)
           true
         } catch (e: Exception) {
-          scope.launch { AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e)) }
+          if (e is kotlinx.coroutines.CancellationException) throw e
+          AppSnack.error(scope, snackbarHostState, OfficialCloudRedactor.errorMessage(e))
           false
         }
       },
@@ -1041,7 +1052,7 @@ fun ControlScreen(
         onNavigate(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current"))
       },
       onBusyError = {
-        scope.launch { AppSnack.error(snackbarHostState, strBusyHint) }
+        AppSnack.error(scope, snackbarHostState, strBusyHint)
       },
     )
   }

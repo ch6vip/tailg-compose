@@ -122,6 +122,41 @@ class FirmwareOtaServiceTest {
   }
 
   @Test
+  fun invalidChunkAndFirmwareLengthsFailBeforeAnyWrite() = runTest {
+    val vehicle = otaVehicle("bounds", "8601")
+    val cloud = cloudSelecting(vehicle)
+    coEvery { cloud.getFirmVersion(imei = any()) } returns mapOf("url" to "test")
+    val manager = mockk<ConnectionManager>()
+    every { manager.isProtocolLoggedIn } returns true
+    val ota = FirmwareOtaService(cloud, manager)
+    var writes = 0
+    ota.writeOrderOverride = { writes++; true }
+    ota.writeChunkOverride = { writes++; true }
+    ota.downloadOverride = { ByteArray(16) }
+    for (size in listOf(0, -1, Int.MAX_VALUE)) {
+      assertEquals(FirmwareOtaPhase.FAILED, ota.run(chunkSize = size).toList().last().phase)
+    }
+    for (size in listOf(0, 65536)) {
+      ota.downloadOverride = { ByteArray(size) }
+      assertEquals(FirmwareOtaPhase.FAILED, ota.run().toList().last().phase)
+    }
+    assertEquals(0, writes)
+  }
+
+  @Test
+  fun writeExceptionEndsTheTransferWithFailure() = runTest {
+    val cloud = cloudSelecting(otaVehicle("write-error", "8601"))
+    coEvery { cloud.getFirmVersion(imei = any()) } returns mapOf("url" to "test")
+    val manager = mockk<ConnectionManager>()
+    every { manager.isProtocolLoggedIn } returns true
+    val ota = FirmwareOtaService(cloud, manager)
+    ota.downloadOverride = { ByteArray(16) }
+    ota.writeOrderOverride = { true }
+    ota.writeChunkOverride = { throw IllegalStateException("disconnected") }
+    assertEquals(FirmwareOtaPhase.FAILED, ota.run().toList().last().phase)
+  }
+
+  @Test
   fun failsWhenNotLogin() = runTest {
     val vehicle = otaVehicle("ota-2", "8601")
     val cloud = cloudSelecting(vehicle)

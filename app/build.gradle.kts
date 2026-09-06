@@ -125,6 +125,12 @@ android {
             excludes += "/META-INF/{AL2.0,LGPL2.1}"
         }
     }
+    bundle {
+        language {
+            // In-app language switching must work without a Play language download.
+            enableSplit = false
+        }
+    }
     lint {
         // Fail the build on lint errors. Current report is warnings-only;
         // keep abort on Error/Fatal so regressions fail CI.

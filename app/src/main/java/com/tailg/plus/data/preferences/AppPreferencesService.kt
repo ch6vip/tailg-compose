@@ -12,6 +12,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 private val Context.dataStore by preferencesDataStore(name = "app_preferences")
 
@@ -70,66 +73,71 @@ class AppPreferencesService(
     val pageScale: StateFlow<Float> = _pageScale.asStateFlow()
 
     private var initialized = false
+    private val initMutex = Mutex()
+    private val mutationMutex = Mutex()
 
-    suspend fun init() {
-        if (initialized) return
-        val prefs = context.dataStore.data.first()
+    suspend fun init() = initMutex.withLock {
+        if (initialized) return@withLock
+        val prefs = com.tailg.plus.data.store.withDataStoreReadTimeout { context.dataStore.data.first() }
         _language.value = AppLanguagePreference.fromValue(prefs[KEY_LANGUAGE])
         _distanceUnit.value = DistanceUnitPreference.fromValue(prefs[KEY_DISTANCE_UNIT])
         _respectTextScale.value = prefs[KEY_RESPECT_TEXT_SCALE] ?: true
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
         _uiMode.value = prefs[KEY_UI_MODE] ?: 0
-        _pageScale.value = prefs[KEY_PAGE_SCALE] ?: 1.0f
+        _pageScale.value = normalizePageScale(prefs[KEY_PAGE_SCALE] ?: 1.0f)
         initialized = true
     }
 
-    suspend fun setLanguage(preference: AppLanguagePreference) {
-        if (!initialized) init()
+    suspend fun setLanguage(preference: AppLanguagePreference) = mutationMutex.withLock {
+        init()
         runCatching {
             context.dataStore.edit { it[KEY_LANGUAGE] = preference.value }
             _language.value = preference
-        }.onFailure { logService.operation("setLanguage failed", detail = it.toString()) }
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setLanguage failed", detail = it.toString()) }
     }
 
-    suspend fun setDistanceUnit(preference: DistanceUnitPreference) {
-        if (!initialized) init()
+    suspend fun setDistanceUnit(preference: DistanceUnitPreference) = mutationMutex.withLock {
+        init()
         runCatching {
             context.dataStore.edit { it[KEY_DISTANCE_UNIT] = preference.value }
             _distanceUnit.value = preference
-        }.onFailure { logService.operation("setDistanceUnit failed", detail = it.toString()) }
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setDistanceUnit failed", detail = it.toString()) }
     }
 
-    suspend fun setRespectSystemTextScale(value: Boolean) {
-        if (!initialized) init()
+    suspend fun setRespectSystemTextScale(value: Boolean) = mutationMutex.withLock {
+        init()
         runCatching {
             context.dataStore.edit { it[KEY_RESPECT_TEXT_SCALE] = value }
             _respectTextScale.value = value
-        }.onFailure { logService.operation("setRespectSystemTextScale failed", detail = it.toString()) }
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setRespectSystemTextScale failed", detail = it.toString()) }
     }
 
-    suspend fun setThemeMode(value: Int) {
-        if (!initialized) init()
+    suspend fun setThemeMode(value: Int) = mutationMutex.withLock {
+        init()
         runCatching {
             context.dataStore.edit { it[KEY_THEME_MODE] = value }
             _themeMode.value = value
-        }.onFailure { logService.operation("setThemeMode failed", detail = it.toString()) }
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setThemeMode failed", detail = it.toString()) }
     }
 
-    suspend fun setUiMode(value: Int) {
-        if (!initialized) init()
+    suspend fun setUiMode(value: Int) = mutationMutex.withLock {
+        init()
         runCatching {
             context.dataStore.edit { it[KEY_UI_MODE] = value }
             _uiMode.value = value
-        }.onFailure { logService.operation("setUiMode failed", detail = it.toString()) }
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setUiMode failed", detail = it.toString()) }
     }
 
-    suspend fun setPageScale(value: Float) {
-        if (!initialized) init()
+    suspend fun setPageScale(value: Float) = mutationMutex.withLock {
+        init()
         runCatching {
-            context.dataStore.edit { it[KEY_PAGE_SCALE] = value }
-            _pageScale.value = value
-        }.onFailure { logService.operation("setPageScale failed", detail = it.toString()) }
+            context.dataStore.edit { it[KEY_PAGE_SCALE] = normalizePageScale(value) }
+            _pageScale.value = normalizePageScale(value)
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setPageScale failed", detail = it.toString()) }
     }
+
+    private fun normalizePageScale(value: Float): Float =
+        if (value.isFinite()) value.coerceIn(0.5f, 2.0f) else 1.0f
 
     companion object {
         private val KEY_LANGUAGE = stringPreferencesKey("app_language_preference")

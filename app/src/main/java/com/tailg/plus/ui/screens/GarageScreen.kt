@@ -147,6 +147,7 @@ fun GarageScreen(
 
   val signedIn = cloudState.signedIn
   val listState = rememberLazyListState()
+  val requestGeneration = remember { java.util.concurrent.atomic.AtomicLong() }
 
   // String resources resolved in composition so they can be used inside
   // coroutine / callback lambdas (stringResource is @Composable-only).
@@ -169,6 +170,7 @@ fun GarageScreen(
     activeQuery = code
     onConsumeScan()
     loadGaragePage(
+      requestGeneration = requestGeneration,
       cloudService = cloudService,
       refresh = true,
       searchType = GarageSearchType.FRAME,
@@ -183,11 +185,14 @@ fun GarageScreen(
   }
 
   // Sync vehicles from cloud state when it first arrives.
-  LaunchedEffect(cloudState.vehicles) {
-    if (vehicles.isEmpty() && cloudState.vehicles.isNotEmpty()) {
+  LaunchedEffect(signedIn, cloudState.vehicles) {
+    if (activeQuery.isEmpty() && pageIndex == 0 && vehicles.isEmpty() && cloudState.vehicles.isNotEmpty()) {
       vehicles = cloudState.vehicles
     }
     if (!signedIn) {
+      requestGeneration.incrementAndGet()
+      loading = false
+      loadingMore = false
       vehicles = emptyList()
       pageIndex = 0
       hasNext = false
@@ -198,6 +203,7 @@ fun GarageScreen(
   LaunchedEffect(cloudState.token) {
     if (signedIn) {
       loadGaragePage(
+        requestGeneration = requestGeneration,
         cloudService = cloudService,
         refresh = true,
         searchType = searchType,
@@ -221,6 +227,7 @@ fun GarageScreen(
     }.collect { (lastVisible, total) ->
       if (hasNext && !loading && !loadingMore && total > 0 && lastVisible >= total - 2) {
         loadGaragePage(
+          requestGeneration = requestGeneration,
           cloudService = cloudService,
           refresh = false,
           searchType = searchType,
@@ -279,6 +286,7 @@ fun GarageScreen(
           activeQuery = query
           scope.launch {
             loadGaragePage(
+              requestGeneration = requestGeneration,
               cloudService = cloudService,
               refresh = true,
               searchType = searchType,
@@ -298,6 +306,7 @@ fun GarageScreen(
             activeQuery = ""
             scope.launch {
               loadGaragePage(
+                requestGeneration = requestGeneration,
                 cloudService = cloudService,
                 refresh = true,
                 searchType = searchType,
@@ -341,6 +350,7 @@ fun GarageScreen(
             onAction = {
               scope.launch {
                 loadGaragePage(
+                  requestGeneration = requestGeneration,
                   cloudService = cloudService,
                   refresh = true,
                   searchType = searchType,
@@ -417,6 +427,7 @@ fun GarageScreen(
         showSearchTypeSheet = false
         scope.launch {
           loadGaragePage(
+            requestGeneration = requestGeneration,
             cloudService = cloudService,
             refresh = true,
             searchType = selected,
@@ -456,6 +467,7 @@ fun GarageScreen(
             }
             AppSnack.success(snackbarHostState, strRenamed)
           } catch (e: Exception) {
+            if (e is kotlinx.coroutines.CancellationException) throw e
             AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
           } finally {
             busyVehicleKey = null
@@ -494,6 +506,7 @@ fun GarageScreen(
                 cloudService.changeUsingVehicle(target)
                 AppSnack.success(snackbarHostState, strSwitched.format(target.displayName))
               } catch (e: Exception) {
+                if (e is kotlinx.coroutines.CancellationException) throw e
                 AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
               } finally {
                 busyVehicleKey = null
@@ -556,6 +569,7 @@ fun GarageScreen(
               )
               AppSnack.success(snackbarHostState, strUnbound)
               loadGaragePage(
+                requestGeneration = requestGeneration,
                 cloudService = cloudService,
                 refresh = true,
                 searchType = searchType,
@@ -568,6 +582,7 @@ fun GarageScreen(
                 onHasNext = { hasNext = it },
               )
             } catch (e: Exception) {
+              if (e is kotlinx.coroutines.CancellationException) throw e
               AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
             } finally {
               busyVehicleKey = null
@@ -600,6 +615,7 @@ enum class GarageSearchType(val labelRes: Int, val hintRes: Int) {
 // ── Load helper ───────────────────────────────────────────────────────────
 
 private suspend fun loadGaragePage(
+  requestGeneration: java.util.concurrent.atomic.AtomicLong,
   cloudService: OfficialCloudService,
   refresh: Boolean,
   searchType: GarageSearchType,
@@ -615,6 +631,7 @@ private suspend fun loadGaragePage(
   onHasNext: (Boolean) -> Unit,
 ) {
   if (!cloudService.currentState.signedIn) return
+  val generation = requestGeneration.incrementAndGet()
   if (refresh) onLoading(true) else onLoadingMore(true)
   onError(null)
   // Deriving the next page from vehicles.size/5 drifted from the server's
@@ -631,15 +648,19 @@ private suspend fun loadGaragePage(
       frame = if (searchType == GarageSearchType.FRAME) activeQuery else "",
       shareUserPhone = if (searchType == GarageSearchType.SHARE_PHONE) activeQuery else "",
     )
-    onVehicles(if (refresh) result.vehicles else existingVehicles + result.vehicles)
+    if (requestGeneration.get() != generation) return
+    onVehicles((if (refresh) result.vehicles else existingVehicles + result.vehicles).distinctBy { it.key })
     onPageIndex(result.pageIndex)
     onHasNext(result.hasNext)
     onError(null)
   } catch (e: Exception) {
-    onError(OfficialCloudRedactor.errorMessage(e))
+    if (e is kotlinx.coroutines.CancellationException) throw e
+    if (requestGeneration.get() == generation) onError(OfficialCloudRedactor.errorMessage(e))
   } finally {
-    onLoading(false)
-    onLoadingMore(false)
+    if (requestGeneration.get() == generation) {
+      onLoading(false)
+      onLoadingMore(false)
+    }
   }
 }
 

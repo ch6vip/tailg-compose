@@ -48,6 +48,7 @@ import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.ble.platform.ProtocolType
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.domain.control.OfficialControlRoute
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
@@ -66,6 +67,16 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.job
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
+import kotlin.coroutines.AbstractCoroutineContextElement
+import kotlin.coroutines.CoroutineContext
 
 class InductionModeService(
   private val cm: ConnectionManager,
@@ -128,7 +139,11 @@ class InductionModeService(
   private val _cloud: OfficialCloudService? = cloud
 
   private val _snapshotState = MutableStateFlow(InductionModeSnapshot.EMPTY)
-  private var _snapshot: InductionModeSnapshot = InductionModeSnapshot.EMPTY
+  private val _snapshot: InductionModeSnapshot get() = _snapshotState.value
+  private val bindingLock = Any()
+  private val operationMutex = Mutex()
+  private var bindingGeneration = 0L
+  private val activeOperations = mutableSetOf<Job>()
   private var _connJob: Job? = null
   private var _appInForeground = true
 
@@ -137,12 +152,10 @@ class InductionModeService(
   // polling job or race its teardown.
   private val rssiLock = Any()
   private var _rssiJob: Job? = null
-  private val _rssiSamples = ArrayDeque<Int>()
-  private var _rssiTaskState = RssiTaskState.idle
-  private var _rssiFiring = false
-  private var _rssiCalibration = RssiCalibration()
-  private var _boundModelType: Int? = null
-  private var _boundCarId: String? = null
+  @Volatile private var _rssiCalibration = RssiCalibration()
+  @Volatile private var _boundModelType: Int? = null
+  @Volatile private var _boundCarId: String? = null
+  @Volatile private var _boundIdentityMac = ""
 
   /** Dart `snapshotStream` → StateFlow (UI observes this). */
   val snapshotFlow: StateFlow<InductionModeSnapshot> = _snapshotState.asStateFlow()
@@ -152,25 +165,34 @@ class InductionModeService(
 
   /** Port of Dart `bindVehicle`. */
   fun bindVehicle(modelType: Int?, carId: String?, vehicleRaw: Map<String, Any?>?) {
-    val changed = _boundModelType != modelType || _boundCarId != carId
-    _boundModelType = modelType
-    _boundCarId = carId
-    _rssiCalibration = RssiCalibration.fromMap(vehicleRaw)
-    ensureConnectionCollector()
-    if (changed) {
-      stopRssiLoop()
-      publish(
-        InductionModeSnapshot(
-          stack = stackForModelType(modelType),
-          enabled = null,
-          distance = null,
-          busy = false,
-          bleReady = bleReadyFor(stackForModelType(modelType)),
-        ),
-      )
-      scope.launch { refresh(force = true) }
-    } else {
-      scope.launch { onConnectionChanged() }
+    synchronized(bindingLock) {
+      val identity = vehicleRaw?.let { OfficialVehicle.fromJson(it).bleIdentityMac }.orEmpty()
+        .filter { it.isDigit() || it.uppercaseChar() in 'A'..'F' }.uppercase()
+      val changed = _boundModelType != modelType || _boundCarId != carId || _boundIdentityMac != identity
+      if (changed) {
+        bindingGeneration++
+        activeOperations.toList().forEach { it.cancel(CancellationException("感应车辆已切换")) }
+      }
+      _boundModelType = modelType
+      _boundCarId = carId
+      _boundIdentityMac = identity
+      _rssiCalibration = RssiCalibration.fromMap(vehicleRaw)
+      ensureConnectionCollector()
+      if (changed) {
+        stopRssiLoop()
+        publish(
+          InductionModeSnapshot(
+            stack = stackForModelType(modelType),
+            enabled = null,
+            distance = null,
+            busy = false,
+            bleReady = bleReadyFor(stackForModelType(modelType)),
+          ),
+        )
+        scope.launch { refresh(force = true) }
+      } else {
+        scope.launch { onConnectionChanged() }
+      }
     }
   }
 
@@ -228,6 +250,11 @@ class InductionModeService(
 
   private fun bleReadyFor(stack: InductionStack): Boolean {
     if (!cm.isProtocolLoggedIn) return false
+    if (_boundIdentityMac.isNotEmpty()) {
+      val connectedIdentity = cm.connectionContext?.targetMacCompact?.takeIf { it.isNotEmpty() }
+        ?: runCatching { cm.device?.address?.replace(":", "")?.uppercase() }.getOrNull()
+      if (connectedIdentity != _boundIdentityMac) return false
+    }
     return when (stack) {
       InductionStack.QGJ -> cm.protocol == ProtocolType.QGJ
       InductionStack.TLINK -> cm.protocol == ProtocolType.TLINK
@@ -238,29 +265,18 @@ class InductionModeService(
   }
 
   private suspend fun onConnectionChanged() {
-    val stack = resolveStack(_boundModelType)
-    val ready = bleReadyFor(stack)
-    if (!ready) {
-      stopRssiLoop()
-      publish(
-        _snapshot.copyWith(
-          stack = stack,
-          bleReady = false,
-          enabled = if (stack == InductionStack.RSSI) _snapshot.enabled else null,
-        ),
-      )
-      return
-    }
-    publish(_snapshot.copyWith(stack = stack, bleReady = true))
     refresh()
   }
 
   /** Port of Dart `refresh`. */
-  suspend fun refresh(force: Boolean = false) {
+  suspend fun refresh(force: Boolean = false) = withVehicleOperation { refreshCurrent(force) }
+
+  private suspend fun refreshCurrent(force: Boolean) {
     val stack = resolveStack(_boundModelType)
     val ready = bleReadyFor(stack)
     if (!ready) {
-      publish(
+      updateRssiLoop(false)
+      publishCurrent(
         InductionModeSnapshot(
           stack = stack,
           enabled = if (stack == InductionStack.RSSI) loadEnabledPref() else null,
@@ -273,7 +289,7 @@ class InductionModeService(
     }
 
     if (_snapshot.busy && !force) return
-    publish(
+    publishCurrent(
       _snapshot.copyWith(stack = stack, bleReady = true, busy = true, clearError = true),
     )
 
@@ -282,20 +298,20 @@ class InductionModeService(
         InductionStack.QGJ -> refreshQgj()
         InductionStack.TLINK -> refreshTlink()
         InductionStack.RSSI -> refreshRssi()
-        InductionStack.NONE -> publish(InductionModeSnapshot.EMPTY)
+        InductionStack.NONE -> publishCurrent(InductionModeSnapshot.EMPTY)
       }
     } catch (e: Exception) {
       if (e is CancellationException) throw e
       _log.operation("读取感应状态失败", detail = e.toString(), level = LogLevel.DEBUG)
-      publish(
+      publishCurrent(
         _snapshot.copyWith(busy = false, lastError = e.toString(), bleReady = true),
       )
     }
   }
 
   private suspend fun refreshQgj() {
-    val status = cm.sendQgjCommand(QgjCommandIds.proximityStatusGet)
-    val distance = cm.sendQgjCommand(QgjCommandIds.proximityDistanceGet)
+    val status = vehicleIo { cm.sendQgjCommand(QgjCommandIds.proximityStatusGet) }
+    val distance = vehicleIo { cm.sendQgjCommand(QgjCommandIds.proximityDistanceGet) }
     val enabled = if (status != null && status.success) {
       parseQgjProximityEnabled(status.payload.map { it.toInt() and 0xFF })
     } else {
@@ -306,7 +322,7 @@ class InductionModeService(
     } else {
       null
     }
-    publish(
+    publishCurrent(
       InductionModeSnapshot(
         stack = InductionStack.QGJ,
         enabled = enabled,
@@ -318,9 +334,9 @@ class InductionModeService(
   }
 
   private suspend fun refreshTlink() {
-    val status = cm.checkTlinkInduction()
+    val status = vehicleIo { cm.checkTlinkInduction() }
     if (status == null) {
-      publish(
+      publishCurrent(
         _snapshot.copyWith(
           stack = InductionStack.TLINK,
           busy = false,
@@ -330,7 +346,7 @@ class InductionModeService(
       )
       return
     }
-    publish(
+    publishCurrent(
       InductionModeSnapshot(
         stack = InductionStack.TLINK,
         enabled = status.enabled,
@@ -344,7 +360,7 @@ class InductionModeService(
   private suspend fun refreshRssi() {
     val enabled = loadEnabledPref()
     val distance = loadDistancePref()
-    publish(
+    publishCurrent(
       InductionModeSnapshot(
         stack = InductionStack.RSSI,
         enabled = enabled,
@@ -353,19 +369,22 @@ class InductionModeService(
         bleReady = true,
       ),
     )
-    if (enabled) startRssiLoop() else stopRssiLoop()
+    if (enabled) updateRssiLoop(true) else updateRssiLoop(false)
   }
 
   /**
    * Toggle induction. When [enabled] is true, clears manual mode first so the
    * home-page 感应|手动 switch cannot race with ManualModeService prefs.
    */
-  suspend fun setEnabled(enabled: Boolean, clearManualMode: Boolean = true): Boolean {
+  suspend fun setEnabled(enabled: Boolean, clearManualMode: Boolean = true): Boolean =
+    withVehicleOperation { setEnabledCurrent(enabled, clearManualMode) }
+
+  private suspend fun setEnabledCurrent(enabled: Boolean, clearManualMode: Boolean): Boolean {
     val stack = resolveStack(_boundModelType)
     val ready = bleReadyFor(stack)
     val canDisableDisconnectedRssi = !enabled && stack == InductionStack.RSSI
     if (stack == InductionStack.NONE || (!ready && !canDisableDisconnectedRssi)) {
-      publish(_snapshot.copyWith(lastError = "请先连接车辆蓝牙并完成协议登录"))
+      publishCurrent(_snapshot.copyWith(lastError = "请先连接车辆蓝牙并完成协议登录"))
       return false
     }
 
@@ -373,11 +392,11 @@ class InductionModeService(
       _manual.setEnabled(false)
     }
     if (enabled && _manual.enabled) {
-      publish(_snapshot.copyWith(lastError = "已开启手动模式，无法开关感应解锁"))
+      publishCurrent(_snapshot.copyWith(lastError = "已开启手动模式，无法开关感应解锁"))
       return false
     }
 
-    publish(
+    publishCurrent(
       _snapshot.copyWith(
         busy = true,
         clearError = true,
@@ -393,7 +412,7 @@ class InductionModeService(
         InductionStack.NONE -> EnableResult(ok = false)
       }
       if (!result.ok) {
-        publish(
+        publishCurrent(
           _snapshot.copyWith(
             busy = false,
             lastError = result.message ?: (if (enabled) "开启感应解锁失败" else "关闭感应解锁失败"),
@@ -402,7 +421,8 @@ class InductionModeService(
         return false
       }
       saveEnabledPref(enabled)
-      publish(
+      if (stack == InductionStack.RSSI) updateRssiLoop(enabled)
+      publishCurrent(
         InductionModeSnapshot(
           stack = stack,
           enabled = enabled,
@@ -420,47 +440,47 @@ class InductionModeService(
       return true
     } catch (e: Exception) {
       if (e is CancellationException) throw e
-      publish(_snapshot.copyWith(busy = false, lastError = e.toString()))
+      publishCurrent(_snapshot.copyWith(busy = false, lastError = e.toString()))
       return false
     }
   }
 
   private suspend fun setQgjEnabled(enabled: Boolean): EnableResult {
     if (enabled) {
-      val proximityResponse = cm.sendQgjCommand(
+      val proximityResponse = vehicleIo { cm.sendQgjCommand(
         QgjCommandIds.proximityStatusSet,
         buildQgjProximityStatusPayload(true),
-      )
+      ) }
       if (proximityResponse?.success != true) {
         return EnableResult(ok = false, message = "车辆未确认开启感应")
       }
-      val hidResponse = cm.sendQgjCommand(
+      val hidResponse = vehicleIo { cm.sendQgjCommand(
         QgjCommandIds.hidStatusSet,
         buildQgjHidPayload(QgjHidModes.open),
-      )
+      ) }
       if (hidResponse?.success != true) {
-        cm.sendQgjCommand(QgjCommandIds.proximityStatusSet, buildQgjProximityStatusPayload(false))
+        vehicleIo { cm.sendQgjCommand(QgjCommandIds.proximityStatusSet, buildQgjProximityStatusPayload(false)) }
         return EnableResult(ok = false, message = "车辆未确认开启蓝牙感应配对")
       }
-      val bonded = cm.createBond(quiet = true)
+      val bonded = vehicleIo { cm.createBond(quiet = true) }
       return EnableResult(ok = true, bondIncomplete = !bonded)
     }
-    val proximityResponse = cm.sendQgjCommand(
+    val proximityResponse = vehicleIo { cm.sendQgjCommand(
       QgjCommandIds.proximityStatusSet,
       buildQgjProximityStatusPayload(false),
-    )
+    ) }
     if (proximityResponse?.success != true) {
       return EnableResult(ok = false, message = "车辆未确认关闭感应")
     }
-    val hidResponse = cm.sendQgjCommand(
+    val hidResponse = vehicleIo { cm.sendQgjCommand(
       QgjCommandIds.hidStatusSet,
       buildQgjHidPayload(QgjHidModes.close),
-    )
+    ) }
     if (hidResponse?.success != true) {
-      cm.sendQgjCommand(QgjCommandIds.proximityStatusSet, buildQgjProximityStatusPayload(false))
+      vehicleIo { cm.sendQgjCommand(QgjCommandIds.proximityStatusSet, buildQgjProximityStatusPayload(false)) }
       return EnableResult(ok = false, message = "车辆未确认关闭蓝牙感应配对")
     }
-    val bondRemoved = cm.removeBond(quiet = true)
+    val bondRemoved = vehicleIo { cm.removeBond(quiet = true) }
     return EnableResult(
       ok = true,
       warning = if (bondRemoved) null else "车辆感应已关闭，但系统蓝牙配对未能移除",
@@ -469,26 +489,26 @@ class InductionModeService(
 
   private suspend fun setTlinkEnabled(enabled: Boolean): EnableResult {
     if (enabled) {
-      val ok = cm.openTlinkInduction()
+      val ok = vehicleIo { cm.openTlinkInduction() }
       if (!ok) {
         return EnableResult(ok = false, message = "车辆未确认开启感应")
       }
-      val bonded = cm.createBond(quiet = true)
+      val bonded = vehicleIo { cm.createBond(quiet = true) }
       if (bonded) {
-        val hidOpened = cm.writeStandardHex(TLINK_HID_OPEN_AFTER_BOND_PLAIN)
+        val hidOpened = vehicleIo { cm.writeStandardHex(TLINK_HID_OPEN_AFTER_BOND_PLAIN) }
         if (!hidOpened) {
-          cm.closeTlinkInduction()
-          cm.removeBond(quiet = true)
+          vehicleIo { cm.closeTlinkInduction() }
+          vehicleIo { cm.removeBond(quiet = true) }
           return EnableResult(ok = false, message = "车辆感应已开启，但蓝牙感应配对写入失败")
         }
       }
       return EnableResult(ok = true, bondIncomplete = !bonded)
     }
-    val ok = cm.closeTlinkInduction()
+    val ok = vehicleIo { cm.closeTlinkInduction() }
     if (!ok) {
       return EnableResult(ok = false, message = "车辆未确认关闭感应")
     }
-    val bondRemoved = cm.removeBond(quiet = true)
+    val bondRemoved = vehicleIo { cm.removeBond(quiet = true) }
     return EnableResult(
       ok = true,
       warning = if (bondRemoved) null else "车辆感应已关闭，但系统蓝牙配对未能移除",
@@ -503,13 +523,12 @@ class InductionModeService(
           return EnableResult(ok = false, message = "云端服务未初始化，无法开启感应解锁")
         }
         try {
-          cloud.setKksHidEnabled(true)
+          vehicleIo { cloud.setKksHidEnabled(true) }
         } catch (e: Exception) {
           if (e is CancellationException) throw e
           return EnableResult(ok = false, message = OfficialCloudRedactor.errorMessage(e))
         }
       }
-      startRssiLoop()
     } else {
       // Turn the loop off only after the cloud side agreed: if the cloud call
       // fails the UI must roll back to "enabled" (the caller skips the pref
@@ -521,7 +540,7 @@ class InductionModeService(
         val cloud = _cloud
         if (cloud != null) {
           try {
-            cloud.setKksHidEnabled(false)
+            vehicleIo { cloud.setKksHidEnabled(false) }
           } catch (e: Exception) {
             if (e is CancellationException) throw e
             return EnableResult(
@@ -531,47 +550,47 @@ class InductionModeService(
           }
         }
       }
-      stopRssiLoop()
-      _rssiTaskState = RssiTaskState.idle
     }
     return EnableResult(ok = true)
   }
 
   /** Port of Dart `setDistance`. */
-  suspend fun setDistance(level: Int): Boolean {
+  suspend fun setDistance(level: Int): Boolean = withVehicleOperation { setDistanceCurrent(level) }
+
+  private suspend fun setDistanceCurrent(level: Int): Boolean {
     val stack = resolveStack(_boundModelType)
     val value = level.coerceIn(0, MAX_DISTANCE_LEVEL)
     if (!bleReadyFor(stack)) {
-      publish(_snapshot.copyWith(lastError = "请先连接车辆蓝牙并完成协议登录"))
+      publishCurrent(_snapshot.copyWith(lastError = "请先连接车辆蓝牙并完成协议登录"))
       return false
     }
-    publish(_snapshot.copyWith(busy = true, clearError = true))
+    publishCurrent(_snapshot.copyWith(busy = true, clearError = true))
     try {
       val ok = when (stack) {
         InductionStack.QGJ -> setQgjDistance(value)
-        InductionStack.TLINK -> cm.setTlinkInductionDistance(value)
+        InductionStack.TLINK -> vehicleIo { cm.setTlinkInductionDistance(value) }
         InductionStack.RSSI -> true
         InductionStack.NONE -> false
       }
       if (!ok) {
-        publish(_snapshot.copyWith(busy = false, lastError = "写入感应距离失败"))
+        publishCurrent(_snapshot.copyWith(busy = false, lastError = "写入感应距离失败"))
         return false
       }
       saveDistancePref(value)
-      publish(_snapshot.copyWith(distance = value, busy = false, clearError = true))
+      publishCurrent(_snapshot.copyWith(distance = value, busy = false, clearError = true))
       return true
     } catch (e: Exception) {
       if (e is CancellationException) throw e
-      publish(_snapshot.copyWith(busy = false, lastError = e.toString()))
+      publishCurrent(_snapshot.copyWith(busy = false, lastError = e.toString()))
       return false
     }
   }
 
   private suspend fun setQgjDistance(value: Int): Boolean {
-    val response = cm.sendQgjCommand(
+    val response = vehicleIo { cm.sendQgjCommand(
       QgjCommandIds.proximityDistanceSet,
       buildQgjProximityDistancePayload(value),
-    )
+    ) }
     return response?.success == true
   }
 
@@ -582,38 +601,40 @@ class InductionModeService(
   private fun startRssiLoop() {
     synchronized(rssiLock) {
       if (_rssiJob?.isActive == true) return
-      _rssiSamples.clear()
-      _rssiTaskState = RssiTaskState.idle
-      _rssiJob = scope.launch {
-        // Start the foreground service FIRST: if it cannot start (Android 12+
-        // bans background FGS starts — a BLE reconnect restarting this loop
-        // while backgrounded used to leave the poll running unprotected, with
-        // the process killable at any moment), cancel the poll instead.
-        if (!startRssiForegroundService()) {
-          _rssiJob?.cancel()
-          return@launch
-        }
-        // stopRssiLoop may have cancelled us while the FGS start was in
-        // flight — sweep the notification we just raised before exiting.
-        if (!isActive) {
-          runCatching { _foregroundService.stopNow() }
-            .onFailure {
-              _log.operation("RSSI 前台服务停止失败", detail = it.toString(), level = LogLevel.WARNING)
+      val session = RssiSession()
+      val label = _boundCarId
+      _rssiJob = scope.launch(start = CoroutineStart.LAZY) {
+        val thisJob = currentCoroutineContext().job
+        try {
+          // Start the foreground service FIRST: if it cannot start (Android 12+
+          // bans background FGS starts — a BLE reconnect restarting this loop
+          // while backgrounded used to leave the poll running unprotected, with
+          // the process killable at any moment), cancel the poll instead.
+          if (!startRssiForegroundService(label)) {
+            return@launch
+          }
+          currentCoroutineContext().ensureActive()
+          _log.operation("RSSI 感应轮询已启动", level = LogLevel.INFO)
+          while (isActive) {
+            delay(rssiPollInterval)
+            rssiTick(session)
+          }
+        } finally {
+          synchronized(rssiLock) {
+            if (_rssiJob === thisJob || _rssiJob == null) {
+              _rssiJob = null
+              stopForegroundService()
             }
-          return@launch
-        }
-        _log.operation("RSSI 感应轮询已启动", level = LogLevel.INFO)
-        while (isActive) {
-          delay(rssiPollInterval)
-          rssiTick()
+          }
         }
       }
+      _rssiJob?.start()
     }
   }
 
   /** Start the RSSI foreground service; returns whether it is running. */
-  private suspend fun startRssiForegroundService(): Boolean {
-    val started = _foregroundService.start(vehicleLabel = _boundCarId)
+  private suspend fun startRssiForegroundService(label: String?): Boolean {
+    val started = _foregroundService.start(vehicleLabel = label)
     if (!started) {
       _log.operation("RSSI 前台服务启动失败", level = LogLevel.WARNING)
     }
@@ -621,33 +642,37 @@ class InductionModeService(
   }
 
   private fun stopRssiLoop() {
-    val job: Job?
     synchronized(rssiLock) {
-      job = _rssiJob
+      val job = _rssiJob
       _rssiJob = null
-      _rssiSamples.clear()
-      _rssiFiring = false
+      job?.cancel()
+      stopForegroundService()
     }
-    job?.cancel()
-    // Stop synchronously: a cancelled/canceling scope would silently drop a
-    // scope.launch'ed stop and leave the foreground notification behind.
+  }
+
+  private fun stopForegroundService() {
     runCatching { _foregroundService.stopNow() }
       .onFailure { _log.operation("RSSI 前台服务停止失败", detail = it.toString(), level = LogLevel.WARNING) }
   }
 
-  private suspend fun rssiTick() {
+  private class RssiSession {
+    val samples = ArrayDeque<Int>()
+    var taskState = RssiTaskState.idle
+  }
+
+  private suspend fun rssiTick(session: RssiSession) {
     if (_manual.enabled) return
     if (!cm.isProtocolLoggedIn) return
-    if (_rssiFiring) return
     val rssi = cm.readRemoteRssi() ?: return
-    _rssiSamples.addLast(rssi)
-    while (_rssiSamples.size > rssiSampleWindow) {
-      _rssiSamples.removeFirst()
+    currentCoroutineContext().ensureActive()
+    session.samples.addLast(rssi)
+    while (session.samples.size > rssiSampleWindow) {
+      session.samples.removeFirst()
     }
-    if (_rssiSamples.size < rssiSampleWindow) return
+    if (session.samples.size < rssiSampleWindow) return
 
     val distance = estimateDistanceFromRssiSamples(
-      _rssiSamples.toList(),
+      session.samples.toList(),
       rssiA = _rssiCalibration.rssiA,
       rssiFactor = _rssiCalibration.rssiFactor,
     )
@@ -656,23 +681,23 @@ class InductionModeService(
       minDistanceM = _rssiCalibration.minDistanceM,
       maxDistanceM = _rssiCalibration.maxDistanceM,
     )
-    if (!shouldFireRssiAction(action, _rssiTaskState)) {
-      _rssiSamples.removeFirst()
+    if (!shouldFireRssiAction(action, session.taskState)) {
+      session.samples.removeFirst()
       return
     }
 
-    _rssiFiring = true
     try {
       if (action == RssiProximityAction.approachUnlock) {
         _log.operation("RSSI 感应 → 解防", detail = formatDistance(distance), level = LogLevel.INFO)
       } else if (action == RssiProximityAction.leaveLock) {
         _log.operation("RSSI 感应 → 设防", detail = formatDistance(distance), level = LogLevel.INFO)
       }
-      val steps = pendingRssiSteps(action, _rssiTaskState)
+      val steps = pendingRssiSteps(action, session.taskState)
       for (step in steps) {
         // Re-check manual mode before every command: the user may have flipped
         // the 感应|手动 switch while a previous step was in flight.
-        if (_manual.enabled) break
+        currentCoroutineContext().ensureActive()
+        if (_manual.enabled || !cm.isProtocolLoggedIn) break
         val command = when (step) {
           RssiProximityStep.unlock -> CommandCode.unlock
           RssiProximityStep.powerOn -> CommandCode.powerOn
@@ -680,7 +705,8 @@ class InductionModeService(
           RssiProximityStep.lock -> CommandCode.lock
         }
         val ok = cm.sendCommand(command)
-        _rssiTaskState = confirmedRssiState(_rssiTaskState, step, success = ok)
+        currentCoroutineContext().ensureActive()
+        session.taskState = confirmedRssiState(session.taskState, step, success = ok)
         if (!ok) {
           _log.operation("RSSI 感应步骤未确认", detail = command.label, level = LogLevel.WARNING)
           break
@@ -690,8 +716,7 @@ class InductionModeService(
       if (e is CancellationException) throw e
       _log.operation("RSSI 感应指令失败", detail = e.toString(), level = LogLevel.WARNING)
     } finally {
-      _rssiFiring = false
-      _rssiSamples.clear()
+      session.samples.clear()
     }
   }
 
@@ -709,28 +734,109 @@ class InductionModeService(
   private val distanceKey: String
     get() = "$PREF_DISTANCE_PREFIX${_boundCarId ?: _boundModelType ?: "default"}"
 
-  private suspend fun loadEnabledPref(): Boolean = _prefs.loadBoolean(enabledKey, false)
+  private suspend fun loadEnabledPref(): Boolean {
+    val operation = ensureCurrentOperation()
+    return vehicleIo { _prefs.loadBoolean(operation.enabledKey, false) }
+  }
 
-  private suspend fun saveEnabledPref(value: Boolean) = _prefs.saveBoolean(enabledKey, value)
+  private suspend fun saveEnabledPref(value: Boolean) {
+    val operation = ensureCurrentOperation()
+    vehicleIo { _prefs.saveBoolean(operation.enabledKey, value) }
+  }
 
-  private suspend fun loadDistancePref(): Int = _prefs.loadInt(distanceKey, DEFAULT_DISTANCE_LEVEL)
+  private suspend fun loadDistancePref(): Int {
+    val operation = ensureCurrentOperation()
+    return vehicleIo { _prefs.loadInt(operation.distanceKey, DEFAULT_DISTANCE_LEVEL) }
+      .coerceIn(0, MAX_DISTANCE_LEVEL)
+  }
 
-  private suspend fun saveDistancePref(value: Int) = _prefs.saveInt(distanceKey, value)
+  private suspend fun saveDistancePref(value: Int) {
+    val operation = ensureCurrentOperation()
+    vehicleIo { _prefs.saveInt(operation.distanceKey, value) }
+  }
+
+  private class VehicleOperation(
+    val generation: Long,
+    val enabledKey: String,
+    val distanceKey: String,
+  ) : AbstractCoroutineContextElement(Key) {
+    companion object Key : CoroutineContext.Key<VehicleOperation>
+  }
+
+  private suspend fun <T> withVehicleOperation(block: suspend () -> T): T = coroutineScope {
+    val operationJob = currentCoroutineContext().job
+    val operation = synchronized(bindingLock) {
+      activeOperations.add(operationJob)
+      VehicleOperation(bindingGeneration, enabledKey, distanceKey)
+    }
+    try {
+      operationMutex.withLock {
+        try {
+          withContext(operation) {
+            ensureCurrentOperation()
+            block()
+          }
+        } finally {
+          synchronized(bindingLock) {
+            if (operation.generation == bindingGeneration) publish(_snapshot.copyWith(busy = false))
+          }
+        }
+      }
+    } finally {
+      synchronized(bindingLock) {
+        activeOperations.remove(operationJob)
+      }
+    }
+  }
+
+  private suspend fun ensureCurrentOperation(): VehicleOperation {
+    val context = currentCoroutineContext()
+    context.ensureActive()
+    val operation = checkNotNull(context[VehicleOperation])
+    synchronized(bindingLock) {
+      if (operation.generation != bindingGeneration) throw CancellationException("感应车辆已切换")
+    }
+    return operation
+  }
+
+  private suspend fun <T> vehicleIo(block: suspend () -> T): T {
+    ensureCurrentOperation()
+    return block().also { ensureCurrentOperation() }
+  }
+
+  private suspend fun publishCurrent(next: InductionModeSnapshot) {
+    val operation = ensureCurrentOperation()
+    synchronized(bindingLock) {
+      if (operation.generation != bindingGeneration) throw CancellationException("感应车辆已切换")
+      publish(next)
+    }
+  }
+
+  private suspend fun updateRssiLoop(enabled: Boolean) {
+    val operation = ensureCurrentOperation()
+    synchronized(bindingLock) {
+      if (operation.generation != bindingGeneration) throw CancellationException("感应车辆已切换")
+      if (enabled) startRssiLoop() else stopRssiLoop()
+    }
+  }
 
   private fun publish(next: InductionModeSnapshot) {
-    _snapshot = next
     _snapshotState.value = next
   }
 
   /** Port of Dart `resetForTest`. */
   fun resetForTest() {
-    stopRssiLoop()
-    _rssiTaskState = RssiTaskState.idle
-    _boundModelType = null
-    _boundCarId = null
-    _rssiCalibration = RssiCalibration()
-    _appInForeground = true
-    publish(InductionModeSnapshot.EMPTY)
+    synchronized(bindingLock) {
+      bindingGeneration++
+      activeOperations.toList().forEach { it.cancel() }
+      stopRssiLoop()
+      _boundModelType = null
+      _boundCarId = null
+      _boundIdentityMac = ""
+      _rssiCalibration = RssiCalibration()
+      _appInForeground = true
+      publish(InductionModeSnapshot.EMPTY)
+    }
   }
 
   /**
@@ -739,6 +845,10 @@ class InductionModeService(
    * scope (the notification then dies with the process — `START_NOT_STICKY`).
    */
   fun dispose() {
+    synchronized(bindingLock) {
+      bindingGeneration++
+      activeOperations.toList().forEach { it.cancel() }
+    }
     stopRssiLoop()
     _connJob?.cancel()
     _connJob = null

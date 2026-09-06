@@ -36,17 +36,16 @@ object SensitiveValueMasker {
  *
  * Regex port notes:
  * - Dart `caseSensitive: false` → `RegexOption.IGNORE_CASE`.
- * - All patterns are otherwise identical; both engines use ASCII `\b` word
- *   boundaries and support the `(?!Bearer\b)` negative lookahead.
+ * - Known authorization schemes are redacted before generic key/value pairs.
  * - Kotlin `Regex.replace(input, transform)` iterates matches left-to-right
  *   and non-overlapping — the same contract as Dart `replaceAllMapped`.
  * - The replacement order is significant and must not be reordered.
  */
 object SensitiveTextRedactor {
 
-    /** `authorization: <value>` pairs whose value does not start with `Bearer`. */
+    /** Authorization values not already handled by a recognized scheme. */
     private val authorizationValuePattern = Regex(
-        """(["']?\bauthorization\b["']?\s*[:=]\s*["']?)(?!Bearer\b)([^"'\s,&}]+)(["']?)""",
+        """(["']?\bauthorization\b["']?\s*[:=]\s*["']?)(?!(?:Bearer|Basic)\b)([^"'\s,&}]+)(["']?)""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -55,9 +54,11 @@ object SensitiveTextRedactor {
         RegexOption.IGNORE_CASE,
     )
 
-    /** `phone|token|imei|carId|uid|userId|password|frame|btmac|mac` key/value pairs. */
+    private val basicTokenPattern = Regex("""\bBasic\s+[A-Za-z0-9+/=]+""", RegexOption.IGNORE_CASE)
+
+    /** `phone|token|captchaPassToken|smsCode|ticket|randstr|imei|carId|uid|userId|password|mqPassword|mqUsername|mainPassword|mainPwd|childPassword|childrenPassword|frame|btmac|mac` key/value pairs. */
     private val sensitiveKeyValuePattern = Regex(
-        """(["']?\b(?:phone|token|imei|carId|uid|userId|password|frame|btmac|mac)\b["']?\s*[:=]\s*["']?)([^"'\s,&}]+)(["']?)""",
+        """(["']?\b(?:phone|token|captchaPassToken|smsCode|ticket|randstr|imei|carId|uid|userId|password|mqPassword|mqUsername|mainPassword|mainPwd|childPassword|childrenPassword|frame|btmac|mac)\b["']?\s*[:=]\s*["']?)([^"'\s,&}]+)(["']?)""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -75,6 +76,7 @@ object SensitiveTextRedactor {
 
     fun redact(value: String): String {
         return value
+            .replace(basicTokenPattern, "Basic ***")
             .replace(bearerTokenPattern) { match ->
                 "Bearer ${mask(match.groupValues[1])}"
             }

@@ -22,7 +22,7 @@ import org.robolectric.RobolectricTestRunner
 /**
  * Port-validation tests for [CoulombMeterService], mirroring
  * `tailg-ble-app/test/coulomb_meter_service_test.dart` (pure helpers) plus
- * hermetic BLE-path coverage for the guard clauses and the timeout fallback
+ * hermetic BLE-path coverage for guard clauses and confirmed status handling
  * using a mocked [ConnectionManager].
  */
 @RunWith(RobolectricTestRunner::class)
@@ -112,12 +112,84 @@ class CoulombMeterServiceTest {
         every { cm.fbb2Flow } returns fbb2
         coEvery { cm.sendCommand(CommandCode.powerOn) } returns true
         // Firmware replies with a parseable ON frame as the write side effect.
-        coEvery { cm.writeFbb2(any()) } answers { fbb2.tryEmit("D0010A08FF01000000000000") }
+        coEvery { cm.writeFbb2(any()) } coAnswers { fbb2.emit("D0010A08FF01000000000000") }
         val service = CoulombMeterService(connectionManager = cm)
 
         val result = service.setEnabled(true)
 
         assertEquals(true, result)
         coVerify { cm.writeFbb2(CoulombMeterService.TURN_ON_FRAME) }
+    }
+
+    @Test
+    fun changedVehicleIsRejectedBeforePoweringOn() = runTest {
+        val cm = mockk<ConnectionManager>()
+        val service = CoulombMeterService(cm, ensureConnection = { error("vehicle changed") })
+
+        assertSuspendThrows<IllegalStateException> { service.setEnabled(true) }
+
+        coVerify(exactly = 0) { cm.sendCommand(any()) }
+        coVerify(exactly = 0) { cm.writeFbb2(any()) }
+    }
+
+    @Test
+    fun vehicleChangeDuringPowerOnPreventsWritingTheSettingToAnotherVehicle() = runTest {
+        val cm = mockk<ConnectionManager>()
+        every { cm.isProtocolLoggedIn } returns true
+        every { cm.fbb2Char } returns mockk<BluetoothGattCharacteristic>()
+        every { cm.fbb2Flow } returns MutableSharedFlow()
+        var currentVehicle = true
+        coEvery { cm.sendCommand(CommandCode.powerOn) } answers {
+            currentVehicle = false
+            true
+        }
+        val service = CoulombMeterService(cm, ensureConnection = { check(currentVehicle) })
+
+        assertSuspendThrows<IllegalStateException> { service.setEnabled(true) }
+
+        coVerify(exactly = 0) { cm.writeFbb2(any()) }
+    }
+
+    @Test
+    fun setEnabledDoesNotReportSuccessWithoutAStatusResponse() = runTest {
+        val cm = mockk<ConnectionManager>()
+        every { cm.isProtocolLoggedIn } returns true
+        every { cm.fbb2Char } returns mockk<BluetoothGattCharacteristic>()
+        every { cm.fbb2Flow } returns MutableSharedFlow()
+        coEvery { cm.sendCommand(CommandCode.powerOn) } returns true
+        coEvery { cm.writeFbb2(any()) } just Runs
+
+        assertNull(CoulombMeterService(cm).setEnabled(true))
+        assertNull(CoulombMeterService(cm).setEnabled(false))
+    }
+
+    @Test
+    fun setEnabledIgnoresUnrelatedFramesAndReturnsActualState() = runTest {
+        val cm = mockk<ConnectionManager>()
+        every { cm.isProtocolLoggedIn } returns true
+        every { cm.fbb2Char } returns mockk<BluetoothGattCharacteristic>()
+        val fbb2 = MutableSharedFlow<String>()
+        every { cm.fbb2Flow } returns fbb2
+        coEvery { cm.sendCommand(CommandCode.powerOn) } returns true
+        coEvery { cm.writeFbb2(any()) } coAnswers {
+            fbb2.emit("D0018A00")
+            fbb2.emit("D0010A08")
+            fbb2.emit("D0010A08FF00000000000000")
+        }
+
+        assertEquals(false, CoulombMeterService(cm).setEnabled(true))
+    }
+
+    @Test
+    fun unrelatedFrameAloneDoesNotConfirmSetting() = runTest {
+        val cm = mockk<ConnectionManager>()
+        every { cm.isProtocolLoggedIn } returns true
+        every { cm.fbb2Char } returns mockk<BluetoothGattCharacteristic>()
+        val fbb2 = MutableSharedFlow<String>()
+        every { cm.fbb2Flow } returns fbb2
+        coEvery { cm.sendCommand(CommandCode.powerOn) } returns true
+        coEvery { cm.writeFbb2(any()) } coAnswers { fbb2.emit("D0018A00") }
+
+        assertNull(CoulombMeterService(cm).setEnabled(true))
     }
 }

@@ -75,9 +75,18 @@ fun circleGeoPoints(center: GeoPoint, radiusMeters: Double, segments: Int = 64):
 private class CameraTarget {
   var centerLat: Double? = null
   var centerLng: Double? = null
-  var trackKey: String? = null
+  var trackKey: List<Pair<Double, Double>>? = null
   var initialized = false
 }
+
+private data class MapDataKey(
+  val latitude: Double?,
+  val longitude: Double?,
+  val fenceRadiusMeters: Double?,
+  val fenceEnabled: Boolean,
+  val showVehiclePin: Boolean,
+  val track: List<Pair<Double, Double>>?,
+)
 
 /**
  * Data-driven overlay instances reused across recompositions.
@@ -99,7 +108,7 @@ private class MapOverlayState(
   var trackVisible = false
   var fenceVisible = false
   var pinVisible = false
-  var dataKey: String? = null
+  var dataKey: MapDataKey? = null
   var tilesPaused: Boolean = false
 
   /** Re-apply visibility after a mutation so the map overlay list stays canonical. */
@@ -258,11 +267,11 @@ fun CyberMapView(
         val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
         val hasTrack = trackPoints.size >= 2
         val trackKey = if (hasTrack) {
-          "${trackPoints.size}|${trackPoints.first().latitude},${trackPoints.first().longitude}|${trackPoints.last().latitude},${trackPoints.last().longitude}"
+          trackPoints.map { it.latitude to it.longitude }
         } else {
           null
         }
-        val dataKey = "$latitude|$longitude|$fenceRadiusMeters|$fenceEnabled|$showVehiclePin|$trackKey"
+        val dataKey = MapDataKey(latitude, longitude, fenceRadiusMeters, fenceEnabled, showVehiclePin, trackKey)
         if (dataKey != overlayState.dataKey) {
         overlayState.dataKey = dataKey
 
@@ -302,10 +311,13 @@ fun CyberMapView(
           trackKey != null && camera.trackKey != trackKey -> {
             camera.trackKey = trackKey
             val box = BoundingBox.fromGeoPoints(trackPoints).increaseByScale(1.25f)
-            view.post { view.zoomToBoundingBox(box, false, 64) }
+            view.post {
+              if (camera.trackKey == trackKey) view.zoomToBoundingBox(box, false, 64)
+            }
           }
           trackKey == null && center != null &&
-            (camera.centerLat != center.latitude || camera.centerLng != center.longitude) -> {
+            (camera.trackKey != null || camera.centerLat != center.latitude || camera.centerLng != center.longitude) -> {
+            camera.trackKey = null
             camera.centerLat = center.latitude
             camera.centerLng = center.longitude
             view.controller.animateTo(center)

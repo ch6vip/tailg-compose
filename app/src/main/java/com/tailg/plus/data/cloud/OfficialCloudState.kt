@@ -130,6 +130,24 @@ data class OfficialCloudState(
     fun linkedLocalVehicleId(officialVehicleKey: String): String? =
         OfficialCloudVehicleLinks.normalize(localVehicleLinks)[officialVehicleKey.trim()]
 
+    internal fun withVehicleSelection(
+        vehicles: List<OfficialVehicle> = this.vehicles,
+        selectedKey: String?,
+    ): OfficialCloudState {
+        val next = copyWith(vehicles = vehicles, selectedVehicleKey = selectedKey, error = null)
+        if (selectedVehicle?.key == next.selectedVehicle?.key) return next
+        return next.copyWith(
+            batteryInfo = null, batteryInfoLoading = false, batteryInfoError = null,
+            bmsInfo = null, bmsInfoLoading = false, bmsInfoError = null,
+            vehicleLocation = null, vehicleLocationLoading = false, vehicleLocationError = null,
+            fenceData = null, fenceLoading = false, fenceError = null,
+            travelDays = emptyList(), travelMonth = "", travelLoading = false, travelError = null,
+            travelDetails = emptyMap(), travelDetailLoading = false, travelDetailError = null,
+            rideStatistics = null, ridePeriod = OfficialRidePeriod.DAY,
+            rideStatisticsLoading = false, rideStatisticsError = null,
+        )
+    }
+
     fun copyWith(
         initialized: Boolean? = null,
         token: String? = null,

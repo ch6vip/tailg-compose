@@ -34,6 +34,10 @@ import io.mockk.every
 import io.mockk.just
 import io.mockk.mockk
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -43,7 +47,68 @@ import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class InductionModeServiceTest {
+
+  @Test
+  fun oldVehicleReadCannotContinueOrReplaceNewBinding() = runTest {
+    val cm = qgjReadyCm()
+    val response = CompletableDeferred<QgjResponse?>()
+    coEvery { cm.sendQgjCommand(QgjCommandIds.proximityStatusGet, any()) } coAnswers { response.await() }
+    val service = buildService(cm)
+    service.bindVehicle(8, "old", null)
+    runCurrent()
+    every { cm.isProtocolLoggedIn } returns false
+    service.bindVehicle(1, "new", null)
+    runCurrent()
+    response.complete(qgjResponse(QgjCommandIds.proximityStatusGet, listOf(1)))
+    runCurrent()
+
+    assertEquals(InductionStack.RSSI, service.snapshot.stack)
+    assertFalse(service.snapshot.bleReady)
+    coVerify(exactly = 0) { cm.sendQgjCommand(QgjCommandIds.proximityDistanceGet, any()) }
+    service.dispose()
+  }
+
+  @Test
+  fun changingVehicleCancelsRemainingEnableStepsAndPreferenceWrites() = runTest {
+    val cm = qgjReadyCm()
+    val response = CompletableDeferred<QgjResponse?>()
+    val prefs = mockk<InductionPrefs>(relaxed = true)
+    val service = buildService(cm, prefs = prefs)
+    service.bindVehicle(8, "old", null)
+    runCurrent()
+    coEvery { cm.sendQgjCommand(QgjCommandIds.proximityStatusSet, any()) } coAnswers { response.await() }
+    val enable = async { service.setEnabled(true) }
+    runCurrent()
+    every { cm.isProtocolLoggedIn } returns false
+    service.bindVehicle(8, "new", null)
+    response.complete(qgjResponse(QgjCommandIds.proximityStatusSet, emptyList()))
+    runCurrent()
+
+    assertTrue(enable.isCancelled)
+    coVerify(exactly = 0) { cm.sendQgjCommand(QgjCommandIds.hidStatusSet, any()) }
+    coVerify(exactly = 0) { prefs.saveBoolean(any(), any()) }
+    assertFalse(service.snapshot.busy)
+    service.dispose()
+  }
+
+  @Test
+  fun cancellingDistanceWriteReleasesBusyState() = runTest {
+    val cm = qgjReadyCm()
+    val service = buildService(cm)
+    service.bindVehicle(8, "car", null)
+    runCurrent()
+    coEvery { cm.sendQgjCommand(QgjCommandIds.proximityDistanceSet, any()) } coAnswers {
+      CompletableDeferred<QgjResponse?>().await()
+    }
+    val distance = async { service.setDistance(10) }
+    runCurrent()
+    assertTrue(service.snapshot.busy)
+    distance.cancelAndJoin()
+    assertFalse(service.snapshot.busy)
+    service.dispose()
+  }
 
   private fun qgjResponse(cmdId: Int, payload: List<Int>, success: Boolean = true): QgjResponse =
     QgjResponse(

@@ -1,5 +1,11 @@
 package com.tailg.plus.ui.screens
 
+import kotlinx.coroutines.flow.distinctUntilChanged
+
+import kotlinx.coroutines.flow.map
+
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -119,9 +125,15 @@ fun ReplaceBatteryScreen(
   var ah by remember { mutableStateOf("") }
   var showDatePicker by remember { mutableStateOf(false) }
 
-  val vehicle = cloudService.currentState.selectedVehicle
+  val vehicleFlow = remember(cloudService) {
+    cloudService.stateFlow.map { it.selectedVehicle }.distinctUntilChanged()
+  }
+  val vehicle by vehicleFlow.collectAsStateWithLifecycle(initialValue = cloudService.currentState.selectedVehicle)
 
   LaunchedEffect(vehicle?.key) {
+    loadingTypes = true
+    selectedType = null
+    types = emptyList()
     val v = vehicle
     if (v == null) {
       loadingTypes = false
@@ -137,11 +149,6 @@ fun ReplaceBatteryScreen(
         loadingTypes = false
         error = if (loaded.isEmpty()) strNoTypes else null
       },
-      onSpecs = { loaded, selected ->
-        specs = loaded
-        selectedSpec = selected
-        loadingSpecs = false
-      },
       onPrefill = { vText, ahText, date ->
         voltage = vText
         ah = ahText
@@ -153,6 +160,28 @@ fun ReplaceBatteryScreen(
         error = msg
       },
     )
+  }
+
+  // Changing battery type cancels the previous request before it can publish its specs.
+  LaunchedEffect(vehicle?.key, selectedType?.type) {
+    specs = emptyList()
+    selectedSpec = null
+    loadingSpecs = false
+    val type = selectedType ?: return@LaunchedEffect
+    if (type.isCustom) return@LaunchedEffect
+    loadingSpecs = true
+    error = null
+    try {
+      val loaded = cloudService.fetchBatterySpecsByType(type.type)
+      val code = vehicle?.raw?.get("batterySpecCode")?.toString()?.trim()
+      specs = loaded
+      selectedSpec = loaded.firstOrNull { it.code == code } ?: loaded.firstOrNull()
+    } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
+      error = OfficialCloudRedactor.errorMessage(e)
+    } finally {
+      loadingSpecs = false
+    }
   }
 
   Scaffold(
@@ -238,20 +267,6 @@ fun ReplaceBatteryScreen(
                       selectedSpec = null
                       specs = emptyList()
                       expanded = false
-                      if (!t.isCustom) {
-                        loadingSpecs = true
-                        scope.launch {
-                          try {
-                            val loaded = cloudService.fetchBatterySpecsByType(t.type)
-                            selectedSpec = loaded.firstOrNull()
-                            specs = loaded
-                          } catch (e: Exception) {
-                            error = OfficialCloudRedactor.errorMessage(e)
-                          } finally {
-                            loadingSpecs = false
-                          }
-                        }
-                      }
                     },
                   )
                 }
@@ -437,6 +452,7 @@ fun ReplaceBatteryScreen(
                   AppSnack.success(snackbarHostState, strUpdated)
                   onBack(true)
                 } catch (e: Exception) {
+                  if (e is kotlinx.coroutines.CancellationException) throw e
                   log.operation(
                     strUpdateFailed,
                     detail = e.toString(),
@@ -494,7 +510,6 @@ private suspend fun bootstrap(
   vehicle: OfficialVehicle,
   cloudService: OfficialCloudService,
   onTypes: (List<OfficialBatteryType>, OfficialBatteryType?) -> Unit,
-  onSpecs: (List<OfficialBatterySpec>, OfficialBatterySpec?) -> Unit,
   onPrefill: (String, String, LocalDate?) -> Unit,
   onError: (String) -> Unit,
 ) {
@@ -521,17 +536,8 @@ private suspend fun bootstrap(
     if (selected == null && types.isNotEmpty()) selected = types.first()
     onTypes(types, selected)
 
-    if (selected != null && !selected.isCustom) {
-      val specs = cloudService.fetchBatterySpecsByType(selected.type)
-      val code = vehicle.raw["batterySpecCode"]?.toString()?.trim() ?: ""
-      var selectedSpec: OfficialBatterySpec? = null
-      if (code.isNotEmpty()) {
-        selectedSpec = specs.firstOrNull { it.code == code }
-      }
-      if (selectedSpec == null && specs.isNotEmpty()) selectedSpec = specs.first()
-      onSpecs(specs, selectedSpec)
-    }
   } catch (e: Exception) {
+    if (e is kotlinx.coroutines.CancellationException) throw e
     onError(OfficialCloudRedactor.errorMessage(e))
   }
 }

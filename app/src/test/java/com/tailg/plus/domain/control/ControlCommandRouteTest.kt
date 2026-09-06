@@ -48,6 +48,7 @@ class ControlCommandRouteTest {
     return ControlChannelResolver.resolve(
       cloudState = state,
       bleReady = bleReady,
+      connectedVehicleId = state.selectedVehicle?.normalizedDeviceMac,
       networkReady = networkReady,
       channel = channel,
     )

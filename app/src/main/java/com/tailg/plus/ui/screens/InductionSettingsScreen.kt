@@ -96,6 +96,7 @@ fun InductionSettingsScreen(
   manualModeService: ManualModeService,
 ) {
   val context = LocalContext.current
+  val hostActivity = androidx.activity.compose.LocalActivity.current as? androidx.activity.ComponentActivity
   val snackbarHostState = remember { SnackbarHostState() }
   val scope = rememberCoroutineScope()
 
@@ -268,7 +269,7 @@ fun InductionSettingsScreen(
                   inductionService = inductionService,
                   manualModeService = manualModeService,
                   permissionService = permissionService,
-                  hostActivity = context as? androidx.activity.ComponentActivity,
+                  hostActivity = hostActivity,
                   snackbarHostState = snackbarHostState,
                   setBusy = { busy = it },
                   strNeedBleRead = strInductionNeedBleRead,
@@ -291,8 +292,7 @@ fun InductionSettingsScreen(
               scope.launch {
                 if (busy) return@launch
                 busy = true
-                val ok = inductionService.setDistance(level)
-                busy = false
+                val ok = try { inductionService.setDistance(level) } finally { busy = false }
                 if (!ok) {
                   AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: strInductionDistanceFailed)
                 } else {
@@ -721,6 +721,7 @@ private suspend fun selectUnlockMode(
       return
     }
     setBusy(true)
+    try {
     if (snapshot.enabled == true) {
       val closed = inductionService.setEnabled(false)
       if (!closed) {
@@ -730,7 +731,9 @@ private suspend fun selectUnlockMode(
       }
     }
     manualModeService.setEnabled(true)
-    setBusy(false)
+    } finally {
+      setBusy(false)
+    }
     val err = inductionService.snapshot.lastError
     if (err != null) {
       AppSnack.info(snackbarHostState, err)
@@ -775,8 +778,11 @@ private suspend fun selectUnlockMode(
   }
 
   setBusy(true)
-  val ok = inductionService.setEnabled(true, clearManualMode = true)
-  setBusy(false)
+  val ok = try {
+    inductionService.setEnabled(true, clearManualMode = true)
+  } finally {
+    setBusy(false)
+  }
   if (!ok) {
     AppSnack.error(snackbarHostState, inductionService.snapshot.lastError ?: strEnableFailed)
     return

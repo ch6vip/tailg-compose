@@ -9,11 +9,17 @@
 package com.tailg.plus.data.ble.platform
 
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class GattOperationQueueTest {
 
   @Test
@@ -50,5 +56,62 @@ class GattOperationQueueTest {
     testScheduler.advanceUntilIdle()
 
     assertEquals(listOf("normal", "high", "low"), order)
+  }
+
+  @Test
+  fun cancelledQueuedCommandIsNeverExecuted() = runTest {
+    val queue = GattOperationQueue(this)
+    val gate = CompletableDeferred<Unit>()
+    launch { queue.run(GattOperationPriority.NORMAL) { gate.await() } }
+    testScheduler.runCurrent()
+
+    var sent = false
+    val command = launch { queue.run(GattOperationPriority.HIGH) { sent = true } }
+    testScheduler.runCurrent()
+    command.cancelAndJoin()
+    gate.complete(Unit)
+    testScheduler.advanceUntilIdle()
+
+    assertFalse(sent)
+  }
+
+  @Test
+  fun cancellingActiveCommandReleasesQueueWithoutWaitingForGattTimeout() = runTest {
+    val queue = GattOperationQueue(this)
+    val gate = CompletableDeferred<Unit>()
+    var sent = false
+    val command = launch {
+      queue.run(GattOperationPriority.NORMAL) { gate.await(); sent = true }
+    }
+    testScheduler.runCurrent()
+    command.cancelAndJoin()
+    val next = async { queue.run(GattOperationPriority.NORMAL) { "next" } }
+    testScheduler.runCurrent()
+
+    assertTrue(next.isCompleted)
+    assertEquals("next", next.await())
+    assertFalse(sent)
+    assertEquals(0L, testScheduler.currentTime)
+  }
+
+  @Test
+  fun disconnectCancelsActiveWorkBeforeNewSessionCanUseQueue() = runTest {
+    val queue = GattOperationQueue(this)
+    val gate = CompletableDeferred<Unit>()
+    var sent = false
+    val oldCommand = launch {
+      queue.run(GattOperationPriority.NORMAL) { gate.await(); sent = true }
+    }
+    testScheduler.runCurrent()
+
+    queue.completePending(CancellationException("disconnected"))
+    val next = async { queue.run(GattOperationPriority.NORMAL) { "new session" } }
+    testScheduler.runCurrent()
+    gate.complete(Unit)
+    testScheduler.advanceUntilIdle()
+
+    assertTrue(oldCommand.isCancelled)
+    assertEquals("new session", next.await())
+    assertFalse(sent)
   }
 }

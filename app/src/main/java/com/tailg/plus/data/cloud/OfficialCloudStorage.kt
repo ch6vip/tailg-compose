@@ -2,6 +2,8 @@ package com.tailg.plus.data.cloud
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,6 +14,7 @@ import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.model.parsePersistedMap
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
+import java.io.IOException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withContext
@@ -49,6 +52,7 @@ class OfficialCloudStorage(
     private val context: Context,
     private val log: LogService = LogService(),
     private val securePrefsFactory: (() -> SharedPreferences?)? = null,
+    private val dataStore: DataStore<Preferences> = context.cloudDataStore,
 ) {
 
     /**
@@ -84,7 +88,7 @@ class OfficialCloudStorage(
 
     suspend fun loadSession(): OfficialCloudStoredSession {
         val prefs = com.tailg.plus.data.store.withDataStoreReadTimeout {
-            context.cloudDataStore.data.first()
+            dataStore.data.first()
         }
         val credentials = withContext(Dispatchers.IO) { loadSecureCredentials(prefs) }
         val token = credentials.first
@@ -113,7 +117,7 @@ class OfficialCloudStorage(
                 saveCarControlInfo(vehicleToMigrate)
                 log.operation("官方车辆控制缓存已迁移到安全存储")
             } else {
-                context.cloudDataStore.edit { it.remove(KEY_CAR_CONTROL_INFO) }
+                dataStore.edit { it.remove(KEY_CAR_CONTROL_INFO) }
             }
         }
         return OfficialCloudStoredSession(
@@ -143,9 +147,9 @@ class OfficialCloudStorage(
             } else {
                 editor.putString(KEY_SECURE_USER_ID, userId)
             }
-            editor.commit()
+            editor.commitOrThrow()
         }
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
             prefs.remove(KEY_PHONE)
             prefs.remove(KEY_USER_ID)
@@ -162,9 +166,9 @@ class OfficialCloudStorage(
                 ?.remove(KEY_SECURE_PHONE)
                 ?.remove(KEY_SECURE_USER_ID)
                 ?.remove(KEY_SECURE_CAR_CONTROL_INFO)
-                ?.commit()
+                ?.commitOrThrow()
         }
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(KEY_TOKEN)
             prefs.remove(KEY_PHONE)
             prefs.remove(KEY_USER_ID)
@@ -175,7 +179,7 @@ class OfficialCloudStorage(
     }
 
     suspend fun saveSelectedVehicleKey(key: String?) {
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             if (key == null) {
                 prefs.remove(KEY_SELECTED_VEHICLE)
             } else {
@@ -192,15 +196,15 @@ class OfficialCloudStorage(
             } else {
                 editor.putString(KEY_SECURE_CAR_CONTROL_INFO, CloudJson.encode(vehicle.toJson()))
             }
-            editor.commit()
+            editor.commitOrThrow()
         }
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs.remove(KEY_CAR_CONTROL_INFO)
         }
     }
 
     suspend fun saveUserProfile(profile: OfficialUserProfile?) {
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             if (profile == null) {
                 prefs.remove(KEY_USER_PROFILE)
             } else {
@@ -210,12 +214,16 @@ class OfficialCloudStorage(
     }
 
     suspend fun saveLinks(links: Map<String, String>) {
-        context.cloudDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[KEY_VEHICLE_LINKS] = CloudJson.encode(links)
         }
     }
 
     // -- decode helpers -------------------------------------------------------
+
+    private fun SharedPreferences.Editor.commitOrThrow() {
+        if (!commit()) throw IOException("安全存储写入失败，请检查设备可用空间后重试")
+    }
 
     private fun decodeUserProfile(raw: String?): OfficialUserProfile? {
         if (raw.isNullOrBlank()) return null
@@ -248,7 +256,7 @@ class OfficialCloudStorage(
         val secure = securePrefs
         if (secure == null) {
             if (KEY_TOKEN in prefs || KEY_PHONE in prefs || KEY_USER_ID in prefs) {
-                context.cloudDataStore.edit { prefsEdit ->
+                dataStore.edit { prefsEdit ->
                     prefsEdit.remove(KEY_TOKEN)
                     prefsEdit.remove(KEY_PHONE)
                     prefsEdit.remove(KEY_USER_ID)
@@ -276,8 +284,8 @@ class OfficialCloudStorage(
                 if (token.isNotEmpty()) putString(KEY_SECURE_TOKEN, token)
                 if (phone.isNotEmpty()) putString(KEY_SECURE_PHONE, phone)
                 if (userId.isNotEmpty()) putString(KEY_SECURE_USER_ID, userId)
-            }.commit()
-            context.cloudDataStore.edit { prefsEdit ->
+            }.commitOrThrow()
+            dataStore.edit { prefsEdit ->
                 prefsEdit.remove(KEY_TOKEN)
                 prefsEdit.remove(KEY_PHONE)
                 prefsEdit.remove(KEY_USER_ID)

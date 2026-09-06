@@ -10,6 +10,7 @@
 package com.tailg.plus.data.mqtt
 
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudApiException
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.cloud.OfficialRemoteErrorMessages
 import com.tailg.plus.data.model.CommandCode
@@ -26,6 +27,9 @@ import java.util.concurrent.TimeoutException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -159,6 +163,70 @@ class OfficialMqttServiceTest {
   }
 
   @Test
+  fun failedPublishDoesNotRetargetHttpAfterVehicleSwitch() = runTest {
+    val original = signedInState(vehicle("vehicle-a"))
+    val states = MutableStateFlow(original)
+    every { cloud.stateFlow } returns states
+    every { cloud.currentState } answers { states.value }
+    val mqtt = OfficialMqttService(defaultCloud = cloud, scope = backgroundScope)
+    val publishing = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    mqtt.publishCommandOverride = { _, _, _ ->
+      publishing.complete(Unit)
+      release.await()
+      error("broker unavailable")
+    }
+    val send = async {
+      try {
+        mqtt.sendCommandPreferMqtt(CommandCode.UNLOCK, cloud)
+        null
+      } catch (e: OfficialCloudApiException) {
+        e
+      }
+    }
+    publishing.await()
+    states.value = signedInState(vehicle("vehicle-b"))
+    release.complete(Unit)
+
+    assertEquals("车辆或登录状态已变化，请重新操作", send.await()?.message)
+    coVerify(exactly = 0) { cloud.sendCommand(any()) }
+    mqtt.dispose()
+  }
+
+  @Test
+  fun disconnectClearsPendingWithoutAcknowledgingCommand() = runBlocking {
+    val mqtt = OfficialMqttService(defaultCloud = cloud)
+    try {
+      bindSignedIn(mqtt, "860000000000001")
+      mqtt.publishCommandOverride = { _, _, _ -> }
+      mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
+      mqtt.disconnect()
+
+      assertNull(mqtt.pendingCommandApiName)
+      assertNull(mqtt.acknowledgedCommandApiName)
+    } finally {
+      mqtt.resetForTest()
+    }
+  }
+
+  @Test
+  fun acknowledgementDuringPublishIsRetained() = runBlocking {
+    val mqtt = OfficialMqttService(defaultCloud = cloud)
+    try {
+      bindSignedIn(mqtt, "860000000000001")
+      mqtt.publishCommandOverride = { _, _, _ ->
+        mqtt.handleStatusPayload("""{"imei":"860000000000001","defenceStatus":"1"}""")
+      }
+      mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
+
+      assertNull(mqtt.pendingCommandApiName)
+      assertEquals("lock", mqtt.acknowledgedCommandApiName)
+    } finally {
+      mqtt.resetForTest()
+    }
+  }
+
+  @Test
   fun recordsOfficialCommandErrorsWithoutTreatingThemAsAck() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
@@ -194,6 +262,7 @@ class OfficialMqttServiceTest {
 
       assertNull(mqtt.pendingCommandApiName)
       assertNull(mqtt.pendingCommandError)
+      assertEquals("lock", mqtt.acknowledgedCommandApiName)
       verify { cloud.applyMqttVehicleStatus(0, 1) }
     } finally {
       mqtt.resetForTest()

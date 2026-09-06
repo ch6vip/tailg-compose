@@ -90,6 +90,7 @@ fun NotificationPrefsScreen(
     try {
       config = cloudService.getMessageControl()
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       error = strLoadFailed
     } finally {
       loading = false
@@ -125,6 +126,7 @@ fun NotificationPrefsScreen(
                 try {
                   config = cloudService.getMessageControl()
                 } catch (e: Exception) {
+                  if (e is kotlinx.coroutines.CancellationException) throw e
                   error = strLoadFailed
                 } finally {
                   loading = false
@@ -154,6 +156,7 @@ fun NotificationPrefsScreen(
                   cloudService.setMessagePushConfig(config)
                   AppSnack.success(snackbarHostState, strSaved)
                 } catch (e: Exception) {
+                  if (e is kotlinx.coroutines.CancellationException) throw e
                   AppSnack.error(snackbarHostState, strSaveFailed)
                 } finally {
                   saving = false

@@ -96,8 +96,7 @@ fun VehicleMessageScreen(
   onNavigate: (String) -> Unit = {},
 ) {
   val cloudService = cloudService
-  val context = androidx.compose.ui.platform.LocalContext.current
-  val messageReadStore = remember { MessageReadStore(context) }
+  val messageReadStore = rememberTailgEntryPoint().messageReadStore()
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
   val log = rememberTailgEntryPoint().logService()
@@ -127,8 +126,9 @@ fun VehicleMessageScreen(
   var clearing by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
   var initialized by remember { mutableStateOf(false) }
-  var readIds by remember { mutableStateOf<Set<String>>(emptySet()) }
-  var hiddenIds by remember { mutableStateOf<Set<String>>(emptySet()) }
+  val readState by messageReadStore.stateFlow.collectAsStateWithLifecycle()
+  val readIds = readState.readIds
+  val hiddenIds = readState.hiddenIds
   var detailMessage by remember { mutableStateOf<VehicleMessage?>(null) }
 
   val strNoDetail = stringResource(R.string.msg_no_detail)
@@ -147,8 +147,6 @@ fun VehicleMessageScreen(
   // Bootstrap: load read state + refresh messages.
   LaunchedEffect(Unit) {
     messageReadStore.ensureLoaded()
-    readIds = messageReadStore.readIds
-    hiddenIds = messageReadStore.hiddenIds
     refreshMessages(
       cloudService = cloudService,
       messageReadStore = messageReadStore,
@@ -156,8 +154,6 @@ fun VehicleMessageScreen(
       onLoading = { loading = it },
       onError = { error = it },
       onInitialized = { initialized = it },
-      onReadIds = { readIds = it },
-      onHiddenIds = { hiddenIds = it },
       log = log,
       strRefreshFailed = strRefreshFailed,
     )
@@ -222,10 +218,7 @@ fun VehicleMessageScreen(
         onBack = onBack,
         onMarkRead = {
           scope.launch {
-            val tabMsgs = tabMessages
-            val newRead = readIds + tabMsgs.map { it.id }
-            readIds = newRead
-            messageReadStore.replaceState(readIds = newRead, hiddenIds = hiddenIds)
+            messageReadStore.markRead(tabMessages.map { it.id })
           }
         },
         onClear = {
@@ -234,13 +227,10 @@ fun VehicleMessageScreen(
           scope.launch {
             try {
               cloudService.deleteMessages()
-              val newHidden = hiddenIds + allMessages.map { it.id }
-              val newRead = readIds + allMessages.map { it.id }
-              hiddenIds = newHidden
-              readIds = newRead
-              messageReadStore.replaceState(readIds = newRead, hiddenIds = newHidden)
+              messageReadStore.hideAndRead(allMessages.map { it.id })
               AppSnack.success(snackbarHostState, strClearedFormat.format(allMessages.size))
             } catch (e: Exception) {
+              if (e is kotlinx.coroutines.CancellationException) throw e
               AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
             } finally {
               clearing = false
@@ -256,8 +246,6 @@ fun VehicleMessageScreen(
               onLoading = { loading = it },
               onError = { error = it },
               onInitialized = { initialized = it },
-              onReadIds = { readIds = it },
-              onHiddenIds = { hiddenIds = it },
               log = log,
       strRefreshFailed = strRefreshFailed,
             )
@@ -297,8 +285,6 @@ fun VehicleMessageScreen(
                     onLoading = { loading = it },
                     onError = { error = it },
                     onInitialized = { initialized = it },
-                    onReadIds = { readIds = it },
-                    onHiddenIds = { hiddenIds = it },
                     log = log,
       strRefreshFailed = strRefreshFailed,
                   )
@@ -323,11 +309,7 @@ fun VehicleMessageScreen(
                 read = read,
                 onOpen = {
                   if (message.id !in readIds) {
-                    val newRead = readIds + message.id
-                    readIds = newRead
-                    scope.launch {
-                      messageReadStore.replaceState(readIds = newRead, hiddenIds = hiddenIds)
-                    }
+                    scope.launch { messageReadStore.markRead(listOf(message.id)) }
                   }
                   detailMessage = message
                 },
@@ -426,8 +408,6 @@ private suspend fun refreshMessages(
   onLoading: (Boolean) -> Unit,
   onError: (String?) -> Unit,
   onInitialized: (Boolean) -> Unit,
-  onReadIds: (Set<String>) -> Unit,
-  onHiddenIds: (Set<String>) -> Unit,
   log: LogService,
   strRefreshFailed: String,
 ) {
@@ -450,6 +430,7 @@ private suspend fun refreshMessages(
       systemMessages = cloudService.currentState.systemMessages,
     )
   } catch (e: Exception) {
+    if (e is kotlinx.coroutines.CancellationException) throw e
     onLoading(false)
     onInitialized(true)
     onError(OfficialCloudRedactor.errorMessage(e))

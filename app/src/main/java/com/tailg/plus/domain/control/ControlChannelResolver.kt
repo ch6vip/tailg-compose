@@ -93,7 +93,8 @@ object ControlChannelResolver {
 
     /// Optional detail when [bleReady] is false (e.g. connecting / not LOGIN).
     bleNotReadyReason: String? = null,
-    defaultVehicleId: String? = null,
+    connectedVehicleId: String? = null,
+    connectedIdentityMac: String? = null,
     channel: OfficialControlChannel = OfficialControlChannel.AUTOMATIC,
     busy: Boolean = false,
     networkReady: Boolean = true,
@@ -102,12 +103,12 @@ object ControlChannelResolver {
     val cloudSessionReady =
       cloudState.signedIn && cloudState.selectedVehicle != null
 
-    // Linked-local-vehicle guard (ours): even if BLE LOGIN, refuse if the
-    // selected official car is hard-linked to another local device id.
+    // After protocol login, the selected official car must match the active BLE device or its QGJ identity.
     val bleLinkedOk = canUseLinkedBle(
       cloudState = cloudState,
       bleReady = bleReady,
-      defaultVehicleId = defaultVehicleId,
+      connectedVehicleId = connectedVehicleId,
+      connectedIdentityMac = connectedIdentityMac,
     )
     val effectiveBleReady = bleReady && bleLinkedOk
 
@@ -148,7 +149,8 @@ object ControlChannelResolver {
         cloudState = cloudState,
         bleReady = bleReady,
         bleNotReadyReason = bleNotReadyReason,
-        defaultVehicleId = defaultVehicleId,
+        connectedVehicleId = connectedVehicleId,
+        connectedIdentityMac = connectedIdentityMac,
         officialReason = if (officialDecision.usesBle) "" else officialDecision.reason,
       )
     }
@@ -235,15 +237,25 @@ object ControlChannelResolver {
   private fun canUseLinkedBle(
     cloudState: ControlCloudState,
     bleReady: Boolean,
-    defaultVehicleId: String?,
+    connectedVehicleId: String?,
+    connectedIdentityMac: String?,
   ): Boolean {
     if (!bleReady) return false
     val selected = cloudState.selectedVehicle
     if (selected == null) return true
-    val linkedId = cloudState.linkedLocalVehicleId(selected.key)
-    if (linkedId == null || linkedId.isEmpty()) return true
-    return defaultVehicleId == linkedId
+    val linkedId = cloudState.linkedLocalVehicleId(selected.key)?.takeIf { it.isNotBlank() }
+    if (linkedId != null) return sameDeviceId(linkedId, connectedVehicleId)
+    val expected = selected.normalizedDeviceMac
+    val identity = selected.bleIdentityMac
+    if (expected.isEmpty() && identity.isEmpty()) return true
+    return sameDeviceId(expected, connectedVehicleId) || sameDeviceId(identity, connectedIdentityMac)
   }
+
+  private fun sameDeviceId(expected: String, actual: String?): Boolean =
+    expected.isNotBlank() && !actual.isNullOrBlank() &&
+      expected.replace(":", "").replace("-", "").equals(
+        actual.replace(":", "").replace("-", ""), ignoreCase = true,
+      )
 
   private fun effectiveChannelLabel(
     enabled: Boolean,
@@ -260,7 +272,8 @@ object ControlChannelResolver {
     cloudState: ControlCloudState,
     bleReady: Boolean,
     bleNotReadyReason: String?,
-    defaultVehicleId: String?,
+    connectedVehicleId: String?,
+    connectedIdentityMac: String?,
     officialReason: String,
   ): String {
     if (!bleReady) {
@@ -270,14 +283,8 @@ object ControlChannelResolver {
       }
       return if (officialReason.isNotEmpty()) officialReason else "蓝牙未连接"
     }
-    val selected = cloudState.selectedVehicle
-    if (selected == null) return ""
-    val linkedId = cloudState.linkedLocalVehicleId(selected.key)
-    if (linkedId == null || linkedId.isEmpty()) return ""
-    if (defaultVehicleId == null || defaultVehicleId.isEmpty()) {
-      return "没有默认本地车辆"
-    }
-    return "默认本地车辆与官方车辆关联不一致"
+    return if (canUseLinkedBle(cloudState, bleReady, connectedVehicleId, connectedIdentityMac)) ""
+    else "当前蓝牙连接与所选官方车辆不一致，请重新连接"
   }
 
   private fun cloudUnavailableReason(

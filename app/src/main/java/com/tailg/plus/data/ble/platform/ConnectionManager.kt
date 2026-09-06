@@ -167,7 +167,7 @@ class ConnectionManager(
   }
 
   /** Underlying BLE device for the current connection. */
-  private var _device: BluetoothDevice? = null
+  @Volatile private var _device: BluetoothDevice? = null
 
   // -------------------------------------------------------------------------
   // Protocol / session state (all mutations serialized via [lock] or the
@@ -225,7 +225,8 @@ class ConnectionManager(
   private val _fbb2 = MutableSharedFlow<String>(extraBufferCapacity = 1)
 
   // GATT bridge plumbing.
-  private val gattEvents = Channel<GattEvent>(Channel.UNLIMITED)
+  private data class GattCallbackEvent(val source: BluetoothGatt?, val event: GattEvent)
+  private val gattEvents = Channel<GattCallbackEvent>(Channel.UNLIMITED)
   @Volatile private var _gatt: BluetoothGatt? = null
   @Volatile private var _connectDeferred: CompletableDeferred<Unit>? = null
   @Volatile private var _discoveryDeferred: CompletableDeferred<Unit>? = null
@@ -243,7 +244,10 @@ class ConnectionManager(
 
   init {
     eventLoopJob = scope.launch {
-      for (event in gattEvents) {
+      for ((source, event) in gattEvents) {
+        // All callback types belong to a GATT session, including reads, ACKs
+        // and notifications already queued when a reconnect replaces _gatt.
+        if (source == null || source !== _gatt) continue
         try {
           handleGattEvent(event)
         } catch (e: Exception) {
@@ -384,8 +388,16 @@ class ConnectionManager(
     scanTimeout: Duration = BleTimings.manualScanTimeout,
     filter: ScanFilter? = null,
   ): kotlinx.coroutines.flow.Flow<BluetoothDevice> = callbackFlow {
-    val adapter = bluetoothAdapter ?: return@callbackFlow
-    val scanner = adapter.bluetoothLeScanner ?: return@callbackFlow
+    val scanner = try {
+      bluetoothAdapter?.bluetoothLeScanner
+    } catch (e: SecurityException) {
+      close(e)
+      return@callbackFlow
+    }
+    if (scanner == null) {
+      close()
+      return@callbackFlow
+    }
     val settings = ScanSettings.Builder()
       .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
       .build()
@@ -437,7 +449,11 @@ class ConnectionManager(
     operation: suspend () -> T,
   ): T {
     if (_disposed) throw IllegalStateException("ConnectionManager disposed")
-    return gattQueue.run(priority, operation)
+    val expectedGatt = _gatt
+    return gattQueue.run(priority) {
+      check(_gatt === expectedGatt) { "BLE connection changed while operation was queued" }
+      operation()
+    }
   }
 
   // =========================================================================
@@ -536,7 +552,7 @@ class ConnectionManager(
 
     clearRuntimeResources(disconnectDevice = false)
 
-    if (context != null) setOfficialConnectionContext(context)
+    setOfficialConnectionContext(context)
 
     // Remember the session device: onDisconnected() needs it to start the
     // auto-reconnect loop, and the public createBond/removeBond read it.
@@ -623,8 +639,7 @@ class ConnectionManager(
           writeCharacteristic(write, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
           withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
         } finally {
-          _standardCommandAckDeferred.compareAndSet(deferred, null)
-          _standardPendingCommandType = null
+          if (_standardCommandAckDeferred.compareAndSet(deferred, null)) _standardPendingCommandType = null
         }
       }
     } else if (_protocol == ProtocolType.QGJ) {
@@ -678,9 +693,7 @@ class ConnectionManager(
         writeCharacteristic(feb1, frame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
         withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() }
       } finally {
-        if (_qgjResponseDeferreds[cmdId] === deferred) {
-          _qgjResponseDeferreds.remove(cmdId)
-        }
+        _qgjResponseDeferreds.remove(cmdId, deferred)
       }
     }
   }
@@ -853,25 +866,21 @@ class ConnectionManager(
 
   /** Port of Dart `readRemoteRssi` — one-shot RSSI read on the connected device. */
   suspend fun readRemoteRssi(): Int? {
-    val gatt = _gatt ?: return null
-    if (state == ConnectionState.DISCONNECTED) return null
-    return try {
+    return runGattOperation(priority = GattOperationPriority.LOW) {
+      val gatt = _gatt ?: return@runGattOperation null
+      if (state == ConnectionState.DISCONNECTED) return@runGattOperation null
       val deferred = CompletableDeferred<Int>()
       _rssiDeferred = deferred
-      if (!gatt.readRemoteRssi()) {
-        _rssiDeferred = null
-        return null
+      try {
+        if (!gatt.readRemoteRssi()) return@runGattOperation null
+        withTimeoutOrNull(5.seconds) { deferred.await() }
+      } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
+        log.ble("读取 RSSI 失败", detail = e.toString(), level = LogLevel.DEBUG)
+        null
+      } finally {
+        if (_rssiDeferred === deferred) _rssiDeferred = null
       }
-      // Clear the slot on timeout AND on success: a stale callback from a
-      // previous request must never satisfy a newer waiter (a late
-      // onReadRemoteRssi used to complete the freshly installed deferred).
-      val result = withTimeoutOrNull(5.seconds) { deferred.await() }
-      if (_rssiDeferred === deferred) _rssiDeferred = null
-      result
-    } catch (e: Exception) {
-      if (_rssiDeferred != null) _rssiDeferred = null
-      log.ble("读取 RSSI 失败", detail = e.toString(), level = LogLevel.DEBUG)
-      null
     }
   }
 
@@ -986,11 +995,11 @@ class ConnectionManager(
    */
   private val gattCallback = object : BluetoothGattCallback() {
     override fun onConnectionStateChange(gatt: BluetoothGatt?, status: Int, newState: Int) {
-      gattEvents.trySend(GattEvent.ConnectionStateChanged(gatt, status, newState))
+      enqueueGattEvent(gatt, GattEvent.ConnectionStateChanged(gatt, status, newState))
     }
 
     override fun onServicesDiscovered(gatt: BluetoothGatt?, status: Int) {
-      gattEvents.trySend(GattEvent.ServicesDiscovered(status))
+      enqueueGattEvent(gatt, GattEvent.ServicesDiscovered(status))
     }
 
     @Deprecated("Deprecated in API 33; kept for minSdk 26 devices")
@@ -1000,7 +1009,7 @@ class ConnectionManager(
       characteristic: BluetoothGattCharacteristic,
       status: Int,
     ) {
-      gattEvents.trySend(
+      enqueueGattEvent(gatt,
         GattEvent.CharacteristicRead(characteristic, status, characteristic.value ?: ByteArray(0)),
       )
     }
@@ -1010,7 +1019,7 @@ class ConnectionManager(
       characteristic: BluetoothGattCharacteristic,
       status: Int,
     ) {
-      gattEvents.trySend(GattEvent.CharacteristicWrite(characteristic, status))
+      enqueueGattEvent(gatt, GattEvent.CharacteristicWrite(characteristic, status))
     }
 
     override fun onDescriptorWrite(
@@ -1018,7 +1027,7 @@ class ConnectionManager(
       descriptor: BluetoothGattDescriptor,
       status: Int,
     ) {
-      gattEvents.trySend(GattEvent.DescriptorWrite(descriptor, status))
+      enqueueGattEvent(gatt, GattEvent.DescriptorWrite(descriptor, status))
     }
 
     @Deprecated("Deprecated in API 33; kept for minSdk 26 devices")
@@ -1027,7 +1036,7 @@ class ConnectionManager(
       gatt: BluetoothGatt?,
       characteristic: BluetoothGattCharacteristic,
     ) {
-      gattEvents.trySend(
+      enqueueGattEvent(gatt,
         GattEvent.CharacteristicChanged(characteristic, characteristic.value ?: ByteArray(0)),
       )
     }
@@ -1041,7 +1050,7 @@ class ConnectionManager(
       value: ByteArray,
       status: Int,
     ) {
-      gattEvents.trySend(GattEvent.CharacteristicRead(characteristic, status, value))
+      enqueueGattEvent(gatt, GattEvent.CharacteristicRead(characteristic, status, value))
     }
 
     override fun onCharacteristicChanged(
@@ -1049,16 +1058,20 @@ class ConnectionManager(
       characteristic: BluetoothGattCharacteristic,
       value: ByteArray,
     ) {
-      gattEvents.trySend(GattEvent.CharacteristicChanged(characteristic, value))
+      enqueueGattEvent(gatt, GattEvent.CharacteristicChanged(characteristic, value))
     }
 
     override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-      gattEvents.trySend(GattEvent.MtuChanged(mtu, status))
+      enqueueGattEvent(gatt, GattEvent.MtuChanged(mtu, status))
     }
 
     override fun onReadRemoteRssi(gatt: BluetoothGatt?, rssi: Int, status: Int) {
-      gattEvents.trySend(GattEvent.ReadRemoteRssi(rssi, status))
+      enqueueGattEvent(gatt, GattEvent.ReadRemoteRssi(rssi, status))
     }
+  }
+
+  private fun enqueueGattEvent(source: BluetoothGatt?, event: GattEvent) {
+    gattEvents.trySend(GattCallbackEvent(source, event))
   }
 
   /**
@@ -1180,26 +1193,24 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     writeDeferreds[characteristic.uuid] = deferred
-    // Use the modern API on API 33+; fall back to the deprecated path on older
-    // devices. The deprecated API-18 path is kept for minSdk 26 compatibility.
-    val started = if (Build.VERSION.SDK_INT >= 33) {
-      @Suppress("NewApi")
-      gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
-    } else {
-      @Suppress("DEPRECATION")
-      characteristic.value = value
-      @Suppress("DEPRECATION")
-      characteristic.writeType = writeType
-      gatt.writeCharacteristic(characteristic)
-    }
-    if (!started) {
-      writeDeferreds.remove(characteristic.uuid)
-      throw IllegalStateException("writeCharacteristic failed: ${characteristic.uuid}")
-    }
     try {
+      // Use the modern API on API 33+; retain the older path for minSdk 26.
+      val started = if (Build.VERSION.SDK_INT >= 33) {
+        @Suppress("NewApi")
+        gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
+      } else {
+        @Suppress("DEPRECATION")
+        characteristic.value = value
+        @Suppress("DEPRECATION")
+        characteristic.writeType = writeType
+        gatt.writeCharacteristic(characteristic)
+      }
+      if (!started) {
+        throw IllegalStateException("writeCharacteristic failed: ${characteristic.uuid}")
+      }
       deferred.await()
     } finally {
-      writeDeferreds.remove(characteristic.uuid)
+      writeDeferreds.remove(characteristic.uuid, deferred)
     }
   }
 
@@ -1208,14 +1219,13 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<ByteArray>()
     readDeferreds[characteristic.uuid] = deferred
-    if (!gatt.readCharacteristic(characteristic)) {
-      readDeferreds.remove(characteristic.uuid)
-      throw IllegalStateException("readCharacteristic failed: ${characteristic.uuid}")
-    }
     try {
+      if (!gatt.readCharacteristic(characteristic)) {
+        throw IllegalStateException("readCharacteristic failed: ${characteristic.uuid}")
+      }
       return deferred.await()
     } finally {
-      readDeferreds.remove(characteristic.uuid)
+      readDeferreds.remove(characteristic.uuid, deferred)
     }
   }
 
@@ -1247,15 +1257,14 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     descriptorWriteDeferreds[descriptor.uuid] = deferred
-    descriptor.value = value
-    if (!gatt.writeDescriptor(descriptor)) {
-      descriptorWriteDeferreds.remove(descriptor.uuid)
-      throw IllegalStateException("writeDescriptor failed: ${descriptor.uuid}")
-    }
     try {
+      descriptor.value = value
+      if (!gatt.writeDescriptor(descriptor)) {
+        throw IllegalStateException("writeDescriptor failed: ${descriptor.uuid}")
+      }
       deferred.await()
     } finally {
-      descriptorWriteDeferreds.remove(descriptor.uuid)
+      descriptorWriteDeferreds.remove(descriptor.uuid, deferred)
     }
   }
 
@@ -2121,9 +2130,9 @@ class ConnectionManager(
       clearBikeState()
       return
     }
+    _latestBikeState = state
     val last = _lastPublishedBikeState
     if (last != null && state.matchesDebounced(last)) return
-    _latestBikeState = state
     _lastPublishedBikeState = state
     if (!_disposed) {
       _bikeState.value = state
@@ -2136,12 +2145,15 @@ class ConnectionManager(
     if (isPowerOn != other.isPowerOn) return false
     if (isMuted != other.isMuted) return false
     if (batteryPercent != other.batteryPercent) return false
+    if (temperature != other.temperature) return false
+    if (signalStrength != other.signalStrength) return false
     if (faultMotor != other.faultMotor) return false
     if (faultController != other.faultController) return false
     if (faultBrake != other.faultBrake) return false
     if (faultLowVoltage != other.faultLowVoltage) return false
-    val v = voltage ?: return true
-    val ov = other.voltage ?: return true
+    val v = voltage
+    val ov = other.voltage
+    if (v == null || ov == null) return v == ov
     // 0.5V hysteresis on the wire voltage — below this the state is
     // considered unchanged (no new StateFlow emission, no recomposition).
     return kotlin.math.abs(v - ov) < 0.5

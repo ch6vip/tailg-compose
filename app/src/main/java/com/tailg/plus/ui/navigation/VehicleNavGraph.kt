@@ -10,6 +10,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.tailg.plus.data.ble.platform.ConnectionManager
+import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.ble.platform.OfficialBleConnectionContext
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.mqtt.OfficialMqttService
@@ -119,7 +120,7 @@ fun NavGraphBuilder.vehicleNavGraph(
             onBack = { navController.popBackStack() },
         )
     }
-    composable(Routes.SCAN) {
+    composable(Routes.SCAN) { scanEntry ->
         val scanScope = rememberCoroutineScope()
         ScanScreen(
             onBack = { navController.popBackStack() },
@@ -133,6 +134,9 @@ fun NavGraphBuilder.vehicleNavGraph(
                             val ctx = state.selectedVehicle?.let {
                                 OfficialBleConnectionContext.fromVehicle(it, state.userId)
                             }
+                            if (connectionManager.state == ConnectionState.READY && connectionManager.device != device) {
+                                connectionManager.disconnect()
+                            }
                             connectionManager.connect(device, ctx)
                             if (deviceName.isNotEmpty()) {
                                 Timber.tag("TailgNavHost").i("BLE connected: $deviceName")
@@ -141,8 +145,10 @@ fun NavGraphBuilder.vehicleNavGraph(
                     } catch (e: SecurityException) {
                         Timber.tag("TailgNavHost").w(e, "BLE connect missing permission")
                     } catch (e: Exception) {
+                        if (e is kotlinx.coroutines.CancellationException) throw e
                         Timber.tag("TailgNavHost").w(e, "BLE connect failed")
-                    } finally {
+                    }
+                    if (navController.currentBackStackEntry == scanEntry) {
                         navController.popBackStack()
                     }
                 }

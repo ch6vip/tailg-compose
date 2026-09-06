@@ -20,13 +20,13 @@ class OfficialCloudApiException(
 /** Redacts sensitive values from request paths, texts and error messages. */
 object OfficialCloudRedactor {
     /**
-     * `phone|token|authorization|imei|carId|uid|userId|password|frame|btmac|mac=<value>`
+     * `phone|token|authorization|captchaPassToken|smsCode|ticket|randstr|imei|carId|uid|userId|password|mqPassword|mqUsername|mainPassword|mainPwd|childPassword|childrenPassword|frame|btmac|mac=<value>`
      * in a query string. The Dart original used a variable-length lookbehind
      * (unsupported by the JVM regex engine); the port captures the `key=` prefix
      * in group 1 and masks only group 2 — same observable behavior.
      */
     private val sensitiveQueryPattern = Regex(
-        """(\b(?:phone|token|authorization|imei|carId|uid|userId|password|frame|btmac|mac)=)([^&\s]+)""",
+        """(\b(?:phone|token|authorization|captchaPassToken|smsCode|ticket|randstr|imei|carId|uid|userId|password|mqPassword|mqUsername|mainPassword|mainPwd|childPassword|childrenPassword|frame|btmac|mac)=)([^&\s]+)""",
         RegexOption.IGNORE_CASE,
     )
 
@@ -60,6 +60,9 @@ class OfficialCloudRetryPolicy(
         retryServerErrors && statusCode in 500..599
 
     companion object {
+        /** Mutations may already have executed when their response is lost. */
+        val NO_RETRY = OfficialCloudRetryPolicy(maxRetries = 0)
+
         /** Retry transport failures only (timeouts / socket errors). */
         val TRANSPORT_ONLY = OfficialCloudRetryPolicy()
 

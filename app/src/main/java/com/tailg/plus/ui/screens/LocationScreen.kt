@@ -212,6 +212,7 @@ fun LocationScreen(
         cloudService.refreshFenceData(silent = true)
         cloudService.refreshTravelHistory(silent = true)
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strLocationRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
       }
     }
@@ -235,6 +236,7 @@ fun LocationScreen(
           AppSnack.info(snackbarHostState, if (hasLocation) strDataSynced else strSyncedNoCoords)
         }
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strLocationRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         if (!silent) {
           val message = OfficialCloudRedactor.errorMessage(e)
@@ -257,6 +259,7 @@ fun LocationScreen(
         val count = days.sumOf { it.records.size }
         AppSnack.info(snackbarHostState, if (count == 0) strSyncedNoTravel else strTravelSyncedFormat.format(count))
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strTravelRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
@@ -284,6 +287,7 @@ fun LocationScreen(
           AppSnack.info(snackbarHostState, strSyncedNoFence)
         }
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strFenceRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
@@ -336,6 +340,7 @@ fun LocationScreen(
           AppSnack.info(snackbarHostState, strTravelNoPoints)
         }
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strTravelDetailFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }

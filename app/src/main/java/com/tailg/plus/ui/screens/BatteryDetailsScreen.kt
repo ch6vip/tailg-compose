@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.ble.platform.ConnectionManager
+import com.tailg.plus.data.ble.platform.ConnectionState
+import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.data.cloud.OfficialCloudMessages
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
@@ -145,8 +147,16 @@ fun BatteryDetailsScreen(
   }
   val loading = cloudState.batteryInfoLoading || cloudState.bmsInfoLoading
 
-  val coulombMeterService = remember(connectionManager, log) {
-    CoulombMeterService(connectionManager = connectionManager, logService = log)
+  val coulombMeterService = remember(connectionManager, cloudService, log, vehicle?.key) {
+    val expectedToken = cloudService.currentState.token
+    CoulombMeterService(connectionManager = connectionManager, logService = log, ensureConnection = {
+      val current = cloudService.currentState
+      check(current.signedIn && current.token == expectedToken && current.selectedVehicle?.key == vehicle?.key) {
+        "车辆或登录状态已变化，请重新操作"
+      }
+      val availability = connectionManager.resolveControlAvailability(current.asControlCloudState(), OfficialControlChannel.BLE)
+      check(availability.canUseBle) { availability.bleUnavailableReason }
+    })
   }
   val coulombSupported = remember(vehicle) {
     vehicle != null && CoulombMeterService.isSupported(
@@ -166,11 +176,16 @@ fun BatteryDetailsScreen(
   val strCoulombDisabled = stringResource(R.string.battery_coulomb_disabled)
   val strSetFailed = stringResource(R.string.battery_set_failed)
   val strSelectVehicleFirst = stringResource(R.string.battery_select_vehicle_first)
-  val bleReady = connectionManager.isProtocolLoggedIn
+  val bleReady = bleState == ConnectionState.READY &&
+    connectionManager.resolveControlAvailability(cloudService.currentState.asControlCloudState(), OfficialControlChannel.BLE).canUseBle
 
-  var coulombBusy by remember { mutableStateOf(false) }
-  var coulombEnabled by remember { mutableStateOf<Boolean?>(null) }
-  var coulombMessage by remember { mutableStateOf<String?>(null) }
+  var coulombBusy by remember(coulombMeterService) { mutableStateOf(false) }
+  var coulombEnabled by remember(coulombMeterService) { mutableStateOf<Boolean?>(null) }
+  var coulombMessage by remember(coulombMeterService) { mutableStateOf<String?>(null) }
+  var coulombJob by remember { mutableStateOf<kotlinx.coroutines.Job?>(null) }
+  androidx.compose.runtime.DisposableEffect(coulombMeterService, bleReady) {
+    onDispose { coulombJob?.cancel() }
+  }
 
   fun refreshAllBatteryData() {
     if (!cloudService.currentState.signedIn) {
@@ -189,6 +204,7 @@ fun BatteryDetailsScreen(
           AppSnack.info(snackbarHostState, strBatterySyncedNoDetail)
         }
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strBatteryRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
         AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
       }
@@ -205,12 +221,13 @@ fun BatteryDetailsScreen(
     }
     coulombBusy = true
     coulombMessage = null
-    scope.launch {
+    coulombJob = scope.launch {
       try {
         val on = coulombMeterService.queryStatus()
         coulombEnabled = on
         coulombMessage = if (on == null) strCoulombRefreshHint else null
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         coulombMessage = if (e is IllegalStateException) e.message else strBatteryQueryFailed
         if (!silent) AppSnack.error(snackbarHostState, coulombMessage ?: strBatteryQueryFailed)
       } finally {
@@ -227,13 +244,22 @@ fun BatteryDetailsScreen(
     }
     coulombBusy = true
     coulombMessage = null
-    scope.launch {
+    coulombJob = scope.launch {
       try {
         val on = coulombMeterService.setEnabled(value)
         coulombEnabled = on
-        coulombMessage = null
-        AppSnack.success(snackbarHostState, if (value) strCoulombEnabled else strCoulombDisabled)
+        coulombMessage = when {
+          on == null -> strCoulombRefreshHint
+          on != value -> strSetFailed
+          else -> null
+        }
+        if (on == value) {
+          AppSnack.success(snackbarHostState, if (value) strCoulombEnabled else strCoulombDisabled)
+        } else {
+          AppSnack.error(snackbarHostState, coulombMessage ?: strSetFailed)
+        }
       } catch (e: Exception) {
+        if (e is kotlinx.coroutines.CancellationException) throw e
         coulombMessage = if (e is IllegalStateException) e.message else strSetFailed
         AppSnack.error(snackbarHostState, coulombMessage ?: strSetFailed)
       } finally {
@@ -243,7 +269,7 @@ fun BatteryDetailsScreen(
   }
 
   // Auto-query coulomb meter when BLE is ready.
-  LaunchedEffect(bleReady) {
+  LaunchedEffect(coulombMeterService, bleReady) {
     if (bleReady && coulombSupported && coulombEnabled == null && !coulombBusy) {
       queryCoulombMeter(silent = true)
     }

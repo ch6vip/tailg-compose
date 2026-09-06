@@ -1,5 +1,7 @@
 package com.tailg.plus.ui.components
 
+import com.tailg.plus.util.readBytesLimited
+
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Canvas
@@ -131,11 +133,8 @@ private suspend fun loadVehicleImage(url: String): Bitmap? {
           ) {
             return@use null
           }
-          // Read the bounded body once into memory (guarded by the byte cap
-          // above), then decode twice from the array: bounds pass + sampled
-          // pass. A single InputStream cannot be decoded twice — the bounds
-          // pass consumes the stream and network streams are not rewindable.
-          val bytes = body.bytes()
+          // Enforce the cap during streaming too: chunked responses have no declared size.
+          val bytes = body.byteStream().use { it.readBytesLimited(MAX_VEHICLE_IMAGE_BYTES.toInt()) }
           if (bytes.isEmpty() || bytes.size > MAX_VEHICLE_IMAGE_BYTES) return@use null
           decodeVehicleImageSampled(bytes)
         }
@@ -516,6 +515,7 @@ internal fun VehicleImageOrFallback(
     initialValue = if (remote) VehicleImageLoad.Pending else VehicleImageLoad.Fallback,
     key1 = normalizedUrl,
   ) {
+    value = if (remote) VehicleImageLoad.Pending else VehicleImageLoad.Fallback
     value = loadVehicleImage(normalizedUrl)?.let { VehicleImageLoad.Ready(it) }
       ?: VehicleImageLoad.Fallback
   }

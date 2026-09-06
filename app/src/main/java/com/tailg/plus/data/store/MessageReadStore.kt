@@ -1,151 +1,111 @@
 package com.tailg.plus.data.store
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringSetPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.tailg.plus.data.model.OfficialCloudMessage
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private val Context.messageReadStoreDataStore by preferencesDataStore(name = "message_read_store")
 
-/**
- * Port of `lib/services/message_read_store.dart`.
- *
- * Local read/hidden state for official cloud messages, shared by the message
- * center and the mine-page bell badge. Dart `SharedPreferences` string lists →
- * DataStore Preferences string sets; key names match the Dart constants
- * (`vehicle_message_read_ids` / `vehicle_message_hidden_ids`). Ids are stored
- * sorted, like the Dart `_sortedIds`.
- *
- * Deviations:
- * - Dart `ValueNotifier<int> unreadCount` → [unreadCount] (`StateFlow<Int>`),
- *   collected by the badge composables.
- * - Dart `getStringList` ↔ Kotlin `Set<String>`; ordering is irrelevant because
- *   both sides sort on write and treat the ids as a set.
- */
-class MessageReadStore(
-    private val context: Context,
-) {
+data class MessageReadState(
+    val readIds: Set<String> = emptySet(),
+    val hiddenIds: Set<String> = emptySet(),
+)
+
+/** Shared read history and badge state for the message center and profile page. */
+class MessageReadStore(private val dataStore: DataStore<Preferences>) {
+    constructor(context: Context) : this(context.applicationContext.messageReadStoreDataStore)
 
     companion object {
-        /** Dart `MessageReadStore.prefReadIds`. */
         const val PREF_READ_IDS = "vehicle_message_read_ids"
-
-        /** Dart `MessageReadStore.prefHiddenIds`. */
         const val PREF_HIDDEN_IDS = "vehicle_message_hidden_ids"
-
         private val KEY_READ_IDS = stringSetPreferencesKey(PREF_READ_IDS)
         private val KEY_HIDDEN_IDS = stringSetPreferencesKey(PREF_HIDDEN_IDS)
     }
 
+    private val mutex = Mutex()
+    private var loaded = false
+    private var messageIds: Set<String> = emptySet()
+    private val _state = MutableStateFlow(MessageReadState())
+    val stateFlow: StateFlow<MessageReadState> = _state.asStateFlow()
+    val readIds: Set<String> get() = _state.value.readIds
+    val hiddenIds: Set<String> get() = _state.value.hiddenIds
     private val _unreadCount = MutableStateFlow(0)
-
-    /** Dart `unreadCount` notifier. */
     val unreadCount: StateFlow<Int> = _unreadCount.asStateFlow()
 
-    private val _readIds = mutableSetOf<String>()
-    private val _hiddenIds = mutableSetOf<String>()
-    private var loaded = false
+    suspend fun ensureLoaded() = mutex.withLock { loadLocked() }
 
-    /** Dart `readIds`: immutable snapshot. */
-    val readIds: Set<String> get() = _readIds.toSet()
-
-    /** Dart `hiddenIds`: immutable snapshot. */
-    val hiddenIds: Set<String> get() = _hiddenIds.toSet()
-
-    /** Dart `ensureLoaded()`: idempotent one-time load. */
-    suspend fun ensureLoaded() {
+    private suspend fun loadLocked() {
         if (loaded) return
-        val prefs = withDataStoreReadTimeout { context.messageReadStoreDataStore.data.first() }
-        _readIds.clear()
-        _readIds.addAll(prefs[KEY_READ_IDS] ?: emptySet())
-        _hiddenIds.clear()
-        _hiddenIds.addAll(prefs[KEY_HIDDEN_IDS] ?: emptySet())
+        val prefs = withDataStoreReadTimeout { dataStore.data.first() }
+        _state.value = MessageReadState(
+            readIds = prefs[KEY_READ_IDS]?.toSet() ?: emptySet(),
+            hiddenIds = prefs[KEY_HIDDEN_IDS]?.toSet() ?: emptySet(),
+        )
         loaded = true
+        updateCount()
     }
 
-    /** Dart `persist()`: write both sets, sorted. */
-    suspend fun persist() {
-        context.messageReadStoreDataStore.edit { prefs ->
-            prefs[KEY_READ_IDS] = sortedIds(_readIds).toSet()
-            prefs[KEY_HIDDEN_IDS] = sortedIds(_hiddenIds).toSet()
-        }
+    suspend fun persist() = update { it }
+
+    suspend fun replaceState(readIds: Set<String>, hiddenIds: Set<String>) = update {
+        MessageReadState(readIds.toSet(), hiddenIds.toSet())
     }
 
-    /** Dart `_sortedIds`. */
-    private fun sortedIds(ids: Set<String>): List<String> = ids.sorted()
+    suspend fun markRead(ids: Iterable<String>) = update { it.copy(readIds = it.readIds + ids) }
 
-    /** Dart `replaceState`. */
-    suspend fun replaceState(readIds: Set<String>, hiddenIds: Set<String>) {
-        ensureLoaded()
-        _readIds.clear()
-        _readIds.addAll(readIds)
-        _hiddenIds.clear()
-        _hiddenIds.addAll(hiddenIds)
-        persist()
-    }
-
-    /** Dart `markRead`: only persists when the set actually grew. */
-    suspend fun markRead(ids: Iterable<String>) {
-        ensureLoaded()
-        val before = _readIds.size
-        _readIds.addAll(ids)
-        if (_readIds.size != before) {
-            persist()
-        }
-    }
-
-    /** Dart `hideAndRead`. */
     suspend fun hideAndRead(ids: Iterable<String>) {
-        ensureLoaded()
-        _hiddenIds.addAll(ids)
-        _readIds.addAll(ids)
-        persist()
+        val snapshot = ids.toSet()
+        update { it.copy(readIds = it.readIds + snapshot, hiddenIds = it.hiddenIds + snapshot) }
     }
 
-    /**
-     * Dart `syncFromCloudMessages`: recompute the badge from the latest cloud
-     * message lists, ignoring hidden ids.
-     */
+    private suspend fun update(transform: (MessageReadState) -> MessageReadState) = mutex.withLock {
+        loadLocked()
+        val next = transform(_state.value)
+        // Complete the disk write and publish its snapshot even when a page is closed.
+        withContext(NonCancellable) {
+            dataStore.edit { prefs ->
+                prefs[KEY_READ_IDS] = next.readIds
+                prefs[KEY_HIDDEN_IDS] = next.hiddenIds
+            }
+            _state.value = next
+            updateCount()
+        }
+    }
+
     suspend fun syncFromCloudMessages(
         vehicleMessages: List<OfficialCloudMessage>,
         systemMessages: List<OfficialCloudMessage>,
-    ) {
-        ensureLoaded()
-        val visibleIds = buildSet {
-            for (message in vehicleMessages) {
-                if (message.id !in _hiddenIds) add(message.id)
-            }
-            for (message in systemMessages) {
-                if (message.id !in _hiddenIds) add(message.id)
-            }
-        }
-        val next = visibleIds.count { it !in _readIds }
-        if (_unreadCount.value != next) {
-            _unreadCount.value = next
-        }
+    ) = mutex.withLock {
+        loadLocked()
+        messageIds = (vehicleMessages + systemMessages).mapTo(mutableSetOf()) { it.id }
+        updateCount()
     }
 
-    /**
-     * Dart `setUnreadCount`: force the badge without wiping read history
-     * (used when lists are empty); negative counts clamp to zero.
-     */
+    private fun updateCount() {
+        val snapshot = _state.value
+        _unreadCount.value = messageIds.count { it !in snapshot.readIds && it !in snapshot.hiddenIds }
+    }
+
     fun setUnreadCount(count: Int) {
-        val next = if (count < 0) 0 else count
-        if (_unreadCount.value != next) {
-            _unreadCount.value = next
-        }
+        _unreadCount.value = count.coerceAtLeast(0)
     }
 
-    /** Dart `resetForTest`. */
     fun resetForTest() {
-        _readIds.clear()
-        _hiddenIds.clear()
+        _state.value = MessageReadState()
         _unreadCount.value = 0
+        messageIds = emptySet()
         loaded = false
     }
 }

@@ -7,6 +7,7 @@ import android.location.Location
 import androidx.activity.ComponentActivity
 import com.google.android.gms.location.LocationServices
 import com.google.android.gms.location.Priority
+import com.google.android.gms.tasks.CancellationTokenSource
 import com.tailg.plus.data.model.VehicleLocation
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogLevel
@@ -73,7 +74,7 @@ class LocationService(
     }
 
     private var clock: () -> Instant = clock
-    private val _lastSilentCaptures = mutableMapOf<String, Instant>()
+    private val _lastSilentCaptures = java.util.concurrent.ConcurrentHashMap<String, Instant>()
 
     /** Dart `resetForTest({clock})`: clears the throttle map and replaces the clock. */
     fun resetForTest(clock: (() -> Instant)? = null) {
@@ -209,22 +210,20 @@ private class FusedLocationProvider(
     override suspend fun getCurrentPosition(): GeoPosition {
         val client = LocationServices.getFusedLocationProviderClient(context)
         val location = withTimeoutOrNull(timeout) {
-            suspendCancellableCoroutine<Location?> { cont ->
-                val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, null)
-                task.addOnSuccessListener { loc -> if (cont.isActive) cont.resume(loc) }
+            suspendCancellableCoroutine<Location> { cont ->
+                val cancellation = CancellationTokenSource()
+                cont.invokeOnCancellation { cancellation.cancel() }
+                val task = client.getCurrentLocation(Priority.PRIORITY_HIGH_ACCURACY, cancellation.token)
+                task.addOnSuccessListener { loc ->
+                    if (cont.isActive) {
+                        if (loc != null) cont.resume(loc)
+                        else cont.resumeWithException(LocationCaptureException("未能获取当前位置"))
+                    }
+                }
                 task.addOnFailureListener { e -> if (cont.isActive) cont.resumeWithException(e) }
                 task.addOnCanceledListener { if (cont.isActive) cont.resumeWithException(CancellationException("Location task canceled")) }
-                // Google Play Services Task has no cancel(); the timeout or
-                // addOnCanceledListener above handles cleanup.
             }
         } ?: throw TimeoutException("定位超时: ${timeout.inWholeSeconds}s 内未获取到位置")
-        // A null success result means no fix is available right now — surface
-        // it as a capture failure instead of fabricating (0,0), which
-        // recordVehicleLocation would otherwise persist as the vehicle's last
-        // known position.
-        if (location == null) {
-            throw LocationCaptureException("未能获取当前位置")
-        }
         return GeoPosition(
             latitude = location.latitude,
             longitude = location.longitude,

@@ -24,7 +24,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -79,6 +82,9 @@ internal fun TravelTab(
   val dateGroups = remember(cloudState.travelDays) {
     cloudState.travelDays.filter { it.records.isNotEmpty() || it.hasData }
   }
+  var selectedTravelId by remember(cloudState.selectedVehicle?.key, cloudState.travelMonth) {
+    mutableStateOf<String?>(null)
+  }
 
   LazyColumn(
     modifier = modifier.fillMaxSize(),
@@ -94,8 +100,8 @@ internal fun TravelTab(
     item { Spacer(Modifier.height(14.dp)) }
     // Track map (Dart _MapPanel in location_travel_tab.dart).
     item {
-      val trackPoints = remember(cloudState.travelDetails) {
-        cloudState.travelDetails.values.flatten().mapNotNull { p ->
+      val trackPoints = remember(cloudState.travelDetails, selectedTravelId) {
+        selectedTravelId?.let { cloudState.travelDetails[it] }.orEmpty().mapNotNull { p ->
           val lat = p.latitude ?: return@mapNotNull null
           val lng = p.longitude ?: return@mapNotNull null
           org.osmdroid.util.GeoPoint(lat, lng)
@@ -135,8 +141,11 @@ internal fun TravelTab(
           day = day,
           travelDetails = cloudState.travelDetails,
           detailLoading = cloudState.travelDetailLoading,
-           onRecordTap = onRecordTap,
-         )
+          onRecordTap = { record ->
+            selectedTravelId = record.deviceTravelId
+            onRecordTap(record)
+          },
+        )
       }
     }
     item { Spacer(Modifier.height(4.dp)) }
@@ -403,4 +412,3 @@ internal fun EmptyCard(
     )
   }
 }
-

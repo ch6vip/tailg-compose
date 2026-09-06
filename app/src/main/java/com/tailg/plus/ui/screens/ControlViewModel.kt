@@ -10,6 +10,7 @@ import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.domain.control.ControlCommandExecutor
+import com.tailg.plus.domain.control.ControlCommandRoute
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.service.LocationService
@@ -54,9 +55,27 @@ class ControlViewModel @Inject constructor(
   val commandLog = ControlCommandActivityLog()
 
   val commandExecutor = ControlCommandExecutor(
+    beforeBleCommand = { command ->
+      val state = cloudService.currentState
+      val availability = ControlCommandRoute.resolve(
+        connectionManager.resolveControlAvailability(state.asControlCloudState(), OfficialControlChannel.BLE),
+        command, state.selectedVehicle,
+      )
+      availability.disabledReason.takeUnless { availability.enabled }
+    },
     sendBleCommand = { command -> connectionManager.sendCommand(command.toBleCommandCode()) },
     sendCloudCommand = { command -> mqttService.sendCommandPreferMqtt(command, cloudService) },
   )
+
+  fun availabilityFor(command: CommandCode, includeBusy: Boolean = true) = cloudService.currentState.let { state ->
+    ControlCommandRoute.resolve(
+      connectionManager.resolveControlAvailability(
+        state.asControlCloudState(), _ui.value.controlChannel,
+        busy = includeBusy && _ui.value.busy, networkReady = _ui.value.networkReady,
+      ),
+      command, state.selectedVehicle,
+    )
+  }
 
   init {
     viewModelScope.launch {
@@ -87,7 +106,7 @@ class ControlViewModel @Inject constructor(
     _ui.update { it.copy(showVehicleSwitchSheet = show) }
   }
 
-  fun markCommandIssued(nowMs: Long = System.currentTimeMillis()) {
+  fun markCommandIssued(nowMs: Long = android.os.SystemClock.elapsedRealtime()) {
     _ui.update {
       it.copy(
         lastCommandAtMs = nowMs,

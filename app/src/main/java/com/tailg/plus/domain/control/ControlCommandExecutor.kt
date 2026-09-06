@@ -32,7 +32,9 @@ class ControlCommandExecutor(
   suspend fun send(
     command: CommandCode,
     availability: ControlChannelAvailability,
-  ): ControlCommandResult = when (availability.channel) {
+  ): ControlCommandResult = if (!availability.enabled) {
+    unavailable(command, availability)
+  } else when (availability.channel) {
     OfficialControlChannel.BLE -> {
       if (!availability.canUseBle) unavailable(command, availability)
       else sendBle(command)

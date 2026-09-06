@@ -9,6 +9,7 @@ import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.store.ReplicaFeatureStore
+import com.tailg.plus.data.store.MessageReadStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.log.LogService
 import com.tailg.plus.util.ClipboardText
@@ -49,6 +50,8 @@ interface TailgEntryPoint {
   fun networkAvailability(): NetworkAvailabilityService
 
   fun replicaFeatureStore(): ReplicaFeatureStore
+
+  fun messageReadStore(): MessageReadStore
 }
 
 /**

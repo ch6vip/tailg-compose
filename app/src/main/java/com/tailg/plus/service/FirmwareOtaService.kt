@@ -18,6 +18,7 @@ import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.log.LogService
+import com.tailg.plus.log.LogLevel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -66,6 +67,10 @@ class FirmwareOtaService(
     vehicle: OfficialVehicle? = null,
     chunkSize: Int = DEFAULT_CHUNK_SIZE,
   ): Flow<FirmwareOtaProgress> = flow {
+    if (chunkSize !in 1..512) {
+      emit(FirmwareOtaProgress(FirmwareOtaPhase.FAILED, 0.0, "分片大小必须在 1 到 512 字节之间"))
+      return@flow
+    }
     val selected = vehicle ?: cloud.currentState.selectedVehicle
     if (selected == null) {
       emit(FirmwareOtaProgress(FirmwareOtaPhase.FAILED, 0.0, "未选择车辆"))
@@ -113,6 +118,10 @@ class FirmwareOtaService(
       return@flow
     }
 
+    if (bytes.isEmpty() || bytes.size > 0xFFFF) {
+      emit(FirmwareOtaProgress(FirmwareOtaPhase.FAILED, 0.25, "固件大小必须在 1 到 65535 字节之间"))
+      return@flow
+    }
     if (!connectionManager.isProtocolLoggedIn) {
       emit(FirmwareOtaProgress(FirmwareOtaPhase.FAILED, 0.25, "请先 BLE 协议登录后再传输固件"))
       return@flow
@@ -128,7 +137,7 @@ class FirmwareOtaService(
 
     val order = listOf(0x01, (bytes.size shr 8) and 0xFF, bytes.size and 0xFF)
     val orderOverride = writeOrderOverride
-    val orderOk = if (orderOverride != null) {
+    val orderOk = attemptWrite { if (orderOverride != null) {
       orderOverride(order)
     } else {
       connectionManager.writeOtaOrder(
@@ -138,7 +147,7 @@ class FirmwareOtaService(
           (bytes.size and 0xFF).toByte(),
         ),
       )
-    }
+    } }
     if (!orderOk) {
       emit(
         FirmwareOtaProgress(
@@ -157,11 +166,11 @@ class FirmwareOtaService(
       val end = if (offset + chunkSize > total) total else offset + chunkSize
       val chunk = bytes.copyOfRange(offset, end)
       val chunkOverride = writeChunkOverride
-      val ok = if (chunkOverride != null) {
-        chunkOverride(chunk.map { it.toInt() })
+      val ok = attemptWrite { if (chunkOverride != null) {
+        chunkOverride(chunk.map { it.toInt() and 0xFF })
       } else {
         connectionManager.writeOtaFileChunk(chunk)
-      }
+      } }
       if (!ok) {
         emit(
           FirmwareOtaProgress(
@@ -196,5 +205,13 @@ class FirmwareOtaService(
     val override = downloadOverride
     if (override != null) return override(url)
     throw UnsupportedOperationException("未配置 downloadOverride，拒绝在此环境拉真实固件: $url")
+  }
+
+  private suspend fun attemptWrite(block: suspend () -> Boolean): Boolean = try {
+    block()
+  } catch (e: Exception) {
+    if (e is CancellationException) throw e
+    log.operation("OTA 写入异常", detail = e.toString(), level = LogLevel.WARNING)
+    false
   }
 }

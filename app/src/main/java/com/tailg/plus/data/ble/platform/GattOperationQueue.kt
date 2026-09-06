@@ -14,8 +14,13 @@ import java.util.EnumMap
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.TimeoutCancellationException
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.supervisorScope
 import kotlinx.coroutines.withTimeout
 
 /** Serialized GATT operation queue with priority ordering (port of Dart queue). */
@@ -38,14 +43,27 @@ class GattOperationQueue(
    * exception propagates to the caller.
    */
   suspend fun <T> run(priority: GattOperationPriority, operation: suspend () -> T): T {
+    currentCoroutineContext().ensureActive()
+    scope.coroutineContext.ensureActive()
     @Suppress("UNCHECKED_CAST")
     val queued = QueuedGattOperation(operation, priority) as QueuedGattOperation<Any?>
     synchronized(queueLock) {
       pendingByPriority[priority]?.addLast(queued)
     }
     drain()
-    @Suppress("UNCHECKED_CAST")
-    return (queued.deferred as CompletableDeferred<T>).await()
+    return try {
+      @Suppress("UNCHECKED_CAST")
+      (queued.deferred as CompletableDeferred<T>).await()
+    } catch (e: CancellationException) {
+      // Cancelling an await does not cancel an independent CompletableDeferred.
+      // Remove the write too, otherwise a timed-out command can execute later.
+      synchronized(queueLock) {
+        pendingByPriority[priority]?.remove(queued)
+        queued.deferred.cancel(e)
+        queued.job?.cancel(e)
+      }
+      throw e
+    }
   }
 
   /** Port of Dart `_takeNextGattOperation` — first non-empty priority queue, FIFO. */
@@ -70,26 +88,30 @@ class GattOperationQueue(
       }
       try {
         while (true) {
-          val queued = synchronized(queueLock) { takeNext() } ?: break
-          synchronized(queueLock) { activeOperation = queued }
+          val queued = synchronized(queueLock) {
+            takeNext()?.also { activeOperation = it }
+          } ?: break
           try {
-            val result = withTimeout(BleTimings.gattOperationTimeout) { queued.operation() }
-            if (!queued.deferred.isCompleted) queued.deferred.complete(result)
-          } catch (e: TimeoutCancellationException) {
-            // withTimeout fired: fail this operation, keep draining the queue.
-            if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
-          } catch (e: CancellationException) {
-            // Drain coroutine cancelled (dispose / a superseding connect): the
-            // active waiter must still be released or it hangs until its own
-            // withTimeout fires and can wedge the next connection's first op.
-            if (!queued.deferred.isCompleted) {
-              queued.deferred.completeExceptionally(
-                CancellationException("GATT drain cancelled", e),
-              )
+            supervisorScope {
+              // A child per operation lets cancellation stop the active write
+              // without cancelling the drain or unrelated queued operations.
+              val task = async(start = CoroutineStart.LAZY) {
+                withTimeout(BleTimings.gattOperationTimeout) { queued.operation() }
+              }
+              synchronized(queueLock) {
+                queued.job = task
+                if (queued.deferred.isCompleted) task.cancel()
+              }
+              try {
+                task.start()
+                queued.deferred.complete(task.await())
+              } catch (e: CancellationException) {
+                queued.deferred.completeExceptionally(e)
+                currentCoroutineContext().ensureActive()
+              } catch (e: Exception) {
+                queued.deferred.completeExceptionally(e)
+              }
             }
-            throw e
-          } catch (e: Exception) {
-            if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
           } finally {
             synchronized(queueLock) {
               if (activeOperation === queued) activeOperation = null
@@ -100,8 +122,11 @@ class GattOperationQueue(
         synchronized(queueLock) { running = false }
         // Re-drain after the loop exits in case an item was queued between the
         // last take and `running = false`.
-        if (hasPending()) drain()
+        if (scope.isActive && hasPending()) drain()
       }
+    }.invokeOnCompletion { cause ->
+      // Also covers a launch into a scope that was cancelled before it started.
+      if (cause is CancellationException && !scope.isActive) completePending(cause)
     }
   }
 
@@ -112,7 +137,7 @@ class GattOperationQueue(
       if (active != null && !active.deferred.isCompleted) {
         active.deferred.completeExceptionally(error)
       }
-      activeOperation = null
+      active?.job?.cancel(CancellationException("GATT operation aborted", error))
       for (queue in pendingByPriority.values) {
         for (queued in queue) {
           if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(error)

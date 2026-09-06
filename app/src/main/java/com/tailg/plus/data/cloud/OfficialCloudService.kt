@@ -17,11 +17,13 @@ import com.tailg.plus.util.formatMonthText
 import java.time.Duration
 import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancel
@@ -31,6 +33,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 /**
  * Public facade for the official cloud API — port of
@@ -97,9 +102,12 @@ class OfficialCloudService(
     internal val inFlightRefreshes: MutableMap<String, Deferred<Unit>> = ConcurrentHashMap()
     internal val smartServiceStatuses: MutableMap<String, OfficialSmartServiceStatus> = ConcurrentHashMap()
     internal val smartServiceStatusLoadedKeys: MutableSet<String> = ConcurrentHashMap.newKeySet()
-    @Volatile internal var rideStatisticsGeneration: Int = 0
+    internal val rideStatisticsGeneration = AtomicInteger()
+    private val rideStatisticsLock = Any()
     @Volatile internal var initialized: Boolean = false
-    @Volatile internal var initializing: Deferred<Unit>? = null
+    private val initMutex = Mutex()
+    private val sessionWriteMutex = Mutex()
+    internal var loginGeneration: Long = 0
     @Volatile internal var disposed: Boolean = false
 
     private val refreshLogic: OfficialCloudRefreshLogic = OfficialCloudRefreshLogic(this)
@@ -117,9 +125,11 @@ class OfficialCloudService(
 
     val lastVehiclesRefreshAt: LocalDateTime? get() = lastSuccessfulRefresh["vehicles"]
 
-    val lastBatteryRefreshAt: LocalDateTime? get() = lastSuccessfulRefresh["batteryInfo"]
+    val lastBatteryRefreshAt: LocalDateTime?
+        get() = lastSuccessfulRefresh["batteryInfo:${state.selectedVehicle?.key.orEmpty()}"]
 
-    val lastBmsRefreshAt: LocalDateTime? get() = lastSuccessfulRefresh["bmsInfo"]
+    val lastBmsRefreshAt: LocalDateTime?
+        get() = lastSuccessfulRefresh["bmsInfo:${state.selectedVehicle?.key.orEmpty()}"]
 
     val selectedSmartServiceStatus: OfficialSmartServiceStatus?
         get() {
@@ -147,20 +157,8 @@ class OfficialCloudService(
     }
 
     internal suspend fun initInternal(refreshOnSignedIn: Boolean) {
-        if (initialized) return
-        val inFlight = initializing
-        if (inFlight != null) {
-            inFlight.await()
-            return
-        }
-        coroutineScope {
-            val job = async { refreshLogic.loadInitialSession(refreshOnSignedIn) }
-            initializing = job
-            try {
-                job.await()
-            } finally {
-                if (initializing === job) initializing = null
-            }
+        initMutex.withLock {
+            if (!initialized) refreshLogic.loadInitialSession(refreshOnSignedIn)
         }
     }
 
@@ -180,11 +178,11 @@ class OfficialCloudService(
         apiClient = OfficialCloudApiClient(config = apiConfig ?: OfficialCloudApiConfig(), log = log)
         disposed = false
         initialized = false
-        initializing = null
+        loginGeneration++
         this.clock = clock ?: { LocalDateTime.now() }
         _state.value = OfficialCloudState.initial()
         clearRefreshCache()
-        rideStatisticsGeneration++
+        rideStatisticsGeneration.incrementAndGet()
         sentCommands.clear()
         sentKksHidStates.clear()
         sentCarOperatorUpdates.clear()
@@ -440,7 +438,59 @@ class OfficialCloudService(
     }
 
     internal fun isCurrentSession(token: String): Boolean =
-        token.isNotEmpty() && state.token == token
+        !disposed && token.isNotEmpty() && state.token == token
+
+    internal fun updateSessionState(token: String, transform: (OfficialCloudState) -> OfficialCloudState) {
+        updateState { current -> if (token.isNotEmpty() && current.token == token) transform(current) else current }
+    }
+
+    /** Serialize local session writes; finish a started disk transaction even if its caller leaves. */
+    internal suspend fun <T> withSessionWrite(block: suspend () -> T): T =
+        sessionWriteMutex.withLock { withContext(NonCancellable) { block() } }
+
+    internal fun replaceSession(token: String = "", phone: String = "", userId: String = "", loading: Boolean = false) {
+        clearRefreshCache()
+        rideStatisticsGeneration.incrementAndGet()
+        initialized = true
+        updateState { current ->
+            OfficialCloudState.initial().copyWith(
+                initialized = true,
+                localVehicleLinks = current.localVehicleLinks,
+                token = token,
+                phone = phone,
+                userId = userId,
+                loading = loading,
+            )
+        }
+    }
+
+    internal suspend fun persistCurrentVehicle(token: String) = withSessionWrite {
+        if (isCurrentSession(token)) {
+            storage.saveSelectedVehicleKey(state.selectedVehicleKey)
+            storage.saveCarControlInfo(state.selectedVehicle)
+        }
+    }
+
+    internal suspend fun persistCurrentUserProfile(token: String) = withSessionWrite {
+        if (isCurrentSession(token)) storage.saveUserProfile(state.userProfile)
+    }
+
+    internal fun isCurrentVehicleSession(token: String, vehicleKey: String?): Boolean =
+        isCurrentSession(token) && state.selectedVehicle?.key == vehicleKey
+
+    internal fun updateVehicleState(
+        token: String,
+        vehicleKey: String?,
+        transform: (OfficialCloudState) -> OfficialCloudState,
+    ) {
+        updateState { current ->
+            if (current.token == token && current.selectedVehicle?.key == vehicleKey) {
+                transform(current)
+            } else {
+                current
+            }
+        }
+    }
 
     internal fun ensureCurrentSession(token: String) {
         if (!isCurrentSession(token)) {
@@ -489,10 +539,46 @@ class OfficialCloudService(
 
     internal fun currentMonth(): String = formatMonthText(clock())
 
-    internal suspend fun handleAuthFailureIfNeeded(error: Throwable) {
+    internal suspend fun handleAuthFailureIfNeeded(error: Throwable, token: String) {
         if (!OfficialCloudAuthParser.looksLikeAuthError(error)) return
-        logout()
-        updateState { it.copyWith(error = "官方登录已失效，请重新登录") }
+        operationsLogic.logout(expectedToken = token, error = "官方登录已失效，请重新登录")
+    }
+
+    internal fun beginRideStatisticsRequest(
+        token: String,
+        vehicleKey: String,
+        period: OfficialRidePeriod,
+        silent: Boolean,
+    ): Int? = synchronized(rideStatisticsLock) {
+        if (!isCurrentVehicleSession(token, vehicleKey) || (silent && state.rideStatisticsLoading)) {
+            return@synchronized null
+        }
+        val generation = rideStatisticsGeneration.incrementAndGet()
+        updateVehicleState(token, vehicleKey) { current ->
+            if (generation != rideStatisticsGeneration.get()) current else current.copyWith(
+                rideStatistics = if (current.ridePeriod == period) current.rideStatistics else null,
+                ridePeriod = period,
+                rideStatisticsLoading = !silent,
+                rideStatisticsError = null,
+            )
+        }
+        generation
+    }
+
+    internal fun updateRideStatisticsState(
+        generation: Int,
+        token: String,
+        vehicleKey: String,
+        period: OfficialRidePeriod,
+        transform: (OfficialCloudState) -> OfficialCloudState,
+    ) {
+        updateVehicleState(token, vehicleKey) { current ->
+            if (generation == rideStatisticsGeneration.get() && current.ridePeriod == period) {
+                transform(current)
+            } else {
+                current
+            }
+        }
     }
 
     internal fun isCurrentRideStatisticsRequest(
@@ -501,7 +587,7 @@ class OfficialCloudService(
         vehicleKey: String,
         period: OfficialRidePeriod,
     ): Boolean =
-        generation == rideStatisticsGeneration &&
+        generation == rideStatisticsGeneration.get() &&
             isCurrentSession(token) &&
             state.selectedVehicle?.key == vehicleKey &&
             state.ridePeriod == period

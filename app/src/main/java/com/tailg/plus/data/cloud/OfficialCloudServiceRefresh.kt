@@ -13,6 +13,7 @@ import com.tailg.plus.data.model.wireName
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.util.SensitiveValueMasker
 import java.time.ZoneId
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 
@@ -38,43 +39,43 @@ internal class OfficialCloudRefreshLogic(
      * session is present and the caller asked for them.
      */
     suspend fun loadInitialSession(refreshOnSignedIn: Boolean) {
-        val stored = service.storage.loadSession()
-        val cachedVehicles = if (stored.token.isEmpty()) {
-            emptyList()
-        } else {
-            stored.cachedVehicles
+        service.withSessionWrite {
+            if (service.initialized) return@withSessionWrite
+            val stored = service.storage.loadSession()
+            val cachedVehicles = if (stored.token.isEmpty()) {
+                emptyList()
+            } else {
+                stored.cachedVehicles
+            }
+            val selectedVehicleKey = service.selectVehicleKey(cachedVehicles, stored.selectedVehicleKey)
+            service.updateState { it.copyWith(
+                initialized = true,
+                token = stored.token,
+                phone = stored.phone,
+                userId = stored.userId,
+                userProfile = stored.cachedUserProfile,
+                vehicles = cachedVehicles,
+                selectedVehicleKey = selectedVehicleKey,
+                localVehicleLinks = stored.localVehicleLinks,
+            ) }
+            service.initialized = true
+            if (service.state.selectedVehicle != null) {
+                service.runSilentRefresh(
+                    { service.applySelectedVehicleToLocalProfile() },
+                    failureMessage = "官方缓存车辆同步到本地车库失败",
+                )
+            }
+            if (refreshOnSignedIn && service.state.token.isNotEmpty()) {
+                service.runSilentRefresh(
+                    { refreshVehicles(silent = true, refreshReplicaDetails = true, force = false, preferredVehicleKey = null) },
+                    failureMessage = "官方车辆静默刷新失败",
+                )
+                service.runSilentRefresh(
+                    { refreshUserProfile(silent = true, force = false) },
+                    failureMessage = "官方用户资料静默刷新失败",
+                )
+            }
         }
-        val selectedVehicleKey = service.selectVehicleKey(cachedVehicles, stored.selectedVehicleKey)
-        service.updateState { it.copyWith(
-            initialized = true,
-            token = stored.token,
-            phone = stored.phone,
-            userId = stored.userId,
-            userProfile = stored.cachedUserProfile,
-            vehicles = cachedVehicles,
-            selectedVehicleKey = selectedVehicleKey,
-            localVehicleLinks = stored.localVehicleLinks,
-        ) }
-        service.initialized = true
-        if (service.state.selectedVehicle != null) {
-            service.runSilentRefresh(
-                { service.applySelectedVehicleToLocalProfile() },
-                failureMessage = "官方缓存车辆同步到本地车库失败",
-            )
-        }
-        if (refreshOnSignedIn && service.state.token.isNotEmpty()) {
-            service.runSilentRefresh(
-                { refreshVehicles(silent = true, refreshReplicaDetails = true, force = false, preferredVehicleKey = null) },
-                failureMessage = "官方车辆静默刷新失败",
-            )
-            service.runSilentRefresh(
-                { refreshUserProfile(silent = true, force = false) },
-                failureMessage = "官方用户资料静默刷新失败",
-            )
-        }
-        // NOTE: `initializing` is cleared by initInternal's conditional finally
-        // (only when it still points at this job) — an unconditional clear in a
-        // finally here raced a concurrent initInternal into a second load.
     }
 
     // -- user profile --------------------------------------------------------
@@ -99,9 +100,9 @@ internal class OfficialCloudRefreshLogic(
             service.ensureSuccess(response.body, fallback = "获取官方用户资料失败")
             if (!service.isCurrentSession(token)) return
             val profile = OfficialCloudDataParser.userProfile(response.body["data"])
-            service.updateState { it.copyWith(userProfile = profile) }
+            service.updateSessionState(token) { it.copyWith(userProfile = profile) }
             service.runSilentRefresh(
-                { service.storage.saveUserProfile(profile) },
+                { service.persistCurrentUserProfile(token) },
                 failureMessage = "官方用户资料缓存保存失败",
             )
             service.log.operation(
@@ -114,8 +115,9 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             if (!silent) throw e
             service.log.operation(
                 "官方用户资料刷新失败",
@@ -156,7 +158,8 @@ internal class OfficialCloudRefreshLogic(
         token: String,
         preferredVehicleKey: String?,
     ) {
-        if (!silent) service.setLoading(true)
+        if (!service.isCurrentSession(token)) return
+        if (!silent) service.updateSessionState(token) { it.copyWith(loading = true) }
         try {
             val response = service.apiClient.request(
                 "app/centralControl/carStatus",
@@ -168,24 +171,18 @@ internal class OfficialCloudRefreshLogic(
             service.ensureSuccess(response.body, fallback = "获取官方车辆失败")
             if (!service.isCurrentSession(token)) return
             val vehicles = OfficialCloudDataParser.vehicles(response.body["data"])
-            var selected = preferredVehicleKey ?: service.state.selectedVehicleKey
-            if (vehicles.isEmpty()) {
-                selected = null
-            } else if (selected == null || vehicles.none { it.key == selected }) {
-                selected = vehicles.first().key
+            service.withSessionWrite {
+                if (!service.isCurrentSession(token)) return@withSessionWrite
+                val selected = service.selectVehicleKey(vehicles, preferredVehicleKey ?: service.state.selectedVehicleKey)
+                if (service.state.selectedVehicle?.key != service.vehicleByKey(vehicles, selected)?.key) {
+                    service.lastSuccessfulRefresh.clear()
+                    service.rideStatisticsGeneration.incrementAndGet()
+                }
+                service.updateSessionState(token) { it.withVehicleSelection(vehicles, selected) }
+                service.storage.saveSelectedVehicleKey(selected)
+                service.storage.saveCarControlInfo(service.state.selectedVehicle)
             }
-            coroutineScope {
-                val saves = listOf(
-                    async { service.storage.saveSelectedVehicleKey(selected) },
-                    async { service.storage.saveCarControlInfo(service.vehicleByKey(vehicles, selected)) },
-                )
-                saves.forEach { it.await() }
-            }
-            service.updateState { it.copyWith(
-                vehicles = vehicles,
-                selectedVehicleKey = selected,
-                error = null,
-            ) }
+            if (!service.isCurrentSession(token)) return
             service.applySelectedVehicleToLocalProfile()
             service.log.operation("官方车辆列表已刷新", detail = "count=${vehicles.size}")
             if (refreshDependents) {
@@ -193,11 +190,12 @@ internal class OfficialCloudRefreshLogic(
             }
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
                 val message = OfficialCloudRedactor.errorMessage(e)
-                service.updateState { it.copyWith(error = message) }
+                service.updateSessionState(token) { it.copyWith(error = message) }
             }
             throw e
         } finally {
@@ -245,8 +243,9 @@ internal class OfficialCloudRefreshLogic(
                 requestedPageIndex = normalizedPageIndex,
             )
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             service.ensureCurrentSession(token)
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -324,8 +323,9 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
+            if (e is CancellationException) throw e
             if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
                 val message = OfficialCloudRedactor.errorMessage(e)
                 service.updateState { it.copyWith(messagesLoading = false, messagesError = message) }
@@ -343,15 +343,16 @@ internal class OfficialCloudRefreshLogic(
     suspend fun refreshBatteryInfo(silent: Boolean, force: Boolean = false) {
         val token = service.state.token
         if (token.isEmpty()) return
-        val refreshKey = "batteryInfo"
+        val vehicleKey = service.state.selectedVehicle?.key
+        val refreshKey = "batteryInfo:${vehicleKey.orEmpty()}"
         service.coalesceRefresh(refreshKey, silent, force) {
-            refreshBatteryInfoNow(silent, refreshKey, token)
+            refreshBatteryInfoNow(silent, refreshKey, token, vehicleKey)
         }
     }
 
-    private suspend fun refreshBatteryInfoNow(silent: Boolean, refreshKey: String, token: String) {
+    private suspend fun refreshBatteryInfoNow(silent: Boolean, refreshKey: String, token: String, vehicleKey: String?) {
         if (!silent) {
-            service.updateState { it.copyWith(batteryInfoLoading = true, batteryInfoError = null) }
+            service.updateVehicleState(token, vehicleKey) { it.copyWith(batteryInfoLoading = true, batteryInfoError = null) }
         }
         try {
             val response = service.apiClient.request(
@@ -361,9 +362,9 @@ internal class OfficialCloudRefreshLogic(
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
             service.ensureSuccess(response.body, fallback = "获取官方电池信息失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
             val info = OfficialCloudDataParser.batteryInfo(response.body["data"])
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicleKey) { it.copyWith(
                 batteryInfo = if (info.hasData) info else null,
                 batteryInfoLoading = false,
                 batteryInfoError = null,
@@ -374,11 +375,12 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
                 val message = OfficialCloudRedactor.errorMessage(e)
-                service.updateState { it.copyWith(batteryInfoLoading = false, batteryInfoError = message) }
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(batteryInfoLoading = false, batteryInfoError = message) }
             }
             if (!silent) throw e
             service.log.operation(
@@ -387,8 +389,8 @@ internal class OfficialCloudRefreshLogic(
                 level = LogLevel.WARNING,
             )
         } finally {
-            if (!silent && service.isCurrentSession(token) && service.state.batteryInfoLoading) {
-                service.updateState { it.copyWith(batteryInfoLoading = false) }
+            if (!silent && service.isCurrentVehicleSession(token, vehicleKey) && service.state.batteryInfoLoading) {
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(batteryInfoLoading = false) }
             }
         }
     }
@@ -405,7 +407,7 @@ internal class OfficialCloudRefreshLogic(
         if (token.isEmpty() || uid.isEmpty() || imei.isEmpty()) return
         val refreshKey = "bmsInfo:${vehicle?.key ?: imei}"
         service.coalesceRefresh(refreshKey, silent, force) {
-            refreshBmsInfoNow(silent, refreshKey, token, uid, imei)
+            refreshBmsInfoNow(silent, refreshKey, token, uid, imei, vehicle?.key)
         }
     }
 
@@ -415,9 +417,10 @@ internal class OfficialCloudRefreshLogic(
         token: String,
         uid: String,
         imei: String,
+        vehicleKey: String?,
     ) {
         if (!silent) {
-            service.updateState { it.copyWith(bmsInfoLoading = true, bmsInfoError = null) }
+            service.updateVehicleState(token, vehicleKey) { it.copyWith(bmsInfoLoading = true, bmsInfoError = null) }
         }
         try {
             val response = service.apiClient.request(
@@ -427,11 +430,12 @@ internal class OfficialCloudRefreshLogic(
                 body = mapOf("uid" to uid, "imei" to imei),
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
             // Some vehicles without an intelligent battery answer code=100 —
             // treat that as "no BMS" rather than an error.
             val code = OfficialCloudResponseCode.normalizeCode(response.body["code"])
             if (code == "100") {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(
                     bmsInfo = null,
                     bmsInfoLoading = false,
                     bmsInfoError = null,
@@ -441,9 +445,9 @@ internal class OfficialCloudRefreshLogic(
                 return
             }
             service.ensureSuccess(response.body, fallback = "获取官方 BMS 信息失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
             val info = OfficialCloudDataParser.bmsInfo(response.body["data"])
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicleKey) { it.copyWith(
                 bmsInfo = if (info.hasData) info else null,
                 bmsInfoLoading = false,
                 bmsInfoError = null,
@@ -455,11 +459,12 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
                 val message = OfficialCloudRedactor.errorMessage(e)
-                service.updateState { it.copyWith(bmsInfoLoading = false, bmsInfoError = message) }
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(bmsInfoLoading = false, bmsInfoError = message) }
             }
             if (!silent) throw e
             service.log.operation(
@@ -468,8 +473,8 @@ internal class OfficialCloudRefreshLogic(
                 level = LogLevel.WARNING,
             )
         } finally {
-            if (!silent && service.isCurrentSession(token) && service.state.bmsInfoLoading) {
-                service.updateState { it.copyWith(bmsInfoLoading = false) }
+            if (!silent && service.isCurrentVehicleSession(token, vehicleKey) && service.state.bmsInfoLoading) {
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(bmsInfoLoading = false) }
             }
         }
     }
@@ -500,7 +505,8 @@ internal class OfficialCloudRefreshLogic(
             service.ensureSuccess(fallback.body, fallback = "获取电池类型失败")
             return OfficialCloudDataParser.batteryTypes(fallback.body["data"])
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -523,7 +529,8 @@ internal class OfficialCloudRefreshLogic(
             service.ensureSuccess(response.body, fallback = "获取电池规格失败")
             return OfficialCloudDataParser.batterySpecs(response.body["data"])
         } catch (e: Exception) {
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            service.handleAuthFailureIfNeeded(e, token)
             throw e
         }
     }
@@ -549,7 +556,7 @@ internal class OfficialCloudRefreshLogic(
         token: String,
     ) {
         if (!silent) {
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 vehicleLocationLoading = true,
                 vehicleLocationError = null,
             ) }
@@ -563,9 +570,9 @@ internal class OfficialCloudRefreshLogic(
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
             service.ensureSuccess(response.body, fallback = "获取官方停车位置失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
             val location = OfficialCloudDataParser.vehicleLocation(response.body["data"])
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 vehicleLocation = if (location.hasData) location else null,
                 vehicleLocationLoading = false,
                 vehicleLocationError = null,
@@ -576,10 +583,11 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(
                     vehicleLocationLoading = false,
                     vehicleLocationError = OfficialCloudRedactor.errorMessage(e),
                 ) }
@@ -591,8 +599,8 @@ internal class OfficialCloudRefreshLogic(
                 level = LogLevel.WARNING,
             )
         } finally {
-            if (!silent && service.isCurrentSession(token) && service.state.vehicleLocationLoading) {
-                service.updateState { it.copyWith(vehicleLocationLoading = false) }
+            if (!silent && service.isCurrentVehicleSession(token, vehicle.key) && service.state.vehicleLocationLoading) {
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(vehicleLocationLoading = false) }
             }
         }
     }
@@ -616,7 +624,7 @@ internal class OfficialCloudRefreshLogic(
         token: String,
     ) {
         if (!silent) {
-            service.updateState { it.copyWith(fenceLoading = true, fenceError = null) }
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(fenceLoading = true, fenceError = null) }
         }
         try {
             val response = service.apiClient.request(
@@ -627,9 +635,9 @@ internal class OfficialCloudRefreshLogic(
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
             service.ensureSuccess(response.body, fallback = "获取官方电子围栏失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
             val fence = OfficialCloudDataParser.fenceData(response.body["data"])
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 fenceData = if (fence.hasData) fence else null,
                 fenceLoading = false,
                 fenceError = null,
@@ -640,10 +648,11 @@ internal class OfficialCloudRefreshLogic(
             )
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(
                     fenceLoading = false,
                     fenceError = OfficialCloudRedactor.errorMessage(e),
                 ) }
@@ -655,8 +664,8 @@ internal class OfficialCloudRefreshLogic(
                 level = LogLevel.WARNING,
             )
         } finally {
-            if (!silent && service.isCurrentSession(token) && service.state.fenceLoading) {
-                service.updateState { it.copyWith(fenceLoading = false) }
+            if (!silent && service.isCurrentVehicleSession(token, vehicle.key) && service.state.fenceLoading) {
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(fenceLoading = false) }
             }
         }
     }
@@ -668,20 +677,10 @@ internal class OfficialCloudRefreshLogic(
         silent: Boolean = false,
         force: Boolean = false,
     ) {
-        val token = service.state.token
-        val vehicle = service.state.selectedVehicle
+        val snapshot = service.state
+        val token = snapshot.token
+        val vehicle = snapshot.selectedVehicle
         if (token.isEmpty() || vehicle == null) return
-        val frame = vehicle.frame.trim()
-        if (frame.isEmpty()) {
-            service.rideStatisticsGeneration++
-            service.updateState { it.copyWith(
-                rideStatistics = null,
-                ridePeriod = period,
-                rideStatisticsLoading = false,
-                rideStatisticsError = "当前车辆缺少车架号，无法读取骑行统计",
-            ) }
-            return
-        }
         val key = period.requestKey(service.clock().atZone(ZoneId.systemDefault()).toInstant())
         val refreshKey = "rideStatistics:${vehicle.key}:${period.wireName}:$key"
         if (!force && silent &&
@@ -691,33 +690,43 @@ internal class OfficialCloudRefreshLogic(
         ) {
             return
         }
-        val inFlight = service.inFlightRefreshes[refreshKey]
-        if (silent && inFlight != null) {
-            inFlight.await()
-            return
+        // Reserve foreground selection before waiting for older work. Silent
+        // callers reserve only when they actually run, and never replace a
+        // foreground request that is still loading.
+        var generation = if (silent) null else {
+            service.beginRideStatisticsRequest(token, vehicle.key, period, silent = false) ?: return
         }
-        val generation = ++service.rideStatisticsGeneration
-        val override = service.refreshRideStatisticsOverride
-        if (override != null) {
-            if (!silent) {
-                service.updateState { it.copyWith(
-                    rideStatistics = if (service.state.ridePeriod == period) service.state.rideStatistics else null,
-                    ridePeriod = period,
-                    rideStatisticsLoading = true,
-                    rideStatisticsError = null,
-                ) }
-            }
-            try {
-                override(period)
-            } finally {
-                if (service.isCurrentRideStatisticsRequest(generation, token, vehicle.key, period)) {
-                    service.updateState { it.copyWith(rideStatisticsLoading = false) }
+        try {
+            // The TTL check above also verifies that the displayed period has
+            // cached data. A timestamp alone cannot satisfy a period switch.
+            service.coalesceRefresh(refreshKey, silent, force = true) {
+                val requestGeneration = generation
+                    ?: service.beginRideStatisticsRequest(token, vehicle.key, period, silent = true)
+                    ?: return@coalesceRefresh
+                generation = requestGeneration
+                if (!service.isCurrentRideStatisticsRequest(requestGeneration, token, vehicle.key, period)) {
+                    return@coalesceRefresh
+                }
+                if (vehicle.frame.isBlank()) {
+                    service.updateRideStatisticsState(requestGeneration, token, vehicle.key, period) {
+                        it.copyWith(
+                            rideStatistics = null,
+                            rideStatisticsError = "当前车辆缺少车架号，无法读取骑行统计",
+                        )
+                    }
+                    return@coalesceRefresh
+                }
+                val override = service.refreshRideStatisticsOverride
+                if (override != null) override(period) else {
+                    refreshRideStatisticsNow(silent, refreshKey, requestGeneration, vehicle, period, key, token)
                 }
             }
-            return
-        }
-        service.coalesceRefresh(refreshKey, silent, force) {
-            refreshRideStatisticsNow(silent, refreshKey, generation, vehicle, period, key, token)
+        } finally {
+            generation?.let { currentGeneration ->
+                service.updateRideStatisticsState(currentGeneration, token, vehicle.key, period) {
+                    it.copyWith(rideStatisticsLoading = false)
+                }
+            }
         }
     }
 
@@ -730,14 +739,6 @@ internal class OfficialCloudRefreshLogic(
         key: String,
         token: String,
     ) {
-        if (!silent) {
-            service.updateState { it.copyWith(
-                rideStatistics = if (service.state.ridePeriod == period) service.state.rideStatistics else null,
-                ridePeriod = period,
-                rideStatisticsLoading = true,
-                rideStatisticsError = null,
-            ) }
-        }
         try {
             val response = service.apiClient.request(
                 "app/appRiding/getRidingDetail",
@@ -760,7 +761,7 @@ internal class OfficialCloudRefreshLogic(
             }
             val data = rawData.entries.associate { it.key.toString() to it.value }
             val statistics = OfficialRideStatistics.fromJson(data)
-            service.updateState { it.copyWith(
+            service.updateRideStatisticsState(generation, token, vehicle.key, period) { it.copyWith(
                 rideStatistics = statistics,
                 ridePeriod = period,
                 rideStatisticsLoading = false,
@@ -769,26 +770,19 @@ internal class OfficialCloudRefreshLogic(
             service.log.operation("官方骑行统计已刷新", detail = "period=${period.wireName}")
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
-            if (service.isCurrentRideStatisticsRequest(generation, token, vehicle.key, period)) {
-                service.updateState { it.copyWith(
-                    rideStatisticsLoading = false,
-                    rideStatisticsError = OfficialCloudRedactor.errorMessage(e),
-                ) }
-            }
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicle.key)) return
+            service.handleAuthFailureIfNeeded(e, token)
+            service.updateRideStatisticsState(generation, token, vehicle.key, period) { it.copyWith(
+                rideStatisticsLoading = false,
+                rideStatisticsError = OfficialCloudRedactor.errorMessage(e),
+            ) }
             if (!silent) throw e
             service.log.operation(
                 "官方骑行统计刷新失败",
                 detail = OfficialCloudRedactor.errorMessage(e),
                 level = LogLevel.WARNING,
             )
-        } finally {
-            if (service.isCurrentRideStatisticsRequest(generation, token, vehicle.key, period) &&
-                service.state.rideStatisticsLoading
-            ) {
-                service.updateState { it.copyWith(rideStatisticsLoading = false) }
-            }
         }
     }
 
@@ -804,7 +798,7 @@ internal class OfficialCloudRefreshLogic(
         if (token.isEmpty() || vehicle == null) return
         val userId = service.state.userId.trim()
         if (userId.isEmpty()) {
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 travelDays = emptyList(),
                 travelMonth = month ?: service.currentMonth(),
                 travelError = "官方登录未返回 uid，无法读取历史轨迹",
@@ -828,7 +822,9 @@ internal class OfficialCloudRefreshLogic(
         ) {
             return
         }
-        service.coalesceRefresh(refreshKey, silent, force) {
+        val monthChanged = service.state.travelMonth != queryMonth
+        service.updateVehicleState(token, vehicle.key) { it.copyWith(travelMonth = queryMonth) }
+        service.coalesceRefresh(refreshKey, silent, force || monthChanged) {
             refreshTravelHistoryNow(silent, refreshKey, vehicle, queryMonth, userId, token)
         }
     }
@@ -841,8 +837,11 @@ internal class OfficialCloudRefreshLogic(
         userId: String,
         token: String,
     ) {
+        fun isCurrentRequest() = service.isCurrentVehicleSession(token, vehicle.key) &&
+            service.state.travelMonth == queryMonth
+        if (!isCurrentRequest()) return
         if (!silent) {
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 travelLoading = true,
                 travelError = null,
                 travelMonth = queryMonth,
@@ -857,9 +856,9 @@ internal class OfficialCloudRefreshLogic(
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
             service.ensureSuccess(response.body, fallback = "获取官方历史轨迹失败")
-            if (!service.isCurrentSession(token)) return
+            if (!isCurrentRequest()) return
             val days = OfficialCloudDataParser.travelDays(response.body["data"])
-            service.updateState { it.copyWith(
+            service.updateVehicleState(token, vehicle.key) { it.copyWith(
                 travelDays = days,
                 travelMonth = queryMonth,
                 travelLoading = false,
@@ -868,10 +867,11 @@ internal class OfficialCloudRefreshLogic(
             service.log.operation("官方历史轨迹已刷新", detail = "days=${days.size}")
             service.markRefreshSuccess(refreshKey)
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!isCurrentRequest()) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(
                     travelLoading = false,
                     travelError = OfficialCloudRedactor.errorMessage(e),
                 ) }
@@ -883,16 +883,17 @@ internal class OfficialCloudRefreshLogic(
                 level = LogLevel.WARNING,
             )
         } finally {
-            if (!silent && service.isCurrentSession(token) && service.state.travelLoading) {
-                service.updateState { it.copyWith(travelLoading = false) }
+            if (!silent && isCurrentRequest() && service.state.travelLoading) {
+                service.updateVehicleState(token, vehicle.key) { it.copyWith(travelLoading = false) }
             }
         }
     }
 
     suspend fun refreshTravelDetail(travelId: String) {
         val token = service.state.token
+        val vehicleKey = service.state.selectedVehicle?.key
         if (token.isEmpty() || travelId.trim().isEmpty()) return
-        service.updateState { it.copyWith(travelDetailLoading = true, travelDetailError = null) }
+        service.updateVehicleState(token, vehicleKey) { it.copyWith(travelDetailLoading = true, travelDetailError = null) }
         try {
             val response = service.apiClient.request(
                 "app/centralControl/deviceTravelDetail",
@@ -902,29 +903,28 @@ internal class OfficialCloudRefreshLogic(
                 retryPolicy = OfficialCloudRetryPolicy.READ_REQUEST,
             )
             service.ensureSuccess(response.body, fallback = "获取官方轨迹详情失败")
-            if (!service.isCurrentSession(token)) return
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
             val points = OfficialCloudDataParser.travelPoints(response.body["data"])
-            val details = service.state.travelDetails.toMutableMap()
-            details[travelId] = points
-            service.updateState { it.copyWith(
-                travelDetails = details,
+            service.updateVehicleState(token, vehicleKey) { it.copyWith(
+                travelDetails = it.travelDetails + (travelId to points),
                 travelDetailLoading = false,
                 travelDetailError = null,
             ) }
             service.log.operation("官方轨迹详情已刷新", detail = "points=${points.size}")
         } catch (e: Exception) {
-            if (!service.isCurrentSession(token)) return
-            service.handleAuthFailureIfNeeded(e)
+            if (e is CancellationException) throw e
+            if (!service.isCurrentVehicleSession(token, vehicleKey)) return
+            service.handleAuthFailureIfNeeded(e, token)
             if (service.state.signedIn) {
-                service.updateState { it.copyWith(
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(
                     travelDetailLoading = false,
                     travelDetailError = OfficialCloudRedactor.errorMessage(e),
                 ) }
             }
             throw e
         } finally {
-            if (service.isCurrentSession(token) && service.state.travelDetailLoading) {
-                service.updateState { it.copyWith(travelDetailLoading = false) }
+            if (service.isCurrentVehicleSession(token, vehicleKey) && service.state.travelDetailLoading) {
+                service.updateVehicleState(token, vehicleKey) { it.copyWith(travelDetailLoading = false) }
             }
         }
     }
@@ -967,8 +967,9 @@ internal class OfficialCloudRefreshLogic(
                 service.smartServiceStatusLoadedKeys.add(vehicleKey)
                 service.markRefreshSuccess(refreshKey)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 if (!service.isCurrentSession(token)) return@coalesceRefresh
-                service.handleAuthFailureIfNeeded(e)
+                service.handleAuthFailureIfNeeded(e, token)
                 throw e
             }
         }
@@ -991,6 +992,7 @@ internal class OfficialCloudRefreshLogic(
             try {
                 refreshSelectedSmartServiceStatus(silent = true)
             } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 service.log.operation(
                     "官方智能服务状态预检失败",
                     detail = OfficialCloudRedactor.errorMessage(e),

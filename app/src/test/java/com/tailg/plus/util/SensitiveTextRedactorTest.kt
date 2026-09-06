@@ -6,6 +6,15 @@ import org.junit.Test
 class SensitiveTextRedactorTest {
 
     @Test
+    fun captchaAndMqttCredentialsAreRedactedInLogsAndRequestPaths() {
+        val secret = "sensitive-secret-value"
+        for (key in listOf("captchaPassToken", "smsCode", "mqPassword", "mainPassword", "childrenPassword")) {
+            org.junit.Assert.assertFalse(SensitiveTextRedactor.redact("$key=$secret").contains(secret))
+            org.junit.Assert.assertFalse(com.tailg.plus.data.cloud.OfficialCloudRedactor.requestPath("app/test?$key=$secret").contains(secret))
+        }
+    }
+
+    @Test
     fun redact_bearerToken() {
         assertEquals(
             "Bearer eyJ***xYw",
@@ -55,12 +64,14 @@ class SensitiveTextRedactorTest {
     }
 
     @Test
-    fun redact_authorizationWithoutBearer() {
-        // "Basic" is masked as a short value; the trailing base64 run is
-        // untouched because it has no sensitive key — same as the Dart source.
+    fun redact_authorizationBasicCredentials() {
         assertEquals(
-            "authorization: *** dXNlcjpwYXNz",
+            "authorization: Basic ***",
             SensitiveTextRedactor.redact("authorization: Basic dXNlcjpwYXNz"),
+        )
+        assertEquals(
+            "\"Authorization\": \"Basic ***\"",
+            SensitiveTextRedactor.redact("\"Authorization\": \"Basic dXNlcjpwYXNz\""),
         )
     }
 

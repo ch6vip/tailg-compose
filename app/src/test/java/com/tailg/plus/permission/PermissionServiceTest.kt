@@ -1,8 +1,14 @@
 package com.tailg.plus.permission
 
+import android.Manifest
+import android.content.Context
+import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultRegistry
 import androidx.activity.result.contract.ActivityResultContract
 import androidx.core.app.ActivityOptionsCompat
+import androidx.test.core.app.ApplicationProvider
+import io.mockk.every
+import io.mockk.mockk
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
@@ -20,6 +26,25 @@ import org.robolectric.annotation.Config
 @Config(sdk = [35])
 @OptIn(ExperimentalCoroutinesApi::class)
 class PermissionServiceTest {
+
+  @Test
+  fun bleScanRequestsCoarseAndFineLocationTogether() = runTest {
+    val registry = RecordingRegistry()
+    val activity = mockk<ComponentActivity>()
+    every { activity.activityResultRegistry } returns registry
+    every { activity.shouldShowRequestPermissionRationale(any()) } returns true
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val request = async(start = CoroutineStart.UNDISPATCHED) {
+      AppPermissionService(context).requestBleScanPermissions(activity)
+    }
+
+    val permissions = registry.lastPermissions.toSet()
+    assertTrue(permissions.contains(Manifest.permission.ACCESS_FINE_LOCATION))
+    // Without COARSE in this same request, Android 12+ ignores FINE.
+    assertTrue(permissions.contains(Manifest.permission.ACCESS_COARSE_LOCATION))
+    assertTrue(registry.dispatchResult(registry.lastRequestCode, permissions.associateWith { true }))
+    assertTrue(request.await().granted)
+  }
 
   @Test
   fun successfulResultUnregistersLauncher() = runTest {
@@ -77,6 +102,7 @@ class PermissionServiceTest {
     private val throwOnLaunch: Boolean = false,
   ) : ActivityResultRegistry() {
     var lastRequestCode: Int = -1
+    var lastPermissions: List<String> = emptyList()
 
     override fun <I, O> onLaunch(
       requestCode: Int,
@@ -85,6 +111,7 @@ class PermissionServiceTest {
       options: ActivityOptionsCompat?,
     ) {
       lastRequestCode = requestCode
+      lastPermissions = (input as? Array<*>)?.filterIsInstance<String>().orEmpty()
       if (throwOnLaunch) error("launch failed")
     }
 

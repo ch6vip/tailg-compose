@@ -42,6 +42,7 @@ import kotlin.time.Duration.Companion.seconds
 class CoulombMeterService(
     private val connectionManager: ConnectionManager,
     private val logService: LogService = LogService(),
+    private val ensureConnection: () -> Unit = {},
 ) {
 
     /**
@@ -112,6 +113,7 @@ class CoulombMeterService(
         manager: ConnectionManager?,
         timeout: Duration,
     ): Boolean? {
+        ensureConnection()
         val cm = manager ?: connectionManager
         if (!cm.isProtocolLoggedIn) {
             throw IllegalStateException("请先连接车辆蓝牙")
@@ -133,7 +135,11 @@ class CoulombMeterService(
             )
         }
 
-        val response = awaitFbb2FirstFrame(cm, timeout) { cm.writeFbb2(QUERY_FRAME) }
+        val response = awaitFbb2StatusFrame(cm, timeout) {
+            ensureConnection()
+            cm.writeFbb2(QUERY_FRAME)
+        }
+        ensureConnection()
         if (response == null) {
             logService.operation("库仑计查询超时", level = LogLevel.WARNING)
             return null
@@ -148,9 +154,8 @@ class CoulombMeterService(
 
     /**
      * Dart `setEnabled(enabled, {manager, timeout})`. Powers the vehicle
-     * first, writes the on/off frame and returns the parsed result; when the
-     * firmware acked without a parseable status frame the target state is
-     * returned (same fallback as the Dart original).
+     * first, writes the on/off frame and returns the confirmed result, or
+     * null when no valid status response arrives before the timeout.
      */
     suspend fun setEnabled(
         enabled: Boolean,
@@ -163,6 +168,7 @@ class CoulombMeterService(
         manager: ConnectionManager?,
         timeout: Duration,
     ): Boolean? {
+        ensureConnection()
         val cm = manager ?: connectionManager
         if (!cm.isProtocolLoggedIn) {
             throw IllegalStateException("请先连接车辆蓝牙")
@@ -184,17 +190,20 @@ class CoulombMeterService(
         }
 
         val frame = if (enabled) TURN_ON_FRAME else TURN_OFF_FRAME
-        val response = awaitFbb2FirstFrame(cm, timeout) { cm.writeFbb2(frame) }
+        val response = awaitFbb2StatusFrame(cm, timeout) {
+            ensureConnection()
+            cm.writeFbb2(frame)
+        }
+        ensureConnection()
         if (response == null) {
-            // Some firmwares ack without a parseable status frame.
             logService.operation(
-                "库仑计设置超时，采用目标状态",
+                "库仑计设置超时，未确认车辆状态",
                 detail = "enabled=$enabled",
                 level = LogLevel.WARNING,
             )
-            return enabled
+            return null
         }
-        val on = parseSocVisible(response) ?: enabled
+        val on = parseSocVisible(response)
         logService.operation(
             "库仑计设置",
             detail = "enabled=$enabled raw=$response result=$on",
@@ -204,18 +213,18 @@ class CoulombMeterService(
 
     /**
      * Subscribes to FBB2 notifications (before [write] runs), writes the
-     * frame, then returns the first `D001...` payload or null on [timeout].
+     * frame, then returns the first valid SOC status payload or null on [timeout].
      */
-    private suspend fun awaitFbb2FirstFrame(
+    private suspend fun awaitFbb2StatusFrame(
         cm: ConnectionManager,
         timeout: Duration,
         write: suspend () -> Unit,
     ): String? = coroutineScope {
-        val frames = Channel<String>(Channel.UNLIMITED)
+        val frames = Channel<String>(capacity = 1)
         val collector = launch(start = CoroutineStart.UNDISPATCHED) {
             cm.fbb2Flow.collect { hex ->
                 val clean = hex.replace(NON_HEX, "").uppercase()
-                if (clean.startsWith("D001")) {
+                if (parseSocVisible(clean) != null) {
                     frames.trySend(clean)
                 }
             }
@@ -225,6 +234,7 @@ class CoulombMeterService(
             withTimeoutOrNull(timeout) { frames.receive() }
         } finally {
             collector.cancel()
+            frames.cancel()
         }
     }
 }

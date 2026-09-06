@@ -5,6 +5,7 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.Job
 
 /**
  * Port of Dart `enum ProtocolType`.
@@ -47,7 +48,10 @@ internal class QueuedGattOperation<T>(
   val operation: suspend () -> T,
   val priority: GattOperationPriority,
   val deferred: CompletableDeferred<T> = CompletableDeferred(),
-)
+) {
+  // Accessed only under GattOperationQueue's lock.
+  var job: Job? = null
+}
 
 /**
  * Thread-safe holder for a nullable [CompletableDeferred] using [AtomicReference],

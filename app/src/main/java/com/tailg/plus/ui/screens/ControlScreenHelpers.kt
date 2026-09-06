@@ -11,6 +11,10 @@ import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.domain.control.ControlCloudState
+import com.tailg.plus.domain.control.ControlChannelAvailability
+import com.tailg.plus.domain.control.ControlChannelResolver
+import com.tailg.plus.domain.control.OfficialControlChannel
+import com.tailg.plus.data.ble.platform.ProtocolType
 import com.tailg.plus.ui.components.OfficialBleChipState
 import com.tailg.plus.util.formatDistanceKilometers
 import com.tailg.plus.util.formatDistanceKilometersText
@@ -30,6 +34,22 @@ internal fun currentPowerState(
   val acc = cloudVehicle?.acc
   return acc?.let { it == 1 }
 }
+
+internal fun ConnectionManager.resolveControlAvailability(
+  cloudState: ControlCloudState,
+  channel: OfficialControlChannel,
+  busy: Boolean = false,
+  networkReady: Boolean = true,
+): ControlChannelAvailability = ControlChannelResolver.resolve(
+  cloudState = cloudState,
+  bleReady = isProtocolLoggedIn,
+  bleNotReadyReason = protocolLoginUnavailableReason,
+  connectedVehicleId = runCatching { device?.address }.getOrNull(),
+  connectedIdentityMac = connectionContext?.targetMacCompact.takeIf { protocol == ProtocolType.QGJ },
+  channel = channel,
+  busy = busy,
+  networkReady = networkReady,
+)
 
 internal fun currentLockState(
   bleBikeState: BikeState?,

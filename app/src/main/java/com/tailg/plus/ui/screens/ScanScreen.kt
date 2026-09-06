@@ -1,13 +1,11 @@
 package com.tailg.plus.ui.screens
 
-import android.Manifest
 import android.bluetooth.BluetoothManager
 import android.bluetooth.le.ScanCallback
 import android.bluetooth.le.ScanResult
 import android.bluetooth.le.ScanSettings
 import android.content.Context
 import android.content.pm.PackageManager
-import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.LinearEasing
@@ -62,6 +60,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.tailg.plus.data.ble.BleTimings
+import com.tailg.plus.permission.bleScanPermissions
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.Lucide
@@ -74,6 +73,10 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.update
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -99,6 +102,7 @@ fun ScanScreen(
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
+  val lifecycleOwner = LocalLifecycleOwner.current
 
   var bluetoothOn by remember { mutableStateOf(isBluetoothEnabled(context)) }
   var hasPermissions by remember { mutableStateOf(hasBleScanPermissions(context)) }
@@ -126,10 +130,20 @@ fun ScanScreen(
     }
   }
 
-  // Re-check bluetooth state when the screen resumes (Dart uses a stream; here
-  // a fresh read on recomposition is enough for the manual-scan page).
-  bluetoothOn = isBluetoothEnabled(context)
-  hasPermissions = hasBleScanPermissions(context)
+  DisposableEffect(lifecycleOwner, context) {
+    val observer = LifecycleEventObserver { _, event ->
+      when (event) {
+        Lifecycle.Event.ON_RESUME -> {
+          bluetoothOn = isBluetoothEnabled(context)
+          hasPermissions = hasBleScanPermissions(context)
+        }
+        Lifecycle.Event.ON_PAUSE -> scanning = false
+        else -> Unit
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+  }
 
   // Stabilize + sort raw scan results on the composition scope (Dart
   // `_stabilizeScanResults`): keep the strongest RSSI per device id, preserve
@@ -180,8 +194,12 @@ fun ScanScreen(
     if (!scanning) {
       return@DisposableEffect onDispose { /* nothing to stop when we never started */ }
     }
-    val adapter = (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter
-    val scanner = adapter?.bluetoothLeScanner
+    val scanner = try {
+      (context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager)?.adapter?.bluetoothLeScanner
+    } catch (_: SecurityException) {
+      hasPermissions = false
+      null
+    }
     if (scanner == null) {
       scanning = false
       return@DisposableEffect onDispose { }
@@ -189,12 +207,12 @@ fun ScanScreen(
     val callback = object : ScanCallback() {
       override fun onScanResult(callbackType: Int, result: ScanResult) {
         upsertDiscovered(discovered, result)
-        rawResults.value = rawResults.value + 1
+        rawResults.update { it + 1 }
       }
 
       override fun onBatchScanResults(results: MutableList<ScanResult>) {
         for (r in results) upsertDiscovered(discovered, r)
-        rawResults.value = rawResults.value + 1
+        rawResults.update { it + 1 }
       }
 
       override fun onScanFailed(errorCode: Int) {
@@ -316,7 +334,7 @@ fun ScanScreen(
               scanning = false
             } else {
               if (!hasPermissions) {
-                permissionLauncher.launch(bleScanPermissionArray())
+              permissionLauncher.launch(bleScanPermissions())
                 return@ScanFab
               }
               if (!bluetoothOn) return@ScanFab
@@ -393,21 +411,9 @@ private fun isBluetoothEnabled(context: Context): Boolean {
 }
 
 private fun hasBleScanPermissions(context: Context): Boolean {
-  val permissions = bleScanPermissionArray()
+  val permissions = bleScanPermissions()
   return permissions.all {
     ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-  }
-}
-
-private fun bleScanPermissionArray(): Array<String> {
-  return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-    arrayOf(
-      Manifest.permission.BLUETOOTH_SCAN,
-      Manifest.permission.BLUETOOTH_CONNECT,
-      Manifest.permission.ACCESS_FINE_LOCATION,
-    )
-  } else {
-    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION)
   }
 }
 

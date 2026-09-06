@@ -1,5 +1,7 @@
 package com.tailg.plus.ui.components
 
+import com.tailg.plus.util.readBytesLimited
+
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
@@ -352,7 +354,8 @@ private suspend fun loadMiniMapTile(url: String): ImageBitmap? {
       connection.instanceFollowRedirects = true
       connection.setRequestProperty("User-Agent", "tailg-plus")
       try {
-        val bytes = connection.inputStream.use { it.readBytes() }
+        if (connection.contentLengthLong > MAX_MINI_MAP_TILE_BYTES) return@runCatching null
+        val bytes = connection.inputStream.use { it.readBytesLimited(MAX_MINI_MAP_TILE_BYTES) }
         if (bytes.isEmpty()) return@runCatching null
         val decoded = decodeMiniMapTile(bytes)
         if (decoded != null) BitmapMemoryCache.put(cacheKey, decoded)
@@ -390,3 +393,4 @@ internal fun decodeMiniMapTile(bytes: ByteArray): Bitmap? {
 }
 
 private const val MINI_MAP_TILE_TARGET_PX = 256
+private const val MAX_MINI_MAP_TILE_BYTES = 2 * 1024 * 1024

@@ -4,6 +4,7 @@ import android.content.Context
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
+import java.util.concurrent.atomic.AtomicReference
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
@@ -30,30 +31,36 @@ class NetworkAvailabilityService(context: Context) {
 
     /** Emits the link state on changes (fail-open on registration errors). */
     val changes: Flow<Boolean> = callbackFlow {
+        val currentNetwork = AtomicReference<Network?>(null)
         val callback = object : ConnectivityManager.NetworkCallback() {
             override fun onAvailable(network: Network) {
-                trySend(hasNetwork(network))
+                currentNetwork.set(network)
+                // Capabilities arrive next; querying them here can return a stale snapshot.
             }
 
             override fun onLost(network: Network) {
-                trySend(false)
+                if (currentNetwork.compareAndSet(network, null)) {
+                    trySend(runCatching {
+                        val active = connectivityManager.activeNetwork?.takeUnless { it == network }
+                        currentNetwork.compareAndSet(null, active)
+                        hasNetwork(active)
+                    }.getOrDefault(true))
+                }
             }
 
             override fun onCapabilitiesChanged(
                 network: Network,
                 capabilities: NetworkCapabilities,
             ) {
-                trySend(hasNetwork(capabilities))
+                if (currentNetwork.get() == network) trySend(hasNetwork(capabilities))
             }
         }
         try {
-            val request = android.net.NetworkRequest.Builder()
-                .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
-                .build()
-            connectivityManager.registerNetworkCallback(request, callback)
+            currentNetwork.set(connectivityManager.activeNetwork)
+            connectivityManager.registerDefaultNetworkCallback(callback)
             trySend(hasNetwork(connectivityManager.activeNetwork))
         } catch (_: Exception) {
-            // Keep last known state when registration is unavailable.
+            trySend(checkNow(fallback = true))
         }
         awaitClose { runCatching { connectivityManager.unregisterNetworkCallback(callback) } }
     }.distinctUntilChanged()

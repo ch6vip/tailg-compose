@@ -10,6 +10,13 @@ import java.time.LocalDateTime
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
+import okhttp3.Call
+import okhttp3.Callback
+import okhttp3.Headers
+import okhttp3.Response
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
@@ -39,7 +46,7 @@ class OfficialCloudApiClient(
     private val okHttpClient: OkHttpClient? = null,
     clock: () -> LocalDateTime = { LocalDateTime.now() },
 ) : OfficialCloudApiClientInterface {
-    private val httpClient: OkHttpClient = okHttpClient ?: OkHttpClient.Builder()
+    private val httpClient: OkHttpClient = (okHttpClient ?: OkHttpClient.Builder()
         .connectTimeout(config.connectTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
         // Client-level read/write guards: without these OkHttp defaults to a
         // 10-minute read timeout, so a stalled body could pin the IO thread far
@@ -61,6 +68,9 @@ class OfficialCloudApiClient(
                 maxRequestsPerHost = 2
             },
         )
+        .build()).newBuilder()
+        // The explicit retry policy owns retries, including non-idempotent POSTs.
+        .retryOnConnectionFailure(false)
         .build()
 
     // Shared plain-Moshi instance (CloudJson owns it) — a second identical
@@ -69,7 +79,7 @@ class OfficialCloudApiClient(
 
     private var clock: () -> LocalDateTime = clock
 
-    private var lastRequestValue: OfficialCloudRequestSummary? = null
+    @Volatile private var lastRequestValue: OfficialCloudRequestSummary? = null
 
     override val lastRequest: OfficialCloudRequestSummary? get() = lastRequestValue
 
@@ -117,13 +127,10 @@ class OfficialCloudApiClient(
                 val call = httpClient.newCall(requestBuilder.build())
                 call.timeout().timeout(config.responseTimeout.inWholeMilliseconds, TimeUnit.MILLISECONDS)
 
-                val response = withContext(Dispatchers.IO) { call.execute() }
-                try {
-                    val text = withContext(Dispatchers.IO) {
-                        readBodyLimited(response.body)
-                    }
-                    val decoded = decodeBodyForStatus(
-                        text = text,
+                val response = execute(call)
+                val decoded = withContext(Dispatchers.IO) {
+                    decodeBodyForStatus(
+                        text = response.text,
                         path = path,
                         method = method,
                         startedAt = startedAt,
@@ -131,46 +138,44 @@ class OfficialCloudApiClient(
                         attempt = attempt,
                         retryPolicy = retryPolicy,
                     )
-                    if (decoded == null) continue
-
-                    recordRequest(
-                        path = path,
-                        method = method,
-                        startedAt = startedAt,
-                        statusCode = response.code,
-                        body = decoded,
-                    )
-                    val headers = mutableMapOf<String, String>()
-                    response.headers.forEach { (name, value) ->
-                        headers.putIfAbsent(name.lowercase(), value)
-                    }
-                    if (response.code !in 200..299) {
-                        val message = OfficialCloudRedactor.text(
-                            decoded["msg"]?.toString() ?: "官方接口返回 ${response.code}",
-                        )
-                        if (retryPolicy.shouldRetryStatusCode(response.code) &&
-                            retryPolicy.canRetryAttempt(attempt)
-                        ) {
-                            delayBeforeRetry(
-                                path = path,
-                                method = method,
-                                attempt = attempt,
-                                retryPolicy = retryPolicy,
-                                message = message,
-                                statusCode = response.code,
-                            )
-                            continue
-                        }
-                        throw OfficialCloudApiException(message, statusCode = response.code)
-                    }
-                    return OfficialCloudApiResponse(
-                        statusCode = response.code,
-                        headers = headers,
-                        body = decoded,
-                    )
-                } finally {
-                    response.close()
                 }
+                if (decoded == null) continue
+
+                recordRequest(
+                    path = path,
+                    method = method,
+                    startedAt = startedAt,
+                    statusCode = response.code,
+                    body = decoded,
+                )
+                val headers = mutableMapOf<String, String>()
+                response.headers.forEach { (name, value) ->
+                    headers.putIfAbsent(name.lowercase(), value)
+                }
+                if (response.code !in 200..299) {
+                    val message = OfficialCloudRedactor.text(
+                        decoded["msg"]?.toString() ?: "官方接口返回 ${response.code}",
+                    )
+                    if (retryPolicy.shouldRetryStatusCode(response.code) &&
+                        retryPolicy.canRetryAttempt(attempt)
+                    ) {
+                        delayBeforeRetry(
+                            path = path,
+                            method = method,
+                            attempt = attempt,
+                            retryPolicy = retryPolicy,
+                            message = message,
+                            statusCode = response.code,
+                        )
+                        continue
+                    }
+                    throw OfficialCloudApiException(message, statusCode = response.code)
+                }
+                return OfficialCloudApiResponse(
+                    statusCode = response.code,
+                    headers = headers,
+                    body = decoded,
+                )
             } catch (e: InterruptedIOException) {
                 if (retryPolicy.canRetryAttempt(attempt)) {
                     delayBeforeRetry(
@@ -220,6 +225,35 @@ class OfficialCloudApiClient(
         }
         // Unreachable — the loop always returns or throws.
         throw IllegalStateException("Unreachable")
+    }
+
+
+    private data class BufferedResponse(val code: Int, val headers: Headers, val text: String)
+
+    /**
+     * Keep the body under the call's cancellation handler and close it on the
+     * callback thread. Async calls also honor Dispatcher's per-host limit;
+     * execute() bypasses that limit and can leak a response on cancellation
+     * between returning headers and entering the caller's finally block.
+     */
+    private suspend fun execute(call: Call): BufferedResponse = suspendCancellableCoroutine { cont ->
+        cont.invokeOnCancellation { call.cancel() }
+        call.enqueue(object : Callback {
+            override fun onFailure(call: Call, e: IOException) {
+                if (cont.isActive) cont.resumeWithException(e)
+            }
+
+            override fun onResponse(call: Call, response: Response) {
+                try {
+                    val buffered = response.use {
+                        BufferedResponse(it.code, it.headers, readBodyLimited(it.body))
+                    }
+                    if (cont.isActive) cont.resume(buffered)
+                } catch (e: Exception) {
+                    if (cont.isActive) cont.resumeWithException(e)
+                }
+            }
+        })
     }
 
     /**

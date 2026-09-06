@@ -46,13 +46,7 @@ data class PermissionCheckResult(
 class AppPermissionService(private val context: Context) {
 
     private val blePermissions: Array<String>
-        get() = buildList {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                add(Manifest.permission.BLUETOOTH_SCAN)
-                add(Manifest.permission.BLUETOOTH_CONNECT)
-            }
-            add(Manifest.permission.ACCESS_FINE_LOCATION)
-        }.toTypedArray()
+        get() = bleScanPermissions()
 
     private val notificationPermission: String?
         get() = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -194,6 +188,16 @@ class AppPermissionService(private val context: Context) {
         private val requestCounter = java.util.concurrent.atomic.AtomicInteger()
     }
 }
+
+/** Android 12+ requires coarse and fine location in the same permission request. */
+internal fun bleScanPermissions(): Array<String> = buildList {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        add(Manifest.permission.BLUETOOTH_SCAN)
+        add(Manifest.permission.BLUETOOTH_CONNECT)
+        add(Manifest.permission.ACCESS_COARSE_LOCATION)
+    }
+    add(Manifest.permission.ACCESS_FINE_LOCATION)
+}.toTypedArray()
 
 internal suspend fun requestPermissionsWithRegistry(
     key: String,

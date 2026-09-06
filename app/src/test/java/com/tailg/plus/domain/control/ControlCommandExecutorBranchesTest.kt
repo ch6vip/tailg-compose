@@ -26,6 +26,7 @@ class ControlCommandExecutorBranchesTest {
     bleReady: Boolean = false,
     signedIn: Boolean = true,
     withVehicle: Boolean = true,
+    busy: Boolean = false,
   ): ControlChannelAvailability {
     val vehicle = OfficialVehicle.fromJson(
       mapOf(
@@ -43,7 +44,29 @@ class ControlCommandExecutorBranchesTest {
       cloudState = state,
       bleReady = bleReady,
       channel = channel,
+      busy = busy,
     )
+  }
+
+  @Test
+  fun `busy availability prevents preflight and every transport send`() = runTest {
+    val calls = mutableListOf<String>()
+    val executor = ControlCommandExecutor(
+      beforeBleCommand = { calls.add("preflight"); null },
+      sendBleCommand = { calls.add("ble"); true },
+      sendCloudCommand = { calls.add("cloud"); "ok" },
+    )
+
+    for (channel in OfficialControlChannel.entries) {
+      val availability = availability(channel = channel, bleReady = true, busy = true)
+      assertTrue(availability.canUseBle || availability.canUseCloud)
+      val result = executor.send(CommandCode.LOCK, availability)
+
+      assertFalse(result.success)
+      assertEquals(ControlCommandTransport.UNAVAILABLE, result.transport)
+      assertEquals(availability.disabledReason, result.failureMessage)
+    }
+    assertTrue(calls.isEmpty())
   }
 
   @Test

@@ -13,7 +13,7 @@ interface OfficialCloudApiClientInterface {
         method: String,
         token: String? = null,
         body: Map<String, Any?>? = null,
-        retryPolicy: OfficialCloudRetryPolicy = OfficialCloudRetryPolicy.TRANSPORT_ONLY,
+        retryPolicy: OfficialCloudRetryPolicy = OfficialCloudRetryPolicy.NO_RETRY,
     ): OfficialCloudApiResponse
 
     fun dispose()

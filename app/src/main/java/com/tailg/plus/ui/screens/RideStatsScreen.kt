@@ -318,6 +318,7 @@ private fun loadStatistics(
       onLoading(false)
       onError(if (requestError.isNullOrEmpty()) null else requestError)
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       if (!isCurrent(generation)) return@launch
       onError(OfficialCloudRedactor.errorMessage(e))
       onLoading(false)

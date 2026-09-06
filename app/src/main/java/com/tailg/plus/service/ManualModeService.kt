@@ -20,6 +20,8 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.withContext
 
 class ManualModeService(
   private val prefs: InductionPrefs,
@@ -35,6 +37,7 @@ class ManualModeService(
   val enabledFlow: StateFlow<Boolean> = _enabled.asStateFlow()
 
   private val initMutex = Mutex()
+  private val mutationMutex = Mutex()
   private var initialized = false
 
   /** Dart `enabled` getter. */
@@ -65,11 +68,13 @@ class ManualModeService(
   }
 
   /** Dart `setEnabled(bool)` — persists first, then publishes. */
-  suspend fun setEnabled(value: Boolean) {
+  suspend fun setEnabled(value: Boolean) = mutationMutex.withLock {
     ensureInitialized(emitInitialValue = false)
-    if (_enabled.value == value) return
-    prefs.saveBoolean(PREF_KEY, value)
-    _enabled.value = value
+    if (_enabled.value == value) return@withLock
+    withContext(NonCancellable) {
+      prefs.saveBoolean(PREF_KEY, value)
+      _enabled.value = value
+    }
   }
 
   /** Dart `dispose()` — a StateFlow cannot be closed; kept for API parity. */

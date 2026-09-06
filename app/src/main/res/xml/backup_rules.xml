@@ -6,12 +6,16 @@
     EncryptedSharedPreferences (androidx.security). The master key stays in
     Android Keystore, which never migrates, so restoring those files would
     produce undecryptable blobs and a broken session.
+  - DataStore files under files/datastore are excluded: they hold PII
+    (official-cloud cached user profile with address/city, shared-member
+    phone numbers and fence coordinates in replica_feature_store, vehicle
+    profiles with last-known location, message read state). Keeping them out
+    of cloud backup / device-to-device transfer matches the encrypted-credential
+    stance; the loss is limited to re-login + re-sync.
   - osmdroid tile cache under filesDir is excluded (re-downloadable, bulky).
-  - Local vehicle JSON and non-sensitive DataStore preferences remain eligible
-    for transfer. Official `carControlInfo` and its BLE/MQTT credentials stay
-    only in the excluded encrypted shared preferences.
 -->
 <full-backup-content>
     <exclude domain="sharedpref" path="." />
+    <exclude domain="file" path="datastore" />
     <exclude domain="file" path="osmdroid" />
 </full-backup-content>

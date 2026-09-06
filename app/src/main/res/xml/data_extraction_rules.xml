@@ -4,15 +4,19 @@
 
   Mirrors backup_rules.xml: encrypted session/control prefs are excluded from
   both device-to-cloud backup and device-to-device transfer (the keystore key
-  does not migrate); the osmdroid tile cache is excluded as re-downloadable bulk.
+  does not migrate); DataStore preferences (PII: profiles, links, fence
+  coordinates, read state) are excluded too; the osmdroid tile cache is
+  excluded as re-downloadable bulk.
 -->
 <data-extraction-rules>
     <cloud-backup>
         <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="datastore" />
         <exclude domain="file" path="osmdroid" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="." />
+        <exclude domain="file" path="datastore" />
         <exclude domain="file" path="osmdroid" />
     </device-transfer>
 </data-extraction-rules>

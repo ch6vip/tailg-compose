@@ -705,7 +705,15 @@ class ConnectionManager(
     }
     val t = _token
     val frame = if (_protocol == ProtocolType.TLINK) "$hexData${t ?: return false}" else hexData
-    val bytes = aesEcbEncrypt(_model.aesKey, frame)
+    // Malformed hex / non-block-aligned frames surface as a clean failure
+    // (false) instead of throwing out of the caller's coroutine — NFC writes
+    // go through here and used to cancel the caller silently.
+    val bytes = try {
+      aesEcbEncrypt(_model.aesKey, frame)
+    } catch (e: IllegalArgumentException) {
+      log.ble("标准栈 hex 写入被拒绝", detail = "非法 hex 或块对齐: ${e.message}", level = LogLevel.WARNING)
+      return false
+    }
     runGattOperation(priority = GattOperationPriority.HIGH) {
       writeCharacteristic(_writeChar!!, bytes, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
     }
@@ -854,8 +862,14 @@ class ConnectionManager(
         _rssiDeferred = null
         return null
       }
-      withTimeoutOrNull(5.seconds) { deferred.await() }
+      // Clear the slot on timeout AND on success: a stale callback from a
+      // previous request must never satisfy a newer waiter (a late
+      // onReadRemoteRssi used to complete the freshly installed deferred).
+      val result = withTimeoutOrNull(5.seconds) { deferred.await() }
+      if (_rssiDeferred === deferred) _rssiDeferred = null
+      result
     } catch (e: Exception) {
+      if (_rssiDeferred != null) _rssiDeferred = null
       log.ble("读取 RSSI 失败", detail = e.toString(), level = LogLevel.DEBUG)
       null
     }
@@ -1401,8 +1415,12 @@ class ConnectionManager(
         return
       }
       val mtu = withTimeoutOrNull(5.seconds) { deferred.await() }
+      // Clear the slot on timeout too — a late onMtuChanged from this request
+      // must not satisfy a future request's deferred.
+      if (_mtuDeferred === deferred) _mtuDeferred = null
       log.ble("MTU 已请求", detail = mtu?.toString(), level = LogLevel.DEBUG)
     } catch (e: Exception) {
+      if (_mtuDeferred != null) _mtuDeferred = null
       log.ble("MTU 请求失败", detail = e.toString(), level = LogLevel.DEBUG)
     }
   }

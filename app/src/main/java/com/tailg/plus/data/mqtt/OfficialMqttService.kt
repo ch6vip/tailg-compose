@@ -556,7 +556,17 @@ class OfficialMqttService(
                 userName = mqUser
                 this.password = mqPass.toCharArray()
                 if (parsed.security == MqttTransportSecurity.TLS) {
-                    val socketFactoryOverride = tlsSocketFactoryFor(parsed.host)
+                    // Hosts served down by the official cloud (mqHost/mqPort on
+                    // the vehicle row) are official private-CA endpoints too;
+                    // trusting them is what keeps C18/QGJ remote control from
+                    // silently degrading to the HTTP fallback. Never trust a
+                    // host that came from anywhere else.
+                    val servedByCloud = vehicle.mqHost.trim().isNotEmpty() &&
+                        vehicle.mqPort.trim().isNotEmpty()
+                    val socketFactoryOverride = tlsSocketFactoryFor(
+                        host = parsed.host,
+                        trustOfficialMqHost = servedByCloud,
+                    )
                     if (socketFactoryOverride != null) {
                         socketFactory = socketFactoryOverride
                     }
@@ -681,9 +691,30 @@ class OfficialMqttService(
 
     @Volatile private var statusConsumerStarted = false
 
+    /**
+     * While a command is pending EVERY frame may be its ACK (a vehicle moving
+     * streams ACC/defence frames right after "stop"/"start", and the CONFLATED
+     * channel would collapse the ACK frame away). Route pending-window frames
+     * synchronously so the single-shot confirmation is never dropped; only
+     * idle-window status uses the conflated queue.
+     */
     private fun enqueueStatusPayload(raw: String) {
-        ensureStatusConsumer()
-        statusPayloads.trySend(raw)
+        if (_pendingCommandApiName != null) {
+            try {
+                handleStatusPayload(raw)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                log.operation(
+                    "官方 MQTT 状态处理异常",
+                    detail = e.toString(),
+                    level = LogLevel.DEBUG,
+                )
+            }
+        } else {
+            ensureStatusConsumer()
+            statusPayloads.trySend(raw)
+        }
     }
 
     private fun ensureStatusConsumer() {
@@ -927,11 +958,14 @@ class OfficialMqttService(
 
     /**
      * [SSLSocketFactory] override for a TLS broker host: official alignment
-     * for [OFFICIAL_TLS_HOSTS], the Debug `ALLOW_INSECURE_MQTT_TLS` escape
-     * hatch for arbitrary hosts, null (= strict system validation) otherwise.
+     * for the hardcoded official hosts **and** for hosts the official cloud
+     * actually serves down in `mqHost`/`mqPort` (those are the same private-CA
+     * infrastructure, so system validation fails on them too and the vehicle
+     * would otherwise be stuck on the HTTP fallback forever). The Debug
+     * `ALLOW_INSECURE_MQTT_TLS` hatch remains the only way for arbitrary hosts.
      */
-    private fun tlsSocketFactoryFor(host: String): SSLSocketFactory? = when {
-        host.lowercase() in OFFICIAL_TLS_HOSTS -> {
+    private fun tlsSocketFactoryFor(host: String, trustOfficialMqHost: Boolean): SSLSocketFactory? = when {
+        host.lowercase() in OFFICIAL_TLS_HOSTS || (trustOfficialMqHost && host.isNotBlank()) -> {
             log.operation(
                 "官方 MQTT TLS 信任策略",
                 detail = "host=$host 按官方 MqttUtil 行为跳过系统证书校验" +

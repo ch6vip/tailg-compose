@@ -145,7 +145,9 @@ fun BatteryDetailsScreen(
   }
   val loading = cloudState.batteryInfoLoading || cloudState.bmsInfoLoading
 
-  val coulombMeterService = remember(connectionManager) { CoulombMeterService(connectionManager) }
+  val coulombMeterService = remember(connectionManager, log) {
+    CoulombMeterService(connectionManager = connectionManager, logService = log)
+  }
   val coulombSupported = remember(vehicle) {
     vehicle != null && CoulombMeterService.isSupported(
       modelType = vehicle.modelType,

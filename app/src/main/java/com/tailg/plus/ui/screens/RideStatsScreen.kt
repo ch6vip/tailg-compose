@@ -35,6 +35,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -132,6 +133,11 @@ fun RideStatsScreen(
   var loading by remember { mutableStateOf(false) }
   var error by remember { mutableStateOf<String?>(null) }
   var gate by remember { mutableStateOf(RideStatsGate.READY) }
+  // Generation guard: rapid DAY→WEEK→MONTH switches used to launch concurrent
+  // refreshRideStatistics calls and let the last writer clobber the state for
+  // the wrong period. Every load captures the current generation and only the
+  // latest generation may write loading/error/statistics back.
+  var loadGeneration by remember { mutableIntStateOf(0) }
   var showInfoSheet by remember { mutableStateOf<InfoSheetContent?>(null) }
   val strRideNotice = rideNotice()
   val strHelp = stringResource(R.string.ride_stats_help)
@@ -143,12 +149,15 @@ fun RideStatsScreen(
   // Initial load.
   LaunchedEffect(Unit) {
     val cloud = cloudService.currentState
+    val gen = ++loadGeneration
     if (cloud.ridePeriod == period) {
       statistics = cloud.rideStatistics
     }
     loadStatistics(
       scope = scope,
       cloudService = cloudService,
+      generation = gen,
+      isCurrent = { it == loadGeneration },
       period = period,
       onGate = { gate = it },
       onLoading = { loading = it },
@@ -196,9 +205,12 @@ fun RideStatsScreen(
           error != null && statistics == null -> ErrorState(
             message = error!!,
             onRetry = {
+              val gen = ++loadGeneration
               loadStatistics(
                 scope = scope,
                 cloudService = cloudService,
+                generation = gen,
+                isCurrent = { it == loadGeneration },
                 period = period,
                 onGate = { gate = it },
                 onLoading = { loading = it },
@@ -215,9 +227,12 @@ fun RideStatsScreen(
               period = next
               statistics = null
               error = null
+              val gen = ++loadGeneration
               loadStatistics(
                 scope = scope,
                 cloudService = cloudService,
+                generation = gen,
+                isCurrent = { it == loadGeneration },
                 period = next,
                 onGate = { gate = it },
                 onLoading = { loading = it },
@@ -267,6 +282,8 @@ private data class InfoSheetContent(val title: String, val text: String)
 private fun loadStatistics(
   scope: kotlinx.coroutines.CoroutineScope,
   cloudService: com.tailg.plus.data.cloud.OfficialCloudService,
+  generation: Int,
+  isCurrent: (Int) -> Boolean,
   period: OfficialRidePeriod,
   onGate: (RideStatsGate) -> Unit,
   onLoading: (Boolean) -> Unit,
@@ -294,12 +311,14 @@ private fun loadStatistics(
   scope.launch {
     try {
       cloudService.refreshRideStatistics(period = period, force = true)
+      if (!isCurrent(generation)) return@launch
       val state = cloudService.currentState
       val requestError = state.rideStatisticsError?.trim()
       onStatistics(if (state.ridePeriod == period) state.rideStatistics else null)
       onLoading(false)
       onError(if (requestError.isNullOrEmpty()) null else requestError)
     } catch (e: Exception) {
+      if (!isCurrent(generation)) return@launch
       onError(OfficialCloudRedactor.errorMessage(e))
       onLoading(false)
     }

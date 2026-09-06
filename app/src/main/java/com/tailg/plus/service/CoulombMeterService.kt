@@ -10,6 +10,8 @@ import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -41,6 +43,13 @@ class CoulombMeterService(
     private val connectionManager: ConnectionManager,
     private val logService: LogService = LogService(),
 ) {
+
+    /**
+     * Serializes query/set operations. Two concurrent operations would each
+     * start an FBB2 collector and race for the first D001 frame — one could
+     * consume the other's response.
+     */
+    private val opMutex = Mutex()
 
     companion object {
         const val QUERY_FRAME = "D0018A00"
@@ -97,6 +106,11 @@ class CoulombMeterService(
     suspend fun queryStatus(
         manager: ConnectionManager? = null,
         timeout: Duration = 4.seconds,
+    ): Boolean? = opMutex.withLock { queryStatusLocked(manager, timeout) }
+
+    private suspend fun queryStatusLocked(
+        manager: ConnectionManager?,
+        timeout: Duration,
     ): Boolean? {
         val cm = manager ?: connectionManager
         if (!cm.isProtocolLoggedIn) {
@@ -142,6 +156,12 @@ class CoulombMeterService(
         enabled: Boolean,
         manager: ConnectionManager? = null,
         timeout: Duration = 4.seconds,
+    ): Boolean? = opMutex.withLock { setEnabledLocked(enabled, manager, timeout) }
+
+    private suspend fun setEnabledLocked(
+        enabled: Boolean,
+        manager: ConnectionManager?,
+        timeout: Duration,
     ): Boolean? {
         val cm = manager ?: connectionManager
         if (!cm.isProtocolLoggedIn) {

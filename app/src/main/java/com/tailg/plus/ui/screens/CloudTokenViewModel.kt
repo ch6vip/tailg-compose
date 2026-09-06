@@ -73,8 +73,16 @@ class CloudTokenViewModel @Inject constructor(
     _uiState.update { it.copy(tokenText = value) }
   }
 
+  /**
+   * Remove the head of the pending message queue. The UI shows one snackbar
+   * at a time and calls this after each — draining the queue one item per
+   * frame instead of wiping it wholesale (which used to drop consecutive
+   * events such as "copied" immediately followed by an error).
+   */
   fun consumeMessage() {
-    _messages.update { emptyList() }
+    _messages.update { list ->
+      if (list.isEmpty()) list else list.toMutableList().apply { removeAt(0) }
+    }
   }
 
   /** Seed the field with the current token once, on first access. */
@@ -86,15 +94,15 @@ class CloudTokenViewModel @Inject constructor(
   }
 
   fun copyCurrentToken() {
-    viewModelScope.launch {
-      val token = _uiState.value.cloudState.token.trim()
-      if (token.isEmpty()) {
-        pushMessageRes(R.string.token_vm_no_session)
-        return@launch
-      }
-      clipboard.writeClipboardText(token)
-      pushMessageRes(R.string.token_vm_copied)
+    val token = _uiState.value.cloudState.token.trim()
+    if (token.isEmpty()) {
+      pushMessageRes(R.string.token_vm_no_session)
+      return
     }
+    // Clipboard write is synchronous on Android; no coroutine needed here
+    // (a viewModelScope hop only delayed the busy/snack state).
+    clipboard.writeClipboardText(token)
+    pushMessageRes(R.string.token_vm_copied)
   }
 
   fun pasteFromClipboard() {

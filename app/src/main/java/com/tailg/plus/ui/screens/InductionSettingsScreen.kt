@@ -56,6 +56,8 @@ import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
@@ -130,8 +132,20 @@ fun InductionSettingsScreen(
     mutableFloatStateOf(InductionModeService.DEFAULT_DISTANCE_LEVEL.toFloat())
   }
 
-  // Dart `initState`: bind vehicle, seed snapshot, init manual mode, refresh.
-  LaunchedEffect(Unit) {
+  // Reactive vehicle identity: bind whenever the selected vehicle (or its
+  // model/carId — the BLE identity) actually changes. Binding once from the
+  // page-entry snapshot used to capture a null vehicle when the cloud session
+  // was still restoring, leaving this page bound to "no vehicle" until exit.
+  val bindVehicle = remember(cloudService) {
+    cloudService.stateFlow
+      .map { s -> Triple(s.selectedVehicle?.modelType, s.selectedVehicle?.carId, s.selectedVehicle?.key) }
+      .distinctUntilChanged()
+  }.collectAsStateWithLifecycle(initialValue = Triple(
+    cloudService.currentState.selectedVehicle?.modelType,
+    cloudService.currentState.selectedVehicle?.carId,
+    cloudService.currentState.selectedVehicle?.key,
+  ))
+  LaunchedEffect(bindVehicle.value) {
     val vehicle = cloudService.currentState.selectedVehicle
     inductionService.bindVehicle(
       modelType = vehicle?.modelType,

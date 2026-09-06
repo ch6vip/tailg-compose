@@ -64,6 +64,16 @@ class VehicleStore(
     private val _vehicles = mutableListOf<VehicleProfile>()
     private val _vehiclesFlow = MutableStateFlow<List<VehicleProfile>>(emptyList())
 
+    /**
+     * Immutable snapshot of [_vehicles] for lock-free readers. Every mutation
+     * happens under [mutationMutex] and publishes a fresh copy here; readers
+     * (UI thread `vehicles`/`defaultVehicle`, StateFlow emissions) grab the
+     * reference without ever touching the mutable list — no
+     * ConcurrentModificationException possible.
+     */
+    @Volatile
+    private var _vehiclesSnapshot: List<VehicleProfile> = emptyList()
+
     /** Dart `vehiclesStream`: snapshot emissions after load and after every save. */
     val vehiclesFlow: StateFlow<List<VehicleProfile>> = _vehiclesFlow.asStateFlow()
 
@@ -80,7 +90,7 @@ class VehicleStore(
     private val mutationMutex = Mutex()
 
     /** Dart `vehicles`: immutable snapshot of the current list. */
-    val vehicles: List<VehicleProfile> get() = _vehicles.toList()
+    val vehicles: List<VehicleProfile> get() = _vehiclesSnapshot
 
     /** Dart `defaultVehicleId`. */
     val defaultVehicleId: String? get() = _defaultVehicleId
@@ -88,10 +98,11 @@ class VehicleStore(
     /** Dart `defaultVehicle`: first vehicle when no default is set. */
     val defaultVehicle: VehicleProfile?
         get() {
-            if (_vehicles.isEmpty()) return null
+            val list = _vehiclesSnapshot
+            if (list.isEmpty()) return null
             val id = _defaultVehicleId
-            if (id == null) return _vehicles.first()
-            return _vehicles.firstOrNull { it.id == id } ?: _vehicles.first()
+            if (id == null) return list.first()
+            return list.firstOrNull { it.id == id } ?: list.first()
         }
 
     /**
@@ -110,6 +121,7 @@ class VehicleStore(
     /** Dart `resetForTest({clock})`. */
     fun resetForTest(clock: (() -> Instant)? = null) {
         _vehicles.clear()
+        _vehiclesSnapshot = emptyList()
         _defaultVehicleId = null
         _initialized = false
         this.clock = clock ?: { Instant.now() }
@@ -351,6 +363,10 @@ class VehicleStore(
     }
 
     private fun emit() {
-        _vehiclesFlow.value = _vehicles.toList()
+        // Publish a fresh immutable copy; every later mutation replaces the
+        // reference rather than mutating in place.
+        val snapshot = _vehicles.toList()
+        _vehiclesSnapshot = snapshot
+        _vehiclesFlow.value = snapshot
     }
 }

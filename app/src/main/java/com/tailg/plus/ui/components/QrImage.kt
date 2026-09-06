@@ -23,15 +23,21 @@ fun QrImage(
   sizePx: Int = 512,
 ) {
   val bitmap = remember(content, sizePx) {
-    val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
-    val pixels = IntArray(sizePx * sizePx)
-    for (y in 0 until sizePx) {
-      val rowOffset = y * sizePx
-      for (x in 0 until sizePx) {
-        pixels[rowOffset + x] = if (matrix[x, y]) Color.BLACK else Color.WHITE
+    // QRCodeWriter throws WriterException when the payload is too large for
+    // the requested size — render nothing rather than crash composition.
+    try {
+      val matrix = QRCodeWriter().encode(content, BarcodeFormat.QR_CODE, sizePx, sizePx)
+      val pixels = IntArray(sizePx * sizePx)
+      for (y in 0 until sizePx) {
+        val rowOffset = y * sizePx
+        for (x in 0 until sizePx) {
+          pixels[rowOffset + x] = if (matrix[x, y]) Color.BLACK else Color.WHITE
+        }
       }
+      Bitmap.createBitmap(pixels, sizePx, sizePx, Bitmap.Config.ARGB_8888)
+    } catch (e: Exception) {
+      Bitmap.createBitmap(sizePx, sizePx, Bitmap.Config.ARGB_8888)
     }
-    Bitmap.createBitmap(pixels, sizePx, sizePx, Bitmap.Config.ARGB_8888)
   }
   Image(
     bitmap = bitmap.asImageBitmap(),

@@ -79,6 +79,14 @@ class GattOperationQueue(
             // withTimeout fired: fail this operation, keep draining the queue.
             if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)
           } catch (e: CancellationException) {
+            // Drain coroutine cancelled (dispose / a superseding connect): the
+            // active waiter must still be released or it hangs until its own
+            // withTimeout fires and can wedge the next connection's first op.
+            if (!queued.deferred.isCompleted) {
+              queued.deferred.completeExceptionally(
+                CancellationException("GATT drain cancelled", e),
+              )
+            }
             throw e
           } catch (e: Exception) {
             if (!queued.deferred.isCompleted) queued.deferred.completeExceptionally(e)

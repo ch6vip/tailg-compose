@@ -110,7 +110,9 @@ fun OfficialReplicaScreen(
   val snackbarHostState = remember { SnackbarHostState() }
   val context = androidx.compose.ui.platform.LocalContext.current
   val store = remember(context) { ReplicaFeatureStore(context) }
-  val bleNfc = remember(connectionManager) { BleNfcService(connectionManager) }
+  val bleNfc = remember(connectionManager, log) {
+    BleNfcService(connectionManager = connectionManager, logService = log)
+  }
 
   val strKeyDeleted = stringResource(R.string.replica_key_deleted)
   val strKeyDeleteFailed = stringResource(R.string.replica_key_delete_failed)

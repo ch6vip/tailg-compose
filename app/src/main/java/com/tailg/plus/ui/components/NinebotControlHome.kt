@@ -423,7 +423,6 @@ fun NinebotControlGrid(
     activeCommand: CommandCode?,
     findAvailability: ControlChannelAvailability,
     powerAvailability: ControlChannelAvailability,
-    armAvailability: ControlChannelAvailability,
     seatAvailability: ControlChannelAvailability,
     modifier: Modifier = Modifier,
     onFind: () -> Unit,
@@ -437,7 +436,6 @@ fun NinebotControlGrid(
     val r = rememberReplica()
     fun active(command: CommandCode) = activeCommand == command
     fun subdued(command: CommandCode) = busy && activeCommand != null && !active(command)
-    val armActive = active(CommandCode.lock) || active(CommandCode.unlock)
 
     Column(modifier = modifier.padding(horizontal = 20.dp)) {
         Column(

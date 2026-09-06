@@ -511,8 +511,12 @@ class InductionModeService(
       }
       startRssiLoop()
     } else {
-      stopRssiLoop()
-      _rssiTaskState = RssiTaskState.idle
+      // Turn the loop off only after the cloud side agreed: if the cloud call
+      // fails the UI must roll back to "enabled" (the caller skips the pref
+      // save + success publish on ok=false), otherwise the local loop is
+      // stopped while the cloud still thinks induction is on — a restart on
+      // the next screen entry would silently re-enable a cloud state the user
+      // believes is off.
       if (_boundModelType == 1) {
         val cloud = _cloud
         if (cloud != null) {
@@ -521,12 +525,14 @@ class InductionModeService(
           } catch (e: Exception) {
             if (e is CancellationException) throw e
             return EnableResult(
-              ok = true,
-              warning = "本机感应已停止，但车辆云端设置未关闭：${OfficialCloudRedactor.errorMessage(e)}",
+              ok = false,
+              message = "关闭车辆云端感应失败：${OfficialCloudRedactor.errorMessage(e)}",
             )
           }
         }
       }
+      stopRssiLoop()
+      _rssiTaskState = RssiTaskState.idle
     }
     return EnableResult(ok = true)
   }
@@ -664,6 +670,9 @@ class InductionModeService(
       }
       val steps = pendingRssiSteps(action, _rssiTaskState)
       for (step in steps) {
+        // Re-check manual mode before every command: the user may have flipped
+        // the 感应|手动 switch while a previous step was in flight.
+        if (_manual.enabled) break
         val command = when (step) {
           RssiProximityStep.unlock -> CommandCode.unlock
           RssiProximityStep.powerOn -> CommandCode.powerOn

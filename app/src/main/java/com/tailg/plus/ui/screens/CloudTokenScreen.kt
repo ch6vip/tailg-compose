@@ -68,11 +68,11 @@ fun CloudTokenScreen(
   val uiState by viewModel.uiState.collectAsStateWithLifecycle()
   val messages by viewModel.messages.collectAsStateWithLifecycle()
 
-  // Resolve the newest pending message in composition — stringResource() is
-  // configuration-aware, unlike context.getString() captured in an effect
-  // (LocalContextGetResourceValueCall). The effect only shows + consumes.
-  val latestMessage = messages.lastOrNull()
-  val resolvedMessage = latestMessage?.let { msg ->
+  // Show the FIRST not-yet-shown pending message — a real queue instead of
+  // lastOrNull() (which dropped earlier events when several fired together,
+  // e.g. copy + error). consumeMessage() removes exactly one item per frame.
+  val pendingMessage = messages.firstOrNull()
+  val resolvedMessage = pendingMessage?.let { msg ->
     msg.text
       ?: if (msg.textRes != 0) {
         if (msg.formatArgs.isEmpty()) stringResource(msg.textRes)
@@ -81,10 +81,11 @@ fun CloudTokenScreen(
         ""
       }
   }
-  LaunchedEffect(latestMessage, resolvedMessage) {
-    if (latestMessage != null) {
+  LaunchedEffect(pendingMessage, resolvedMessage) {
+    val msg = pendingMessage
+    if (msg != null) {
       if (!resolvedMessage.isNullOrEmpty()) {
-        if (latestMessage.isError) {
+        if (msg.isError) {
           AppSnack.error(snackbarHostState, resolvedMessage)
         } else {
           AppSnack.info(snackbarHostState, resolvedMessage)

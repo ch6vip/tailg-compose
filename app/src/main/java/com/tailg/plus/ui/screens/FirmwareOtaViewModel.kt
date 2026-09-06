@@ -7,6 +7,7 @@ import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.service.FirmwareOtaPhase
 import com.tailg.plus.service.FirmwareOtaProgress
+import com.tailg.plus.log.LogService
 import com.tailg.plus.service.FirmwareOtaService
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
@@ -31,9 +32,14 @@ import javax.inject.Inject
 class FirmwareOtaViewModel @Inject constructor(
   cloud: OfficialCloudService,
   connectionManager: ConnectionManager,
+  logService: LogService,
 ) : ViewModel() {
 
-  private val ota = FirmwareOtaService(cloud = cloud, connectionManager = connectionManager)
+  private val ota = FirmwareOtaService(
+    cloud = cloud,
+    connectionManager = connectionManager,
+    logService = logService,
+  )
 
   /**
    * Overall OTA budget (version query + download + BLE chunk transfer). A

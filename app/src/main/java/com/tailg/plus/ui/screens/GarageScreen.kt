@@ -225,6 +225,7 @@ fun GarageScreen(
           refresh = false,
           searchType = searchType,
           activeQuery = activeQuery,
+          lastPageIndex = pageIndex,
           onLoading = { loading = it },
           onLoadingMore = { loadingMore = it },
           onError = { error = it },
@@ -604,6 +605,8 @@ private suspend fun loadGaragePage(
   searchType: GarageSearchType,
   activeQuery: String,
   existingVehicles: List<OfficialVehicle> = emptyList(),
+  /** Last server-returned page index (0 = unknown / fresh search). */
+  lastPageIndex: Int = 0,
   onLoading: (Boolean) -> Unit,
   onLoadingMore: (Boolean) -> Unit,
   onError: (String?) -> Unit,
@@ -614,7 +617,14 @@ private suspend fun loadGaragePage(
   if (!cloudService.currentState.signedIn) return
   if (refresh) onLoading(true) else onLoadingMore(true)
   onError(null)
-  val nextPage = if (refresh) 1 else (cloudService.currentState.vehicles.size / 5) + 1
+  // Deriving the next page from vehicles.size/5 drifted from the server's
+  // page cursor whenever a refresh/search raced an infinite-scroll request
+  // (duplicated or skipped pages). Prefer the last server-returned page.
+  val nextPage = when {
+    refresh -> 1
+    lastPageIndex > 0 -> lastPageIndex + 1
+    else -> (cloudService.currentState.vehicles.size / 5) + 1
+  }
   try {
     val result = cloudService.fetchGaragePage(
       pageIndex = nextPage,

@@ -90,6 +90,13 @@ private fun parseResponseInner(keyHex: String, raw: ByteArray): ParsedResponse {
   }
 
   if (hex.startsWith(VOLTAGE_PREFIX) && raw.size == 16) {
+    // Explicit length guard: a 16-byte block decrypts to 32 hex chars.
+    // Anything shorter must not fall through to substring (the outer
+    // try/catch used to swallow the IndexOutOfBoundsException as the
+    // normal path for a garbled frame).
+    if (hex.length < 12) {
+      return UnknownResponse(hex)
+    }
     val highByte = hex.substring(8, 10).toInt(16)
     val lowByte = hex.substring(10, 12).toInt(16)
     val voltage = ((highByte shl 8) or lowByte) / 100.0
@@ -98,6 +105,12 @@ private fun parseResponseInner(keyHex: String, raw: ByteArray): ParsedResponse {
 
   // Validate frame starts with expected header before parsing as command response.
   if (!hex.startsWith("78")) {
+    return UnknownResponse(hex)
+  }
+
+  // Command/state replies need at least the 10-hex control code (control
+  // code @ [6,10)); reject short frames explicitly.
+  if (hex.length < 10) {
     return UnknownResponse(hex)
   }
 

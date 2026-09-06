@@ -20,6 +20,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.compose.runtime.getValue
@@ -30,6 +33,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -59,6 +63,7 @@ import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
 import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.domain.control.ControlCommandConfirmation
+import com.tailg.plus.domain.control.ControlCommandConfirmationContext
 import com.tailg.plus.domain.control.ControlCommandPolicy
 import com.tailg.plus.domain.control.ControlCommandResult
 import com.tailg.plus.domain.control.ControlCommandRoute
@@ -87,6 +92,7 @@ import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
 import com.tailg.plus.ui.theme.LocalUiMode
 import com.tailg.plus.ui.theme.UiMode
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
@@ -135,7 +141,7 @@ fun ControlScreen(
   viewModel: ControlViewModel = hiltViewModel(),
 ) {
   val scope = rememberCoroutineScope()
-  val ctx = androidx.compose.ui.platform.LocalContext.current
+  val ctx = LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val log = viewModel.log
   // Narrow cloud projection: only the fields this screen actually reads. The
@@ -238,10 +244,10 @@ fun ControlScreen(
   val locationService = viewModel.locationService
 
   // Foreground resume → retry a failed/absent MQTT preconnect (Dart 229-237).
-  val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+  val lifecycleOwner = LocalLifecycleOwner.current
   DisposableEffect(lifecycleOwner) {
-    val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-      if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
         viewModel.retryMqttPreconnectIfNeeded()
       }
     }
@@ -494,7 +500,7 @@ fun ControlScreen(
       if (needsMqttResponse) {
         if (!mqttAcked) return false
         return ControlCommandConfirmation.guard.allows(
-          context = com.tailg.plus.domain.control.ControlCommandConfirmationContext(
+          context = ControlCommandConfirmationContext(
             transport = transport,
             officialVehicleKey = expectedOfficialVehicleKey,
           ),
@@ -762,7 +768,7 @@ fun ControlScreen(
           AppSnack.error(snackbarHostState, failureMessage(cmd, result.failureMessage, strFailureFormat, strFailureDetailFormat))
           commandLog.finish(activityId, "${cmd.label}${strLogFailed}", result.failureMessage?.trim()?.ifEmpty { null } ?: strRetry, ControlCommandActivityStatus.FAILED)
         }
-      } catch (e: kotlinx.coroutines.CancellationException) {
+      } catch (e: CancellationException) {
         throw e
       } catch (e: Exception) {
         log.operation("Cyber 控车异常: ${cmd.label}", detail = e.toString(), level = LogLevel.ERROR)
@@ -912,7 +918,6 @@ fun ControlScreen(
               activeCommand = activeCommand?.toBleCommandCode(),
               findAvailability = findAvailability,
               powerAvailability = powerAvailability,
-              armAvailability = armAvailability,
               seatAvailability = seatAvailability,
               onFind = onFind,
               onPowerToggle = onPowerToggle,

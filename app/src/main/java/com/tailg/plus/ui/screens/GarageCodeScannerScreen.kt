@@ -163,6 +163,7 @@ fun GarageCodeScannerScreen(
         CameraPreview(
           lifecycleOwner = lifecycleOwner,
           barcodeScanner = barcodeScanner,
+          analyzerEnabled = !handled,
           onCameraReady = { camera = it },
           onDetected = { value ->
             if (!handled && value.isNotEmpty()) {
@@ -233,6 +234,7 @@ fun GarageCodeScannerScreen(
 private fun CameraPreview(
   lifecycleOwner: LifecycleOwner,
   barcodeScanner: BarcodeScanner,
+  analyzerEnabled: Boolean,
   onCameraReady: (Camera) -> Unit,
   onDetected: (String) -> Unit,
 ) {
@@ -247,43 +249,70 @@ private fun CameraPreview(
     modifier = Modifier.fillMaxSize(),
   )
 
-  LaunchedEffect(Unit) {
+  // Stop frame analysis as soon as the host has handled a barcode (or the
+  // permission state flipped away) — ML Kit would otherwise keep burning CPU
+  // on every frame for the rest of the page session.
+  LaunchedEffect(analyzerEnabled) {
+    analyzer.enabled = analyzerEnabled
+  }
+
+  // Bind/unbind with the COMPOSITION lifecycle instead of leaving CameraX
+  // bound to the activity lifecycle: navigating back from the scanner popped
+  // the composable but the camera kept running (ImageAnalysis delivered
+  // frames to ML Kit until the whole activity paused). DisposableEffect
+  // releases the camera when this page leaves the tree.
+  DisposableEffect(Unit) {
+    var disposed = false
     val future = ProcessCameraProvider.getInstance(context)
-    future.addListener(
-      {
-        val cameraProvider = try {
-          future.get()
-        } catch (e: Exception) {
-          Timber.tag("GarageCodeScanner").e(e, "ProcessCameraProvider unavailable")
-          return@addListener
-        }
+    val listener = Runnable {
+      if (disposed) return@Runnable
+      val cameraProvider = try {
+        future.get()
+      } catch (e: Exception) {
+        Timber.tag("GarageCodeScanner").e(e, "ProcessCameraProvider unavailable")
+        return@Runnable
+      }
 
-        val preview = Preview.Builder().build().also {
-          it.setSurfaceProvider(previewView.surfaceProvider)
-        }
-        val imageAnalysis = ImageAnalysis.Builder()
-          .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-          .build()
-          .also { it.setAnalyzer(mainExecutor, analyzer) }
+      val preview = Preview.Builder().build().also {
+        it.setSurfaceProvider(previewView.surfaceProvider)
+      }
+      val imageAnalysis = ImageAnalysis.Builder()
+        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+        .build()
+        .also { it.setAnalyzer(mainExecutor, analyzer) }
 
-        val selector = CameraSelector.DEFAULT_BACK_CAMERA
+      val selector = CameraSelector.DEFAULT_BACK_CAMERA
 
+      try {
+        // Unbind any previous use cases before rebinding.
+        cameraProvider.unbindAll()
+        val camera = cameraProvider.bindToLifecycle(
+          lifecycleOwner,
+          selector,
+          preview,
+          imageAnalysis,
+        )
+        onCameraReady(camera)
+      } catch (e: Exception) {
+        Timber.tag("GarageCodeScanner").e(e, "Camera bind failed")
+      }
+    }
+    future.addListener(listener, mainExecutor)
+    onDispose {
+      // Guard the pending listener so a late future completion is a no-op.
+      // (Guava's ListenableFuture has no removeListener on the interface;
+      // the listener is released once the provider future completes.)
+      disposed = true
+      // The provider future may not have resolved before disposal; when it
+      // has, release the camera (and with it the analyzer) right away.
+      if (future.isDone) {
         try {
-          // Unbind any previous use cases before rebinding.
-          cameraProvider.unbindAll()
-          val camera = cameraProvider.bindToLifecycle(
-            lifecycleOwner,
-            selector,
-            preview,
-            imageAnalysis,
-          )
-          onCameraReady(camera)
+          future.get().unbindAll()
         } catch (e: Exception) {
-          Timber.tag("GarageCodeScanner").e(e, "Camera bind failed")
+          Timber.tag("GarageCodeScanner").w(e, "Camera unbind on dispose failed")
         }
-      },
-      mainExecutor,
-    )
+      }
+    }
   }
 }
 
@@ -297,8 +326,17 @@ private class BarcodeAnalyzer(
   private val onDetected: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
 
+  @Volatile
+  var enabled: Boolean = true
+
   @OptIn(ExperimentalGetImage::class)
   override fun analyze(imageProxy: ImageProxy) {
+    if (!enabled) {
+      // Host already handled a code (or permission was revoked): drop the
+      // frame without touching ML Kit.
+      imageProxy.close()
+      return
+    }
     val mediaImage = imageProxy.image
     if (mediaImage == null) {
       imageProxy.close()

@@ -19,6 +19,7 @@ import java.time.LocalDateTime
 import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -377,21 +378,32 @@ class OfficialCloudService(
         run: suspend () -> Unit,
     ) {
         if (!force && silent && shouldUseRecentRefresh(refreshKey)) return
-        val inFlight = inFlightRefreshes[refreshKey]
-        if (silent && inFlight != null) {
-            inFlight.await()
-            return
-        }
-        coroutineScope {
-            val refresh = async { run() }
-            inFlightRefreshes[refreshKey] = refresh
-            try {
-                refresh.await()
-            } finally {
-                if (inFlightRefreshes[refreshKey] === refresh) {
-                    inFlightRefreshes.remove(refreshKey)
-                }
+        // Single-flight via a placeholder future registered ATOMICALLY with
+        // putIfAbsent. The old read-then-write let two concurrent callers both
+        // see "no in-flight refresh" and launch duplicate requests (each with
+        // its own dependent cascade).
+        while (true) {
+            val existing = inFlightRefreshes[refreshKey]
+            if (silent && existing != null) {
+                existing.await()
+                return
             }
+            val placeholder = CompletableDeferred<Unit>()
+            val raced = inFlightRefreshes.putIfAbsent(refreshKey, placeholder)
+            if (raced != null) {
+                raced.await()
+                if (silent) return
+                // Non-silent callers need their own fresh run: after the
+                // in-flight one finishes, loop and try to claim the slot again.
+                continue
+            }
+            try {
+                coroutineScope { run() }
+            } finally {
+                inFlightRefreshes.remove(refreshKey, placeholder)
+                placeholder.complete(Unit)
+            }
+            return
         }
     }
 

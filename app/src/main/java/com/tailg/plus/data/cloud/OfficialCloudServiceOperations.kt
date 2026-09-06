@@ -376,19 +376,38 @@ internal class OfficialCloudOperationLogic(
     /** Apply MQTT-reported acc / defence state to the selected vehicle. */
     fun applyMqttVehicleStatus(acc: Int?, defenceStatus: Int?) {
         if (service.disposed) return
-        val current = service.state.selectedVehicle ?: return
         if (acc == null && defenceStatus == null) return
-        val nextAcc = acc ?: current.acc
-        val nextDefence = defenceStatus ?: current.defenceStatus
-        if (nextAcc == current.acc && nextDefence == current.defenceStatus) return
-        val updated = current.copyWith(acc = nextAcc, defenceStatus = nextDefence)
-        val vehicles = service.state.vehicles.map { if (it.key == updated.key) updated else it }
-        service.updateState { it.copyWith(vehicles = vehicles) }
+        // Read-modify-write INSIDE the CAS transform: reading selectedVehicle
+        // outside and then replacing the whole list used to clobber a
+        // concurrent refreshVehicles result (the stale list snapshot won the
+        // updateState race and was then persisted to the encrypted cache).
+        val appliedHolder = java.util.concurrent.atomic.AtomicReference<
+            com.tailg.plus.data.model.OfficialVehicle?
+        >()
+        service.updateState { state ->
+            val current = state.selectedVehicle ?: return@updateState state
+            val nextAcc = acc ?: current.acc
+            val nextDefence = defenceStatus ?: current.defenceStatus
+            if (nextAcc == current.acc && nextDefence == current.defenceStatus) {
+                return@updateState state
+            }
+            val updated = current.copyWith(acc = nextAcc, defenceStatus = nextDefence)
+            appliedHolder.set(updated)
+            state.copyWith(
+                vehicles = state.vehicles.map {
+                    if (it.key == updated.key) updated else it
+                },
+            )
+        }
+        val updated = appliedHolder.get() ?: return
         service.runSilentRefresh(
             { service.storage.saveCarControlInfo(updated) },
             failureMessage = "官方车辆控制缓存保存失败",
         )
-        service.log.operation("官方 MQTT 状态已更新", detail = "acc=$nextAcc defenceStatus=$nextDefence")
+        service.log.operation(
+            "官方 MQTT 状态已更新",
+            detail = "acc=${updated.acc} defenceStatus=${updated.defenceStatus}",
+        )
     }
 
     // -- battery setup -------------------------------------------------------

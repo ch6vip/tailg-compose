@@ -141,7 +141,11 @@ fun NotificationPrefsScreen(
             entries = config.entries.toList(),
             saving = saving,
             onToggle = { key, value ->
-              config = config.toMutableMap().apply { put(key, value) }
+              // Disable toggles while a save is in flight — otherwise the new
+              // value can be overwritten by the snapshot the save is sending.
+              if (!saving) {
+                config = config.toMutableMap().apply { put(key, value) }
+              }
             },
             onSave = {
               scope.launch {

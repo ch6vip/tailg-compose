@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -31,11 +32,13 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
@@ -110,6 +113,22 @@ fun CyberMapStatsRow(
   }
 }
 
+/** Raw "lat, lng" text (the location resolver's fallback) is not user-readable. */
+private val RawCoordinates = Regex("^-?\\d+(\\.\\d+)?\\s*,\\s*-?\\d+(\\.\\d+)?$")
+
+/** Address-strip text: blank or raw-coordinate fallbacks render as [fallback] (车辆定位). */
+internal fun addressStripText(address: String, fallback: String): String {
+  val text = address.trim()
+  return if (text.isEmpty() || RawCoordinates.containsMatchIn(text)) fallback else text
+}
+
+/** Split "2.7 km" into ("2.7", "km") so the number renders big and the unit small. */
+internal fun splitValueWithUnit(valueWithUnit: String): Pair<String, String> {
+  val idx = valueWithUnit.lastIndexOf(' ')
+  return if (idx > 0) valueWithUnit.substring(0, idx) to valueWithUnit.substring(idx + 1)
+  else valueWithUnit to ""
+}
+
 /** Mini map on osmdroid tiles (Dart flutter_map embed); tap opens the map page. */
 @Composable
 internal fun MiniMap(
@@ -127,61 +146,55 @@ internal fun MiniMap(
     "${stringResource(R.string.location_title)}：$address"
   }
 
-    Box(
-        modifier = Modifier
-            .fillMaxWidth()
-            .aspectRatio(1f)
-            .clip(RoundedCornerShape(AppRadii.sheet))
-            .background(CyberHomeColors.mapPlaceholder),
-    ) {
-        if (hasPin && lat != null && lng != null) {
-            MiniMapPreview(
-                latitude = lat,
-                longitude = lng,
-                modifier = Modifier.matchParentSize(),
-            )
-        }
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .semantics { contentDescription = mapDescription }
-                .clickable(
-                    interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() },
-                    indication = null,
-                    role = Role.Button,
-                ) { onMapTap() },
-        )
-        // Address footer chip — official style: opaque gray strip, dark text,
-        // no icon; raw coordinates (resolver fallback) render as 车辆定位.
-        // Hidden when the host card draws its own inset address strip.
-        if (showFooter) {
-            val footerText = address.trim()
-            val looksLikeCoords = Regex("^-?\\d+(\\.\\d+)?\\s*,\\s*-?\\d+(\\.\\d+)?$").containsMatchIn(footerText)
-            Row(
-                modifier = Modifier
-                    .align(Alignment.BottomStart)
-                    .fillMaxWidth()
-                    .background(CyberHomeColors.control)
-                    .padding(horizontal = 12.dp, vertical = 9.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    text = when {
-                        footerText.isEmpty() || looksLikeCoords -> stringResource(R.string.service_location)
-                        else -> footerText
-                    },
-                    modifier = Modifier.weight(1f),
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    style = androidx.compose.ui.text.TextStyle(
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.W500,
-                        color = CyberHomeColors.ink.copy(alpha = 0.9f),
-                    ),
-                )
-            }
-        }
+  Box(
+    modifier = Modifier
+      .fillMaxWidth()
+      .aspectRatio(1f)
+      .clip(RoundedCornerShape(AppRadii.sheet))
+      .background(CyberHomeColors.mapPlaceholder),
+  ) {
+    if (hasPin && lat != null && lng != null) {
+      MiniMapPreview(
+        latitude = lat,
+        longitude = lng,
+        modifier = Modifier.matchParentSize(),
+      )
     }
+    Box(
+      modifier = Modifier
+        .matchParentSize()
+        .semantics { contentDescription = mapDescription }
+        .clickable(
+          interactionSource = remember { MutableInteractionSource() },
+          indication = null,
+          role = Role.Button,
+        ) { onMapTap() },
+    )
+    // Address footer chip — official style: opaque gray strip, dark text,
+    // no icon. Hidden when the host card draws its own inset address strip.
+    if (showFooter) {
+      Row(
+        modifier = Modifier
+          .align(Alignment.BottomStart)
+          .fillMaxWidth()
+          .background(CyberHomeColors.control)
+          .padding(horizontal = 12.dp, vertical = 9.dp),
+        verticalAlignment = Alignment.CenterVertically,
+      ) {
+        Text(
+          text = addressStripText(address, stringResource(R.string.service_location)),
+          modifier = Modifier.weight(1f),
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+          style = TextStyle(
+            fontSize = 12.sp,
+            fontWeight = FontWeight.W500,
+            color = CyberHomeColors.ink.copy(alpha = 0.9f),
+          ),
+        )
+      }
+    }
+  }
 }
 
 @Composable
@@ -221,18 +234,12 @@ private fun RideCard(
 private fun RideSegment(
   title: String,
   valueWithUnit: String,
-  valueFontSize: androidx.compose.ui.unit.TextUnit,
+  valueFontSize: TextUnit,
   background: Color,
   showSwapIcon: Boolean,
   modifier: Modifier = Modifier,
 ) {
-  // Split e.g. "2.7 km" into ("2.7", "km") so the number renders big and the
-  // unit renders small beside it, matching the reference card.
-  val (number, unit) = remember(valueWithUnit) {
-    val idx = valueWithUnit.lastIndexOf(' ')
-    if (idx > 0) valueWithUnit.substring(0, idx) to valueWithUnit.substring(idx + 1)
-    else valueWithUnit to ""
-  }
+  val (number, unit) = remember(valueWithUnit) { splitValueWithUnit(valueWithUnit) }
   Box(
     modifier = modifier
       .fillMaxWidth()
@@ -247,7 +254,7 @@ private fun RideSegment(
       ) {
         Text(
           text = title,
-          style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkSecondary),
+          style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.inkSecondary),
         )
         Spacer(Modifier.weight(1f))
         if (showSwapIcon) {
@@ -269,7 +276,7 @@ private fun RideSegment(
           AnimatedValueText(
             value = number,
             maxLines = 1,
-            style = androidx.compose.ui.text.TextStyle(
+            style = TextStyle(
               fontSize = valueFontSize,
               fontWeight = FontWeight.W700,
               color = CyberHomeColors.ink,
@@ -280,7 +287,7 @@ private fun RideSegment(
             Text(
               text = unit,
               maxLines = 1,
-              style = androidx.compose.ui.text.TextStyle(fontSize = 16.sp, color = CyberHomeColors.inkMuted),
+              style = TextStyle(fontSize = 16.sp, color = CyberHomeColors.inkMuted),
               modifier = Modifier.padding(bottom = 6.dp),
             )
           }

@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
@@ -89,9 +90,9 @@ fun SlidePowerButton(
   unavailableReason: String = "",
   onUnavailable: (suspend () -> Unit)? = null,
   /** 九号皮肤复刻配色:thumb 深色圆钮/浅色圆钮,默认跟随 Cyber 令牌。 */
-  thumbBackground: androidx.compose.ui.graphics.Color? = null,
-  thumbContentColor: androidx.compose.ui.graphics.Color? = null,
-  trackBackground: androidx.compose.ui.graphics.Color? = null,
+  thumbBackground: Color? = null,
+  thumbContentColor: Color? = null,
+  trackBackground: Color? = null,
   /** 官方九号轨道没有方向箭头,复刻时传 false 隐藏。 */
   showTrackChevrons: Boolean = true,
 ) {
@@ -255,7 +256,7 @@ fun SlidePowerButton(
           }
           .size(ThumbSize.dp)
           .background(thumbBackground ?: CyberHomeColors.card, CircleShape)
-          .border(1.dp, thumbBackground?.copy(alpha = 0f) ?: CyberHomeColors.line, CircleShape)
+          .border(1.dp, if (thumbBackground != null) Color.Transparent else CyberHomeColors.line, CircleShape)
           .pointerInput(canSlide, isPowered, maxDragPx) {
             if (!canSlide) return@pointerInput
             detectHorizontalDragGestures(

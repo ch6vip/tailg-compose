@@ -882,11 +882,18 @@ fun ControlScreen(
             )
             .verticalScroll(scrollState),
         ) {
+          // Display data shared by both skins (identical args either way).
+          val vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle)
+          val rangeText = rangeLabel(battery, distanceUnit)
+          val carPhoto = cloudVehicle?.carPhoto ?: ""
+          val address = locationTitle(location)
+          val todayKm = todayRideLabel(cloudState, distanceUnit)
+          val totalKm = totalMileageLabel(cloudState, distanceUnit)
           if (uiMode == UiMode.NINEBOT) {
             NinebotVehicleHeader(
-              vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
-              rangeText = rangeLabel(battery, distanceUnit),
-              carPhoto = cloudVehicle?.carPhoto ?: "",
+              vehicleName = vehicleName,
+              rangeText = rangeText,
+              carPhoto = carPhoto,
               batteryPercent = percent,
               batteryKnown = battery.percent != null,
               powered = isPowerOn,
@@ -901,7 +908,6 @@ fun ControlScreen(
             Spacer(Modifier.height(4.dp))
             NinebotControlGrid(
               powered = isPowerOn,
-              armed = isArmed,
               busy = busy,
               activeCommand = activeCommand?.toBleCommandCode(),
               findAvailability = findAvailability,
@@ -919,17 +925,17 @@ fun ControlScreen(
             Spacer(Modifier.height(20.dp))
             NinebotStatsRow(
               location = location,
-              address = locationTitle(location),
-              todayKm = todayRideLabel(cloudState, distanceUnit),
-              totalKm = totalMileageLabel(cloudState, distanceUnit),
+              address = address,
+              todayKm = todayKm,
+              totalKm = totalKm,
               onMapTap = onMapTap,
               onRideStatsTap = onRideStatsTap,
             )
           } else {
             CyberVehicleHeader(
-              vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle),
-              rangeText = rangeLabel(battery, distanceUnit),
-              carPhoto = cloudVehicle?.carPhoto ?: "",
+              vehicleName = vehicleName,
+              rangeText = rangeText,
+              carPhoto = carPhoto,
               batteryPercent = percent,
               batteryKnown = battery.percent != null,
               online = cloudVehicle?.online ?: false,
@@ -964,9 +970,9 @@ fun ControlScreen(
             Spacer(Modifier.height(32.dp))
             CyberMapStatsRow(
               location = location,
-              address = locationTitle(location),
-              todayKm = todayRideLabel(cloudState, distanceUnit),
-              totalKm = totalMileageLabel(cloudState, distanceUnit),
+              address = address,
+              todayKm = todayKm,
+              totalKm = totalKm,
               onMapTap = onMapTap,
               onRideStatsTap = onRideStatsTap,
             )

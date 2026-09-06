@@ -245,7 +245,8 @@ fun TailgTheme(
         ColorMode.SYSTEM -> isSystemInDarkTheme()
     }
 
-    val scheme = uiModeColorScheme(UiMode.fromValue(uiModeValue), isDark)
+    val uiMode = UiMode.fromValue(uiModeValue)
+    val scheme = uiModeColorScheme(uiMode, isDark)
         .amoledBackground(colorMode.isAmoled)
     val animatedScheme = scheme.animateAsState()
     val palette = animatedScheme.toCyberPalette()
@@ -269,7 +270,7 @@ fun TailgTheme(
     val scaledDensity = Density(systemDensity.density * pageScale, systemDensity.fontScale)
 
     CompositionLocalProvider(
-        LocalUiMode provides UiMode.fromValue(uiModeValue),
+        LocalUiMode provides uiMode,
         LocalDensity provides scaledDensity,
     ) {
         MaterialExpressiveTheme(

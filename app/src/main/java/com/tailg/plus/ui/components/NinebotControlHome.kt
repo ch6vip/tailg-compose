@@ -42,13 +42,13 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
 import com.tailg.plus.domain.control.ControlChannelAvailability
-import com.tailg.plus.domain.control.ControlTopBarChannelKind
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
@@ -94,6 +94,10 @@ private data class NbReplica(
     val locateChipInk: Color,
 )
 
+/** The replica's fixed tones flip on the active palette's page darkness. */
+@Composable
+private fun replicaDark(): Boolean = CyberHomeColors.pageBg.luminance() < 0.5f
+
 private fun nbReplica(dark: Boolean): NbReplica = if (dark) {
     NbReplica(
         stageTop = Color(0xFF272C37),
@@ -128,7 +132,7 @@ private fun nbReplica(dark: Boolean): NbReplica = if (dark) {
 
 @Composable
 private fun rememberReplica(): NbReplica {
-    val dark = CyberHomeColors.pageBg.luminance() < 0.5f
+    val dark = replicaDark()
     return remember(dark) { nbReplica(dark) }
 }
 
@@ -142,7 +146,7 @@ private val NbChargeBlue = Color(0xFF3D7BFF)
  */
 @Composable
 fun ninebotPageBackground(): Color =
-    if (CyberHomeColors.pageBg.luminance() < 0.5f) Color(0xFF121419) else Color(0xFFD9DBE6)
+    if (replicaDark()) Color(0xFF121419) else Color(0xFFD9DBE6)
 
 private val NbControlCardShape = RoundedCornerShape(30.dp)
 private val NbStatCardShape = RoundedCornerShape(28.dp)
@@ -297,6 +301,7 @@ fun NinebotVehicleHeader(
                             )
                         }
                         Spacer(Modifier.height(12.dp))
+                        val (rangeValue, rangeUnit) = splitRangeLabel(rangeText)
                         Row(verticalAlignment = Alignment.Bottom) {
                             Text(
                                 text = stringResource(R.string.ninebot_range_prefix),
@@ -304,7 +309,7 @@ fun NinebotVehicleHeader(
                             )
                             Spacer(Modifier.width(5.dp))
                             AnimatedValueText(
-                                value = rangeLabelValue(rangeText),
+                                value = rangeValue,
                                 style = TextStyle(
                                     fontSize = 19.sp,
                                     fontWeight = FontWeight.W800,
@@ -314,7 +319,7 @@ fun NinebotVehicleHeader(
                             )
                             Spacer(Modifier.width(3.dp))
                             Text(
-                                text = rangeLabelUnit(rangeText),
+                                text = rangeUnit,
                                 style = TextStyle(fontSize = 13.sp, color = CyberHomeColors.ink.copy(alpha = 0.8f)),
                                 modifier = Modifier.padding(bottom = 2.dp),
                             )
@@ -369,49 +374,31 @@ fun NinebotVehicleHeader(
                     ),
                     label = "nbFloatY",
                 )
-                if (powered == true) {
-                    // Subtle alive cue: the photo rides a touch higher when powered.
-                    Box(modifier = Modifier.align(Alignment.Center).offset(y = (floatY - 3f).dp)) {
-                        VehicleStage(
-                            batteryLevel = batteryPercent / 100f,
-                            height = 200.dp,
-                            imageUrl = carPhoto.ifBlank { null },
-                        )
-                    }
-                } else {
-                    Box(modifier = Modifier.align(Alignment.Center).offset(y = floatY.dp)) {
-                        VehicleStage(
-                            batteryLevel = batteryPercent / 100f,
-                            height = 200.dp,
-                            imageUrl = carPhoto.ifBlank { null },
-                        )
-                    }
+                // Subtle alive cue: the photo rides a touch higher when powered.
+                val poweredLift = if (powered == true) -3f else 0f
+                Box(modifier = Modifier.align(Alignment.Center).offset(y = (floatY + poweredLift).dp)) {
+                    VehicleStage(
+                        batteryLevel = batteryPercent / 100f,
+                        height = 200.dp,
+                        imageUrl = carPhoto.ifBlank { null },
+                    )
                 }
             }
         }
     }
 }
 
-private fun rangeLabelValue(rangeText: String): String {
+/** Split a "12 km" / "12 mi" range label into value + unit; other text passes through unitless. */
+private fun splitRangeLabel(rangeText: String): Pair<String, String> {
     val t = rangeText.trim()
     return when {
-        t.endsWith("km", ignoreCase = true) -> t.dropLast(2).trim()
-        t.endsWith("mi", ignoreCase = true) -> t.dropLast(2).trim()
-        else -> t
+        t.endsWith("km", ignoreCase = true) -> t.dropLast(2).trim() to "km"
+        t.endsWith("mi", ignoreCase = true) -> t.dropLast(2).trim() to "mi"
+        else -> t to ""
     }
 }
 
-private fun rangeLabelUnit(rangeText: String): String {
-    val t = rangeText.trim()
-    return when {
-        t.endsWith("km", ignoreCase = true) -> "km"
-        t.endsWith("mi", ignoreCase = true) -> "mi"
-        else -> ""
-    }
-}
-
-/** Signal / BLE chip / message bubble icons share the header row with the name. */
-
+/** 40dp round tap target for a header-row glyph (the message bubble). */
 @Composable
 private fun NinebotIconButton(icon: Int, contentDescription: String, onTap: () -> Unit) {
     AppPressable(
@@ -432,7 +419,6 @@ private fun NinebotIconButton(icon: Int, contentDescription: String, onTap: () -
 @Composable
 fun NinebotControlGrid(
     powered: Boolean?,
-    armed: Boolean?,
     busy: Boolean,
     activeCommand: CommandCode?,
     findAvailability: ControlChannelAvailability,
@@ -498,10 +484,6 @@ fun NinebotControlGrid(
                     label = stringResource(R.string.control_grid_settings),
                     circle = r.circle,
                     iconColor = CyberHomeColors.ink,
-                    available = true,
-                    unavailableReason = "",
-                    busy = false,
-                    subdued = false,
                     modifier = Modifier.weight(1f),
                     onTap = onSettings,
                 )
@@ -522,18 +504,12 @@ fun NinebotControlGrid(
                 NinebotPlainTile(
                     icon = NinebotLucide.fingerprint,
                     label = stringResource(R.string.ninebot_tile_induction),
-                    available = true,
-                    busy = false,
-                    subdued = false,
                     modifier = Modifier.weight(1f),
                     onTap = onInduction,
                 )
                 NinebotPlainTile(
                     icon = NinebotLucide.battery,
                     label = stringResource(R.string.ninebot_tile_battery),
-                    available = true,
-                    busy = false,
-                    subdued = false,
                     modifier = Modifier.weight(1f),
                     onTap = onBattery,
                 )
@@ -552,6 +528,17 @@ fun NinebotControlGrid(
     }
 }
 
+/** Availability semantics for a control tile (label, or why it is blocked). */
+@Composable
+private fun tileSemanticsLabel(available: Boolean, unavailableReason: String, label: String): String =
+    if (available) {
+        label
+    } else if (unavailableReason.isEmpty()) {
+        stringResource(R.string.control_grid_unavailable_format, label)
+    } else {
+        stringResource(R.string.control_grid_unavailable_reason_format, label, unavailableReason)
+    }
+
 /** Row-1 key: 62dp disc + label, matching the shot's circled glyphs. */
 @Composable
 private fun NinebotCircleTile(
@@ -559,10 +546,10 @@ private fun NinebotCircleTile(
     label: String,
     circle: Color,
     iconColor: Color,
-    available: Boolean,
-    unavailableReason: String,
-    busy: Boolean,
-    subdued: Boolean,
+    available: Boolean = true,
+    unavailableReason: String = "",
+    busy: Boolean = false,
+    subdued: Boolean = false,
     modifier: Modifier = Modifier,
     onTap: () -> Unit,
 ) {
@@ -572,16 +559,9 @@ private fun NinebotCircleTile(
     ) {
         AppPressable(
             onClick = { if (!busy) onTap() },
-            enabled = true,
             shape = CircleShape,
             background = circle,
-            semanticsLabel = if (available) {
-                label
-            } else if (unavailableReason.isEmpty()) {
-                stringResource(R.string.control_grid_unavailable_format, label)
-            } else {
-                stringResource(R.string.control_grid_unavailable_reason_format, label, unavailableReason)
-            },
+            semanticsLabel = tileSemanticsLabel(available, unavailableReason, label),
         ) {
             Box(
                 modifier = Modifier.size(64.dp),
@@ -618,11 +598,11 @@ private fun NinebotCircleTile(
 private fun NinebotPlainTile(
     icon: Int,
     label: String,
-    available: Boolean,
-    busy: Boolean,
-    subdued: Boolean,
-    modifier: Modifier = Modifier,
+    available: Boolean = true,
     unavailableReason: String = "",
+    busy: Boolean = false,
+    subdued: Boolean = false,
+    modifier: Modifier = Modifier,
     onTap: () -> Unit,
 ) {
     Column(
@@ -631,15 +611,8 @@ private fun NinebotPlainTile(
     ) {
         AppPressable(
             onClick = { if (!busy) onTap() },
-            enabled = true,
             shape = RoundedCornerShape(16.dp),
-            semanticsLabel = if (available) {
-                label
-            } else if (unavailableReason.isEmpty()) {
-                stringResource(R.string.control_grid_unavailable_format, label)
-            } else {
-                stringResource(R.string.control_grid_unavailable_reason_format, label, unavailableReason)
-            },
+            semanticsLabel = tileSemanticsLabel(available, unavailableReason, label),
         ) {
             Box(
                 modifier = Modifier.size(56.dp),
@@ -765,10 +738,7 @@ fun NinebotStatsRow(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     Text(
-                        text = address
-                            .trim()
-                            .takeUnless { it.isEmpty() || Regex("^-?\\d+(\\.\\d+)?\\s*,\\s*-?\\d+(\\.\\d+)?$").containsMatchIn(it) }
-                            ?: stringResource(R.string.service_location),
+                        text = addressStripText(address, stringResource(R.string.service_location)),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         style = TextStyle(
@@ -792,7 +762,6 @@ fun NinebotStatsRow(
                     onClick = onRideStatsTap,
                     shape = RoundedCornerShape(20.dp),
                     semanticsLabel = stringResource(R.string.map_stats_view_ride),
-                    shadowElevation = 0.dp,
                 ) {
                     Column(
                         modifier = Modifier
@@ -819,7 +788,6 @@ fun NinebotStatsRow(
                     onClick = onRideStatsTap,
                     shape = RoundedCornerShape(16.dp),
                     semanticsLabel = stringResource(R.string.map_stats_view_ride),
-                    shadowElevation = 0.dp,
                 ) {
                     Row(
                         modifier = Modifier
@@ -845,12 +813,8 @@ fun NinebotStatsRow(
 
 /** "2.7 km" → big number + small unit, bottom-aligned (same split as Cyber). */
 @Composable
-private fun RideValue(valueWithUnit: String, numberSize: androidx.compose.ui.unit.TextUnit, unitSize: androidx.compose.ui.unit.TextUnit) {
-    val (number, unit) = remember(valueWithUnit) {
-        val idx = valueWithUnit.lastIndexOf(' ')
-        if (idx > 0) valueWithUnit.substring(0, idx) to valueWithUnit.substring(idx + 1)
-        else valueWithUnit to ""
-    }
+private fun RideValue(valueWithUnit: String, numberSize: TextUnit, unitSize: TextUnit) {
+    val (number, unit) = remember(valueWithUnit) { splitValueWithUnit(valueWithUnit) }
     Row(verticalAlignment = Alignment.Bottom) {
         AnimatedValueText(
             value = number,
@@ -870,18 +834,4 @@ private fun RideValue(valueWithUnit: String, numberSize: androidx.compose.ui.uni
             )
         }
     }
-}
-
-/** Channel status dot — same mapping as the Cyber header (kept local: it is private there). */
-@Composable
-internal fun ninebotChannelDotColor(kind: ControlTopBarChannelKind): Color = when (kind) {
-    ControlTopBarChannelKind.BLE_DIRECT,
-    ControlTopBarChannelKind.MQTT_REMOTE,
-    ControlTopBarChannelKind.CLOUD_STANDBY,
-    -> CyberHomeColors.primary
-    ControlTopBarChannelKind.BLE_CONNECTING,
-    ControlTopBarChannelKind.MQTT_CONNECTING,
-    ControlTopBarChannelKind.MQTT_RETRY,
-    -> CyberHomeColors.warning
-    ControlTopBarChannelKind.UNAVAILABLE -> CyberHomeColors.danger
 }

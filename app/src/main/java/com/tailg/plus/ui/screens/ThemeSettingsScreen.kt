@@ -121,7 +121,7 @@ fun ThemeSettingsScreen(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            val isDark = currentColorMode.isDark || currentColorMode.isSystem && isSystemInDarkTheme()
+            val isDark = currentColorMode.isDark || (currentColorMode.isSystem && isSystemInDarkTheme())
             val isAmoled = currentColorMode.isAmoled
             ThemePreviewCard(
                 uiMode = currentUiMode,
@@ -250,8 +250,8 @@ private fun ThemePreviewCard(
     val screenRatio = screenWidth / screenHeight
 
     val colorScheme = when (uiMode) {
-        UiMode.CYBER -> (if (isDark) CyberDarkColorScheme else CyberLightColorScheme)
-        UiMode.NINEBOT -> (if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme)
+        UiMode.CYBER -> if (isDark) CyberDarkColorScheme else CyberLightColorScheme
+        UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }.amoledBackground(isAmoled)
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
@@ -324,11 +324,10 @@ private fun ThemePreviewCard(
                             .height(40.dp)
                             .fillMaxWidth()
                             .padding(horizontal = 8.dp),
+                        horizontalArrangement = Arrangement.Center,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column(modifier = Modifier.fillMaxWidth(), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Icon(Icons.Filled.Home, null, tint = colorScheme.primary)
-                        }
+                        Icon(Icons.Filled.Home, null, tint = colorScheme.primary)
                     }
                 }
             }

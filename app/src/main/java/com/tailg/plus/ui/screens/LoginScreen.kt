@@ -77,6 +77,7 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.SmsCountdown
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -99,14 +100,13 @@ private enum class LoginMode { SMS, TOKEN }
 fun LoginScreen(
   cloudService: OfficialCloudService,
   modifier: Modifier = Modifier,
+  log: LogService = com.tailg.plus.di.rememberTailgEntryPoint().logService(),
+  clipboard: ClipboardText = com.tailg.plus.di.rememberTailgEntryPoint().clipboardText(),
   onSignedIn: (successMessage: String?) -> Unit = { _ -> },
 ) {
   val context = LocalContext.current
   val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
-  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
-  val log = entryPoint.logService()
-  val clipboard = entryPoint.clipboardText()
   val smsCountdown = remember { SmsCountdown(scope = scope) }
   val countdown by smsCountdown.remaining.collectAsStateWithLifecycle()
   // Narrow cloud projection — the login page only reads the signed-in flag
@@ -212,6 +212,7 @@ fun LoginScreen(
                 navigated = true
                 onSignedIn(strLoginSuccess)
               } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 log.operation(
                   "官云登录失败",
                   detail = e.toString(),
@@ -260,6 +261,7 @@ fun LoginScreen(
                 navigated = true
                 onSignedIn(strTokenLoginSuccess)
               } catch (e: Exception) {
+                if (e is CancellationException) throw e
                 Timber.tag("TokenLogin").e(e, "loginWithToken failed: ${e::class.simpleName}: ${e.message}")
                 log.operation(
                   "Token 登录失败",
@@ -313,6 +315,7 @@ fun LoginScreen(
             smsCountdown.start()
             AppSnack.success(snackbarHostState, strSmsSent)
           } catch (e: Exception) {
+            if (e is CancellationException) throw e
             log.operation(
               "官云验证码发送失败",
               detail = e.toString(),

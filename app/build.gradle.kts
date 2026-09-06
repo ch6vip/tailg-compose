@@ -137,6 +137,9 @@ android {
         abortOnError = true
         checkReleaseBuilds = true
     }
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
+    }
 }
 
 // Compose compiler metrics: emit per-file recomposition counts and composable

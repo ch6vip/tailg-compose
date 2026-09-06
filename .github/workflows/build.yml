@@ -112,7 +112,9 @@ jobs:
       #   - --continue surfaces test, lint and R8 failures in a single run
       #     instead of one round trip per category;
       #   - we pay daemon start + configuration once instead of twice.
-      - name: Assemble + unit tests + lint
+      # testDebugUnitTest also runs the Robolectric Compose UI/integration
+      # suite in ui/regression; no emulator or vehicle connection is required.
+      - name: Assemble + JVM and Compose tests + lint
         env:
           # Empty on PRs -> app/build.gradle.kts skips signing entirely and
           # emits an unsigned release APK (see the signingConfigs block).

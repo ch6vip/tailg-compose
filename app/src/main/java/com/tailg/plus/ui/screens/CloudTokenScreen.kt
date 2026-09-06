@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.CyberCard
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.Lucide
@@ -108,6 +109,7 @@ fun CloudTokenScreen(
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
+    snackbarHost = { AppSnackbarHost(snackbarHostState) },
   ) { padding ->
     Column(
       modifier = Modifier

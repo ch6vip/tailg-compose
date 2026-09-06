@@ -11,6 +11,7 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.util.ClipboardText
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -129,6 +130,7 @@ class CloudTokenViewModel @Inject constructor(
         cloud.loginWithToken(raw, phone = s.cloudState.phone, userId = s.cloudState.userId)
         pushMessageRes(R.string.token_vm_login_success)
       } catch (e: Exception) {
+        if (e is CancellationException) throw e
         log.operation("Token 登录失败", detail = e.toString(), level = LogLevel.WARNING)
         pushMessage(OfficialCloudRedactor.errorMessage(e), isError = true)
       } finally {

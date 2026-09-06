@@ -78,6 +78,8 @@ import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
@@ -495,14 +497,18 @@ fun GarageScreen(
               try {
                 try {
                   mqttService?.disconnect()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                  if (e is kotlinx.coroutines.CancellationException) throw e
                   // Best-effort channel teardown before the switch.
                 }
                 try {
                   connectionManager?.disconnect()
-                } catch (_: Exception) {
+                } catch (e: Exception) {
+                  if (e is kotlinx.coroutines.CancellationException) throw e
                   // Best-effort channel teardown before the switch.
                 }
+                // Teardown may finish in NonCancellable; leaving the page still cancels the switch.
+                currentCoroutineContext().ensureActive()
                 cloudService.changeUsingVehicle(target)
                 AppSnack.success(snackbarHostState, strSwitched.format(target.displayName))
               } catch (e: Exception) {

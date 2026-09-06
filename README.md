@@ -74,6 +74,7 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 | 文档 | 说明 |
 |------|------|
 | [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) | 本次全项目审查、已修复问题、验证结果与剩余限制 |
+| [docs/UI_REGRESSION.md](docs/UI_REGRESSION.md) | 登录、切车、控车确认及取消／乱序的 25 项 UI／集成回归测试与运行方法 |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | 移植契约（Dart → Kotlin），移植期间所有子代理必须遵循 |
 | [docs/UI_PORT_PLAN.md](docs/UI_PORT_PLAN.md) | UI 移植清单（29 页 → Compose），含每页落地状态 |
 | [docs/PORT_WAVE2.md](docs/PORT_WAVE2.md) | Wave 2 委托简报（cloud/mqtt/control routing/stores） |

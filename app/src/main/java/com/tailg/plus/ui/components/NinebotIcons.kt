@@ -60,6 +60,9 @@ object NinebotLucide {
   val cloudDownload: Int get() = R.drawable.ic_lucide_cloud_download
   val moveHorizontal: Int get() = R.drawable.ic_lucide_move_horizontal
   val x: Int get() = R.drawable.ic_lucide_x
+  val pencil: Int get() = R.drawable.ic_lucide_pencil
+  val plus: Int get() = R.drawable.ic_lucide_plus
+  val check: Int get() = R.drawable.ic_lucide_check
 
   /** 官方「更多功能」实心六角螺母(中心圆孔,evenOdd),单色可 tint。 */
   val nutFilled: Int get() = R.drawable.ic_nb_nut_filled

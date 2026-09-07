@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nb_shortcuts_title">编辑快捷键</string>
+    <string name="nb_shortcuts_description">先选择位置，再选择功能。选择已在其他位置的功能可互换位置。</string>
+    <string name="nb_shortcuts_preview">底部快捷键</string>
+    <string name="nb_shortcuts_left">左侧</string>
+    <string name="nb_shortcuts_center">中间</string>
+    <string name="nb_shortcuts_right">右侧</string>
+    <string name="nb_shortcuts_slot_description">%1$s快捷键：%2$s</string>
+    <string name="nb_shortcuts_add">添加快捷键</string>
+    <string name="nb_shortcuts_choose">选择%1$s</string>
+    <string name="nb_shortcuts_selected">已选择，点按移除</string>
+    <string name="nb_shortcuts_swap">已在%1$s，点按互换</string>
+    <string name="nb_shortcuts_induction_hint">打开感应解锁设置</string>
+    <string name="nb_shortcuts_battery_hint">查看电量与电池详情</string>
+    <string name="nb_shortcuts_seat_hint">打开电子坐垫锁</string>
+    <string name="nb_shortcuts_empty">留空</string>
+    <string name="nb_shortcuts_empty_hint">在此位置保留添加入口</string>
+    <string name="nb_shortcuts_reset">恢复默认</string>
+    <string name="nb_shortcuts_save">保存布局</string>
+    <string name="nb_shortcuts_saving">正在保存</string>
+    <string name="nb_shortcuts_vehicle_hint">仅对当前车辆生效</string>
+    <string name="nb_shortcuts_save_failed">保存失败，请重试。</string>
+    <string name="nb_shortcuts_load_failed">快捷键读取失败，请重试。</string>
+    <string name="nb_shortcuts_loading">正在读取快捷键</string>
+    <string name="nb_shortcuts_close">关闭快捷键编辑</string>
+</resources>

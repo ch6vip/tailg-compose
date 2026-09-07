@@ -15,6 +15,7 @@ import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
+import com.tailg.plus.data.store.NinebotShortcutStore
 import com.tailg.plus.service.LocationService
 import com.tailg.plus.ui.screens.ControlScreen
 import com.tailg.plus.ui.screens.ControlViewModel
@@ -65,6 +66,7 @@ class ControlScreenTest : ComposeRegressionTest() {
         viewModel = retain(ControlViewModel(
             environment.cloud, ble, mqtt, store, environment.log, network,
             mockk<LocationService>(relaxed = true),
+            NinebotShortcutStore(context),
         ))
         render {
             ControlScreen(

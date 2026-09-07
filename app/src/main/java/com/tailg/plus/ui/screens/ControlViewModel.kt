@@ -9,6 +9,7 @@ import com.tailg.plus.data.model.ControlCommandActivityLog
 import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.network.NetworkAvailabilityService
 import com.tailg.plus.data.store.VehicleStore
+import com.tailg.plus.data.store.NinebotShortcutStore
 import com.tailg.plus.domain.control.ControlCommandExecutor
 import com.tailg.plus.domain.control.ControlCommandRoute
 import com.tailg.plus.domain.control.OfficialControlChannel
@@ -47,6 +48,7 @@ class ControlViewModel @Inject constructor(
   val log: LogService,
   networkAvailability: NetworkAvailabilityService,
   val locationService: LocationService,
+  val shortcutStore: NinebotShortcutStore,
 ) : ViewModel() {
 
   private val _ui = MutableStateFlow(ControlUiState())

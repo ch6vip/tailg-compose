@@ -78,7 +78,6 @@ import com.tailg.plus.ui.components.CyberControlGrid
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
-import com.tailg.plus.ui.components.NinebotControlGrid
 import com.tailg.plus.ui.components.NinebotStatsRow
 import com.tailg.plus.ui.components.NinebotVehicleHeader
 import com.tailg.plus.ui.components.OfficialBleChipState
@@ -922,7 +921,10 @@ fun ControlScreen(
               onChannelTap = onChannelTap,
             )
             Spacer(Modifier.height(4.dp))
-            NinebotControlGrid(
+            NinebotControlSection(
+              vehicleKey = cloudVehicle?.key.orEmpty(),
+              shortcutStore = viewModel.shortcutStore,
+              log = log,
               powered = isPowerOn,
               busy = busy,
               activeCommand = activeCommand?.toBleCommandCode(),

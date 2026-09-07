@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nb_shortcuts_title">Edit shortcuts</string>
+    <string name="nb_shortcuts_description">Choose a position, then a function. Choosing a function already in another position swaps the two.</string>
+    <string name="nb_shortcuts_preview">Bottom shortcuts</string>
+    <string name="nb_shortcuts_left">Left</string>
+    <string name="nb_shortcuts_center">Center</string>
+    <string name="nb_shortcuts_right">Right</string>
+    <string name="nb_shortcuts_slot_description">%1$s shortcut: %2$s</string>
+    <string name="nb_shortcuts_add">Add shortcut</string>
+    <string name="nb_shortcuts_choose">Choose %1$s</string>
+    <string name="nb_shortcuts_selected">Selected · Tap to remove</string>
+    <string name="nb_shortcuts_swap">In %1$s · Tap to swap</string>
+    <string name="nb_shortcuts_induction_hint">Open proximity unlock settings</string>
+    <string name="nb_shortcuts_battery_hint">View charge and battery details</string>
+    <string name="nb_shortcuts_seat_hint">Open the electronic seat lock</string>
+    <string name="nb_shortcuts_empty">Leave empty</string>
+    <string name="nb_shortcuts_empty_hint">Keep an add button in this position</string>
+    <string name="nb_shortcuts_reset">Reset</string>
+    <string name="nb_shortcuts_save">Save layout</string>
+    <string name="nb_shortcuts_saving">Saving</string>
+    <string name="nb_shortcuts_vehicle_hint">Applies to this vehicle only</string>
+    <string name="nb_shortcuts_save_failed">Could not save. Please try again.</string>
+    <string name="nb_shortcuts_load_failed">Could not load shortcuts. Please try again.</string>
+    <string name="nb_shortcuts_loading">Loading shortcuts</string>
+    <string name="nb_shortcuts_close">Close shortcut editor</string>
+</resources>

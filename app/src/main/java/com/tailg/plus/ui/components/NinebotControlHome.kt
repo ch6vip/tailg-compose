@@ -37,7 +37,11 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -48,6 +52,8 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.data.cloud.ResolvedVehicleLocation
+import com.tailg.plus.data.model.NinebotShortcut
+import com.tailg.plus.data.model.NinebotShortcutLayout
 import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.ui.theme.CyberHomeColors
 
@@ -62,8 +68,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  *    210dp like the app), 续航 line with a round battery badge;
  *  - vehicle stage: giant low-alpha "ninebot" watermark behind the car photo
  *    over the blue-gray stage gradient;
- *  - control card: 打开坐垫 / slide-to-power / 更多功能 over 感应解锁 /
- *    电池信息 / 闪灯鸣笛 (row 2 icons are plain line glyphs, no circles);
+ *  - control card: 闪灯鸣笛 / slide-to-power / 更多功能 over 感应解锁 /
+ *    电池信息 / 打开坐垫 by default (three configurable lower shortcuts);
  *  - bottom cards: mini map with the 车辆定位 chip beside stacked
  *    今日里程 (warm) / 总里程 cards.
  *
@@ -432,6 +438,9 @@ fun NinebotControlGrid(
     onSeat: () -> Unit,
     onBattery: () -> Unit,
     onInduction: () -> Unit,
+    shortcutLayout: NinebotShortcutLayout? = NinebotShortcutLayout.Default,
+    shortcutsEditable: Boolean = true,
+    onEditShortcuts: (Int) -> Unit,
 ) {
     val r = rememberReplica()
     fun active(command: CommandCode) = activeCommand == command
@@ -451,16 +460,16 @@ fun NinebotControlGrid(
                 verticalAlignment = Alignment.Top,
             ) {
                 NinebotCircleTile(
-                    icon = NinebotLucide.armchair,
-                    label = stringResource(R.string.control_card_seat),
+                    icon = NinebotLucide.headlight,
+                    label = stringResource(R.string.ninebot_tile_horn),
                     circle = r.circle,
                     iconColor = CyberHomeColors.ink,
-                    available = seatAvailability.enabled,
-                    unavailableReason = seatAvailability.disabledReason,
-                    busy = active(CommandCode.openSeat),
-                    subdued = subdued(CommandCode.openSeat),
+                    available = findAvailability.enabled,
+                    unavailableReason = findAvailability.disabledReason,
+                    busy = active(CommandCode.find),
+                    subdued = subdued(CommandCode.find),
                     modifier = Modifier.weight(1f),
-                    onTap = onSeat,
+                    onTap = onFind,
                 )
                 BoxWithConstraints(modifier = Modifier.weight(1.72f), contentAlignment = Alignment.Center) {
                     SlidePowerButton(
@@ -486,41 +495,74 @@ fun NinebotControlGrid(
                     onTap = onSettings,
                 )
             }
-            Spacer(Modifier.height(20.dp))
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(1.dp)
-                    .background(CyberHomeColors.ink.copy(alpha = 0.08f)),
-            )
-            Spacer(Modifier.height(18.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 8.dp, bottom = 2.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Box(Modifier.weight(1f).height(1.dp).background(CyberHomeColors.ink.copy(alpha = 0.08f)))
+                Spacer(Modifier.width(10.dp))
+                AppPressable(
+                    onClick = { onEditShortcuts(0) },
+                    enabled = shortcutsEditable && shortcutLayout != null,
+                    modifier = Modifier.heightIn(min = 48.dp).testTag("ninebot-shortcuts-edit")
+                        .alpha(if (shortcutsEditable && shortcutLayout != null) 1f else 0.4f)
+                        .semantics { if (!shortcutsEditable || shortcutLayout == null) disabled() },
+                    shape = RoundedCornerShape(12.dp),
+                    semanticsLabel = stringResource(R.string.nb_shortcuts_title),
+                ) {
+                    Row(
+                        modifier = Modifier.heightIn(min = 48.dp).padding(horizontal = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        NinebotIcon(NinebotLucide.pencil, size = 15.dp)
+                        Text(stringResource(R.string.common_edit), style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkMuted))
+                    }
+                }
+            }
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.Top,
             ) {
-                NinebotPlainTile(
-                    icon = NinebotLucide.fingerprint,
-                    label = stringResource(R.string.ninebot_tile_induction),
-                    modifier = Modifier.weight(1f),
-                    onTap = onInduction,
-                )
-                NinebotPlainTile(
-                    icon = NinebotLucide.battery,
-                    label = stringResource(R.string.ninebot_tile_battery),
-                    modifier = Modifier.weight(1f),
-                    onTap = onBattery,
-                )
-                NinebotPlainTile(
-                    icon = NinebotLucide.headlight,
-                    label = stringResource(R.string.ninebot_tile_horn),
-                    available = findAvailability.enabled,
-                    unavailableReason = findAvailability.disabledReason,
-                    busy = active(CommandCode.find),
-                    subdued = subdued(CommandCode.find),
-                    modifier = Modifier.weight(1f),
-                    onTap = onFind,
-                )
+                if (shortcutLayout == null) {
+                    val loadingLabel = stringResource(R.string.nb_shortcuts_loading)
+                    repeat(NinebotShortcutLayout.SLOT_COUNT) {
+                        Column(
+                            Modifier.weight(1f).semantics { contentDescription = loadingLabel },
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                        ) {
+                            Box(Modifier.size(48.dp).background(r.circle, RoundedCornerShape(16.dp)))
+                            Spacer(Modifier.height(12.dp))
+                            Box(Modifier.width(56.dp).height(12.dp).background(r.circle, RoundedCornerShape(6.dp)))
+                            Spacer(Modifier.height(14.dp))
+                        }
+                    }
+                } else {
+                    shortcutLayout.slots.forEachIndexed { index, shortcut ->
+                        val seat = shortcut == NinebotShortcut.SEAT
+                        val label = shortcut?.let { stringResource(it.labelRes) } ?: stringResource(R.string.nb_shortcuts_add)
+                        NinebotPlainTile(
+                            icon = shortcut?.iconRes ?: NinebotLucide.plus,
+                            label = label,
+                            available = !seat || seatAvailability.enabled,
+                            unavailableReason = if (seat) seatAvailability.disabledReason else "",
+                            busy = seat && active(CommandCode.openSeat),
+                            subdued = if (shortcut == null) !shortcutsEditable else seat && subdued(CommandCode.openSeat),
+                            enabled = shortcut != null || shortcutsEditable,
+                            semanticsDescription = if (shortcut == null) stringResource(
+                                R.string.nb_shortcuts_slot_description, ninebotShortcutPosition(index), label,
+                            ) else null,
+                            modifier = Modifier.weight(1f).testTag("ninebot-shortcut-$index"),
+                            onTap = when (shortcut) {
+                                NinebotShortcut.INDUCTION -> onInduction
+                                NinebotShortcut.BATTERY -> onBattery
+                                NinebotShortcut.SEAT -> onSeat
+                                null -> { { onEditShortcuts(index) } }
+                            },
+                        )
+                    }
+                }
             }
         }
     }
@@ -600,6 +642,8 @@ private fun NinebotPlainTile(
     unavailableReason: String = "",
     busy: Boolean = false,
     subdued: Boolean = false,
+    enabled: Boolean = true,
+    semanticsDescription: String? = null,
     modifier: Modifier = Modifier,
     onTap: () -> Unit,
 ) {
@@ -610,7 +654,9 @@ private fun NinebotPlainTile(
         AppPressable(
             onClick = { if (!busy) onTap() },
             shape = RoundedCornerShape(16.dp),
-            semanticsLabel = tileSemanticsLabel(available, unavailableReason, label),
+            enabled = enabled,
+            modifier = Modifier.semantics { if (!enabled) disabled() },
+            semanticsLabel = semanticsDescription ?: tileSemanticsLabel(available, unavailableReason, label),
         ) {
             Box(
                 modifier = Modifier.size(56.dp),

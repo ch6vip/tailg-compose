@@ -75,7 +75,7 @@ class InductionForegroundService : Service() {
       "感应解锁正在监测 $vehicleLabel 距离"
     }
     val notification = NotificationCompat.Builder(this, CHANNEL_ID)
-      .setSmallIcon(R.mipmap.ic_launcher)
+      .setSmallIcon(R.drawable.ic_lucide_radar)
       .setContentTitle("台铃智能")
       .setContentText(text)
       .setContentIntent(contentIntent)

@@ -6,34 +6,38 @@ import kotlinx.coroutines.flow.map
 
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberDatePickerState
@@ -47,12 +51,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.data.model.AffirmBatteryInfoRequest
@@ -71,6 +78,9 @@ import com.tailg.plus.ui.components.cyberButtonShape
 import com.tailg.plus.ui.components.cyberFilledButtonColors
 import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.components.cyberTextFieldShape
+import com.tailg.plus.ui.components.material.LucideDatePicker
+import com.tailg.plus.ui.components.material.isLucideDateSelectable
+import com.tailg.plus.ui.components.material.lucideUtcDate
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
@@ -86,8 +96,8 @@ import com.tailg.plus.R
  *
  * Bootstraps battery types + specs from the official cloud, pre-fills from
  * the selected vehicle, and submits an [AffirmBatteryInfoRequest]. The Dart
- * page uses `showDatePicker`; the Compose port uses a simple date picker
- * dialog via `DatePickerDialog` (Material3).
+ * page uses `showDatePicker`; the Compose port retains Material date state
+ * with the app's Lucide calendar and numeric date entry.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -247,7 +257,8 @@ fun ReplaceBatteryScreen(
                 enabled = !submitting,
                 singleLine = true,
                 trailingIcon = {
-                  ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+                  val rotation by animateFloatAsState(if (expanded) 180f else 0f, label = "battery-type-menu")
+                  LucideIcon(Lucide.chevronDown, modifier = Modifier.rotate(rotation))
                 },
                 colors = cyberTextFieldColors(),
                 shape = cyberTextFieldShape,
@@ -330,7 +341,8 @@ fun ReplaceBatteryScreen(
                     enabled = !submitting,
                     singleLine = true,
                     trailingIcon = {
-                      ExposedDropdownMenuDefaults.TrailingIcon(expanded = specExpanded)
+                      val rotation by animateFloatAsState(if (specExpanded) 180f else 0f, label = "battery-spec-menu")
+                      LucideIcon(Lucide.chevronDown, modifier = Modifier.rotate(rotation))
                     },
                     colors = cyberTextFieldColors(),
                     shape = cyberTextFieldShape,
@@ -600,24 +612,38 @@ private fun BindDatePickerDialog(
   val state = rememberDatePickerState(
     initialSelectedDateMillis = currentDate?.toEpochDay()?.let { it * 24L * 60L * 60L * 1000L },
   )
-  androidx.compose.material3.AlertDialog(
+  Dialog(
     onDismissRequest = onDismiss,
-    confirmButton = {
-      Button(
-        onClick = {
-          val millis = state.selectedDateMillis
-          if (millis != null) {
-            onPick(LocalDate.ofEpochDay(millis / (24L * 60L * 60L * 1000L)))
-          }
-        },
-        colors = cyberFilledButtonColors(),
-      ) { Text(stringResource(R.string.common_confirm)) }
-    },
-    dismissButton = {
-      TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
-    },
-    text = {
-      DatePicker(state = state)
-    },
-  )
+    properties = DialogProperties(usePlatformDefaultWidth = false),
+  ) {
+    Surface(
+      modifier = Modifier.padding(horizontal = 8.dp, vertical = 24.dp)
+        .widthIn(max = 400.dp).fillMaxWidth().heightIn(max = 620.dp),
+      shape = MaterialTheme.shapes.extraLarge,
+      color = CyberHomeColors.card,
+    ) {
+      Column {
+        LucideDatePicker(
+          state = state,
+          modifier = Modifier.weight(1f, fill = false).verticalScroll(rememberScrollState()),
+        )
+        Row(
+          modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+          horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.End),
+        ) {
+          TextButton(onClick = onDismiss) { Text(stringResource(R.string.common_cancel)) }
+          Button(
+            onClick = {
+              state.selectedDateMillis?.let { millis ->
+                val date = lucideUtcDate(millis)
+                if (state.isLucideDateSelectable(date)) onPick(date)
+              }
+            },
+            enabled = state.selectedDateMillis?.let { state.isLucideDateSelectable(lucideUtcDate(it)) } == true,
+            colors = cyberFilledButtonColors(),
+          ) { Text(stringResource(R.string.common_confirm)) }
+        }
+      }
+    }
+  }
 }

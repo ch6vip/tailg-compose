@@ -24,17 +24,17 @@ import com.tailg.plus.di.rememberTailgEntryPoint
 /**
  * UI style — the selectable skins in 设置 → 界面风格. Both are static brand
  * schemes (light/dark follows the theme mode chosen in 主题设置):
- *  - [CYBER]: VOID COCKPIT — Tailg brand green neon.
+ *  - [VECTOR]: 矢量 — editorial instruments on paper / carbon with a lime signal.
  *  - [NINEBOT]: 九号出行 — ink navy + electric blue on mist gray / near black.
  * Stored as an Int in [com.tailg.plus.data.preferences.AppPreferencesService];
- * value 2 chosen so stale MONET(1) entries fall back to the CYBER default.
+ * Value 0 replaces the original skin without resetting saved preferences.
  */
 enum class UiMode(val value: Int) {
-    CYBER(0),
+    VECTOR(0),
     NINEBOT(2);
 
     companion object {
-        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: CYBER
+        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: VECTOR
     }
 }
 
@@ -211,7 +211,7 @@ val NinebotDarkColorScheme = darkColorScheme(
 
 private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
     when (uiMode) {
-        UiMode.CYBER -> if (isDark) CyberDarkColorScheme else CyberLightColorScheme
+        UiMode.VECTOR -> if (isDark) VectorDarkColorScheme else VectorLightColorScheme
         UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }
 
@@ -220,10 +220,10 @@ private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
  * Screens that render a skin-specific layout (e.g. the 九号 control home)
  * branch on this instead of re-reading the preference store.
  */
-val LocalUiMode = staticCompositionLocalOf { UiMode.CYBER }
+val LocalUiMode = staticCompositionLocalOf { UiMode.VECTOR }
 
 /**
- * Root theme. Resolves the persisted UI style (Cyber / 九号) and theme mode
+ * Root theme. Resolves the persisted UI style (VECTOR / 九号) and theme mode
  * (system / light / dark), maps the resulting scheme onto the semantic
  * [CyberPalette] and provides it via [LocalCyberPalette]. Mirrors KernelSU's
  * expressive motion: animated colour transitions + global page scale.
@@ -234,7 +234,7 @@ fun TailgTheme(
 ) {
     val prefs = rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
-    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
+    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.VECTOR.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     LaunchedEffect(prefs) {
         try {
@@ -278,14 +278,15 @@ fun TailgTheme(
     val scaledDensity = Density(systemDensity.density * pageScale, systemDensity.fontScale)
 
     CompositionLocalProvider(
+        LocalCyberPalette provides palette,
         LocalUiMode provides uiMode,
         LocalDensity provides scaledDensity,
     ) {
         MaterialExpressiveTheme(
             colorScheme = animatedScheme,
             motionScheme = MotionScheme.expressive(),
-            typography = TailgTypography,
-            shapes = TailgShapes,
+            typography = if (uiMode == UiMode.VECTOR) VectorTypography else TailgTypography,
+            shapes = if (uiMode == UiMode.VECTOR) VectorShapes else TailgShapes,
             content = content,
         )
     }

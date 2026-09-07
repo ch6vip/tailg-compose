@@ -74,10 +74,10 @@ import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
-import com.tailg.plus.ui.components.CyberControlGrid
-import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
-import com.tailg.plus.ui.components.CyberVehicleHeader
+import com.tailg.plus.ui.components.VectorControlGrid
+import com.tailg.plus.ui.components.VectorStatsRow
+import com.tailg.plus.ui.components.VectorVehicleHeader
 import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.NinebotStatsRow
 import com.tailg.plus.ui.components.NinebotVehicleHeader
@@ -870,8 +870,7 @@ fun ControlScreen(
   val onMapTap = remember { { latestOnNavigate.value(Routes.location("current")) } }
   val onRideStatsTap = remember { { latestOnNavigate.value(Routes.rideStats("current")) } }
 
-  // Skin switch: 九号 renders its own control home (real Lucide vectors,
-  // watermark vehicle stage, deck grid); Cyber keeps the original widgets.
+  // Both skins use the same observed vehicle state and command callbacks.
   val uiMode = LocalUiMode.current
 
   Scaffold(
@@ -951,7 +950,7 @@ fun ControlScreen(
               onRideStatsTap = onRideStatsTap,
             )
           } else {
-            CyberVehicleHeader(
+            VectorVehicleHeader(
               vehicleName = vehicleName,
               rangeText = rangeText,
               carPhoto = carPhoto,
@@ -959,7 +958,7 @@ fun ControlScreen(
               batteryKnown = battery.percent != null,
               online = cloudVehicle?.online ?: false,
               bluetoothConnected = selectedBleReady,
-              isLocked = isArmed ?: true,
+              isLocked = isArmed,
               powered = isPowerOn,
               bleChip = bleChipState,
               channelStatus = controlChannelStatus,
@@ -970,7 +969,7 @@ fun ControlScreen(
               onChannelTap = onChannelTap,
             )
             Spacer(Modifier.height(18.dp))
-            CyberControlGrid(
+            VectorControlGrid(
               powered = isPowerOn,
               armed = isArmed,
               busy = busy,
@@ -987,7 +986,7 @@ fun ControlScreen(
               onNfc = onNfc,
             )
             Spacer(Modifier.height(32.dp))
-            CyberMapStatsRow(
+            VectorStatsRow(
               location = location,
               address = address,
               todayKm = todayKm,

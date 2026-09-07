@@ -59,6 +59,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -66,6 +67,9 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
+import com.tailg.plus.ui.theme.LocalUiMode
+import com.tailg.plus.ui.theme.UiMode
+import com.tailg.plus.ui.theme.VectorFontFamily
 import kotlin.math.roundToInt
 
 internal enum class BottomNavDestination(
@@ -128,6 +132,7 @@ internal fun FloatingBottomBar(
     val currentSelection by rememberUpdatedState(selectedIndex)
     val selectTab by rememberUpdatedState(onSelected)
     val colors = MaterialTheme.colorScheme
+    val vector = LocalUiMode.current == UiMode.VECTOR
     val dark = colors.surface.luminance() < 0.5f
     val haptics = LocalHapticFeedback.current
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -217,14 +222,19 @@ internal fun FloatingBottomBar(
                     scaleX = 1f + 0.04f * pressProgress
                     scaleY = 1f + 0.07f * pressProgress
                 }
-                .background(colors.primary.copy(alpha = if (dark) 0.2f else 0.12f), CircleShape),
+                .background(
+                    if (vector) colors.secondaryContainer else colors.primary.copy(alpha = if (dark) 0.2f else 0.12f),
+                    CircleShape,
+                ),
         )
         Row(Modifier.fillMaxSize().padding(4.dp)) {
             destinations.forEachIndexed { index, destination ->
                 val selected = selectedIndex == index
                 val highlighted = highlightedIndex == index
                 val contentColor by animateColorAsState(
-                    if (highlighted) colors.primary else colors.onSurfaceVariant,
+                    if (highlighted) {
+                        if (vector) colors.onSecondaryContainer else colors.primary
+                    } else colors.onSurfaceVariant,
                     label = "floatingTabColor",
                 )
                 Column(
@@ -257,6 +267,7 @@ internal fun FloatingBottomBar(
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
                             fontWeight = if (highlighted) FontWeight.W600 else FontWeight.W500,
+                            fontFamily = if (vector) VectorFontFamily else FontFamily.Default,
                             textAlign = TextAlign.Center,
                         ),
                         autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 11.sp),

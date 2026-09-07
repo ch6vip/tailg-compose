@@ -2,9 +2,6 @@ package com.tailg.plus.ui.components.material
 
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.size
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Switch
@@ -14,6 +11,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import com.tailg.plus.ui.components.Lucide
 
 /** Port of KernelSU `ui/component/material/ExpressiveSwitch.kt`. */
 @Composable
@@ -34,7 +32,7 @@ fun ExpressiveSwitch(
         thumbContent = thumbContent ?: if (showThumbIcon && (checked || enabled)) {
             {
                 Icon(
-                    imageVector = if (checked) Icons.Filled.Check else Icons.Filled.Close,
+                    imageVector = if (checked) Lucide.check else Lucide.x,
                     contentDescription = null,
                     modifier = Modifier.size(SwitchDefaults.IconSize),
                 )

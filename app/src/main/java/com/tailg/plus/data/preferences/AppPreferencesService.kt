@@ -64,7 +64,7 @@ class AppPreferencesService(
     val themeMode: StateFlow<Int> = _themeMode.asStateFlow()
 
     // UI style — Int values mirror `com.tailg.plus.ui.theme.UiMode`
-    // (0 = Cyber brand colours, 2 = 九号 skin).
+    // (0 = VECTOR, retained from the original skin, 2 = 九号 skin).
     private val _uiMode = MutableStateFlow(0)
     val uiMode: StateFlow<Int> = _uiMode.asStateFlow()
 

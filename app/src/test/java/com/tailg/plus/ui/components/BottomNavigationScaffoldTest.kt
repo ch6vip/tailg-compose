@@ -20,12 +20,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.click
+import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasScrollAction
+import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.v2.createComposeRule
 import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithTag
@@ -33,6 +36,8 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.text.TextLayoutResult
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.tailg.plus.R
@@ -50,6 +55,7 @@ import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
+import org.robolectric.RuntimeEnvironment
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
 
@@ -61,6 +67,7 @@ class BottomNavigationScaffoldTest {
     private val floating = mutableStateOf(true)
     private val visible = mutableStateOf(true)
     private val dark = mutableStateOf(false)
+    private val selectedTab = mutableStateOf(1)
     private var bottomPadding = 0.dp
 
     @Before
@@ -111,7 +118,7 @@ class BottomNavigationScaffoldTest {
             compose.onNode(hasScrollAction()).performSemanticsAction(SemanticsActions.ScrollBy) {
                 it(0f, 10_000f)
             }
-            val action = compose.onNodeWithContentDescription(lastActionLabel).assertIsDisplayed()
+            val action = compose.onNodeWithContentDescription(lastActionLabel, substring = true).assertIsDisplayed()
             val actionBounds = action.fetchSemanticsNode().boundsInRoot
             val barBounds = compose.onNodeWithTag(barTag()).fetchSemanticsNode().boundsInRoot
             assertTrue("The whole last action must clear the navigation bar", actionBounds.bottom <= barBounds.top)
@@ -120,6 +127,35 @@ class BottomNavigationScaffoldTest {
         }
 
         assertEquals(listOf(Routes.OFFICIAL_CLOUD, Routes.OFFICIAL_CLOUD), navigations)
+    }
+
+    @Test
+    @Config(qualifiers = "en-w320dp-h640dp-mdpi")
+    fun bothBarsKeepLargeEnglishLabelsOnOneLineAndAllFourRoutesTouchable() {
+        RuntimeEnvironment.setFontScale(1.5f)
+        val selections = mutableListOf<Int>()
+        val context = ApplicationProvider.getApplicationContext<Application>()
+        val labels = listOf(R.string.nav_service, R.string.nav_control, R.string.nav_mine, R.string.nav_settings)
+            .map(context::getString)
+        render(fontScale = 1.5f, onSelected = { selections += it }) {
+            Box(Modifier.fillMaxSize().background(Color.White))
+        }
+
+        for (floatingStyle in listOf(false, true)) {
+            compose.runOnIdle { floating.value = floatingStyle }
+            for (label in labels) {
+                assertNavigationLabelFits(label)
+                val tab = compose.onNode(hasText(label) and hasClickAction()).assertIsDisplayed()
+                val bounds = tab.fetchSemanticsNode().boundsInRoot
+                assertTrue("$label must retain a 48 dp touch target", bounds.width >= 48f && bounds.height >= 48f)
+                tab.performTouchInput { click() }
+                // Selecting a tab changes its weight; the selected label must
+                // also fit, particularly the longer Services and Settings.
+                assertNavigationLabelFits(label)
+            }
+        }
+
+        assertEquals(listOf(0, 1, 2, 3, 0, 1, 2, 3), selections)
     }
 
     @Test
@@ -148,16 +184,30 @@ class BottomNavigationScaffoldTest {
         assertTrue("A full-screen destination must not keep the old bar clearance", after.bottom > before.bottom)
     }
 
-    private fun render(content: @Composable () -> Unit) {
+    private fun render(
+        fontScale: Float = 1f,
+        onSelected: (Int) -> Unit = {},
+        content: @Composable () -> Unit,
+    ) {
         compose.setContent {
             val scheme = if (dark.value) CyberDarkColorScheme else NinebotLightColorScheme
-            CompositionLocalProvider(LocalCyberPalette provides scheme.toCyberPalette()) {
+            CompositionLocalProvider(
+                LocalCyberPalette provides scheme.toCyberPalette(),
+                LocalDensity provides Density(LocalDensity.current.density, fontScale),
+            ) {
                 MaterialTheme(colorScheme = scheme) {
                     BottomNavigationScaffold(
                         modifier = Modifier.testTag("navigation-root"),
                         bottomBar = {
                             if (visible.value) {
-                                TailgBottomNavigation(currentIndex = 1, floating = floating.value, onSelected = {})
+                                TailgBottomNavigation(
+                                    currentIndex = selectedTab.value,
+                                    floating = floating.value,
+                                    onSelected = { index ->
+                                        selectedTab.value = index
+                                        onSelected(index)
+                                    },
+                                )
                             }
                         },
                     ) {
@@ -173,6 +223,16 @@ class BottomNavigationScaffoldTest {
     }
 
     private fun barTag() = if (floating.value) "floating-bottom-bar" else "classic-bottom-bar"
+
+    private fun assertNavigationLabelFits(label: String) {
+        val layouts = mutableListOf<TextLayoutResult>()
+        // Read the actual BasicText leaf, not the tab's merged semantics node.
+        compose.onNodeWithText(label, useUnmergedTree = true)
+            .performSemanticsAction(SemanticsActions.GetTextLayoutResult) { it(layouts) }
+        assertEquals("$label must resolve to exactly one text leaf", 1, layouts.size)
+        assertTrue("$label must not clip or ellipsize", !layouts.single().hasVisualOverflow)
+        assertEquals("$label must remain on one line", 1, layouts.single().lineCount)
+    }
 
     private fun sampleBarBackground(): Color {
         val bar = compose.onNodeWithTag(barTag()).fetchSemanticsNode().boundsInRoot

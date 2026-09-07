@@ -21,6 +21,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -39,12 +40,15 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.LocalLayoutDirection
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
@@ -139,6 +143,12 @@ fun SlidePowerButton(
   LaunchedEffect(isPowered) {
     val prev = prevPowered
     prevPowered = isPowered
+    // A synchronous callback can return before rememberUpdatedState observes
+    // its new power value. Reconcile the idle position as soon as that value
+    // arrives; the decorative success pulse must not delay the next gesture.
+    if (!awaitingResult) {
+      dragPositionPx = if (isPowered == true) maxDragPx else 0f
+    }
     if (prev != null && isPowered != null && prev != isPowered) {
       showSuccess = true
       try {
@@ -148,9 +158,6 @@ fun SlidePowerButton(
       } finally {
         showSuccess = false
       }
-    }
-    if (!awaitingResult) {
-      dragPositionPx = if (isPowered == true) maxDragPx else 0f
     }
   }
 
@@ -223,109 +230,116 @@ fun SlidePowerButton(
       .alpha(opacity),
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
-    Box(
-      modifier = Modifier
-        .width(trackWidth)
-        .height(TrackHeight.dp),
-    ) {
-      // Track.
+    // These are physical directions: right starts power, left stops it.
+    // Keep only the track LTR so RTL layouts neither displace the thumb nor
+    // mirror the arrows independently of the gesture and localized caption.
+    CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
       Box(
         modifier = Modifier
-          .matchParentSize()
-          .clip(RoundedCornerShape(999.dp))
-          .background(trackBackground ?: CyberHomeColors.controlStrong),
+          .testTag("slide-power-track")
+          .width(trackWidth)
+          .height(TrackHeight.dp),
       ) {
-        if (showTrackChevrons) {
-          val arrow = if (isPowered == true) Lucide.chevronLeft else Lucide.chevronRight
-          Row(
-            modifier = Modifier.matchParentSize(),
-            horizontalArrangement = if (isPowered == true) Arrangement.Start else Arrangement.End,
-            verticalAlignment = Alignment.CenterVertically,
-          ) {
-            if (isPowered == true) Spacer(Modifier.width(15.dp))
-            repeat(3) { index ->
-              LucideIcon(
-                icon = arrow,
-                size = 20.dp,
-                color = CyberHomeColors.inkFaint.copy(alpha = 0.62f - index * 0.12f),
-              )
-              if (index < 2) Spacer(Modifier.width(1.dp))
+        // Track.
+        Box(
+          modifier = Modifier
+            .matchParentSize()
+            .clip(RoundedCornerShape(999.dp))
+            .background(trackBackground ?: CyberHomeColors.controlStrong),
+        ) {
+          if (showTrackChevrons) {
+            val arrow = if (isPowered == true) Lucide.chevronLeft else Lucide.chevronRight
+            Row(
+              modifier = Modifier.matchParentSize(),
+              horizontalArrangement = if (isPowered == true) Arrangement.Start else Arrangement.End,
+              verticalAlignment = Alignment.CenterVertically,
+            ) {
+              if (isPowered == true) Spacer(Modifier.width(15.dp))
+              repeat(3) { index ->
+                LucideIcon(
+                  icon = arrow,
+                  size = 20.dp,
+                  color = CyberHomeColors.inkFaint.copy(alpha = 0.62f - index * 0.12f),
+                )
+                if (index < 2) Spacer(Modifier.width(1.dp))
+              }
+              if (isPowered != true) Spacer(Modifier.width(15.dp))
             }
-            if (isPowered != true) Spacer(Modifier.width(15.dp))
           }
         }
-      }
 
-      // Thumb — positioned via graphicsLayer reading the snapshot state so
-      // dragging never recomposes the subtree per pixel: `graphicsLayer`
-      // observes `dragPositionPx` in the draw phase only (no composition
-      // pass), while `thumbAnimPx` drives the non-drag snap/spring animation.
-      Box(
-        modifier = Modifier
-          .align(Alignment.CenterStart)
-          .graphicsLayer {
-            translationX = if (dragging || awaitingResult) dragPositionPx else thumbAnimPx
-            this.translationX += shakeX.value
-          }
-          .size(ThumbSize.dp)
-          .background(thumbBackground ?: CyberHomeColors.card, CircleShape)
-          .border(1.dp, if (thumbBackground != null) Color.Transparent else CyberHomeColors.line, CircleShape)
-          .pointerInput(canSlide, isPowered, maxDragPx) {
-            if (!canSlide) return@pointerInput
-            detectHorizontalDragGestures(
-              onDragStart = { dragging = true },
-              onDragEnd = {
-                val completed = if (isPowered == true) maxDragPx - dragPositionPx else dragPositionPx
-                if (completed >= maxDragPx * CompletionThreshold) {
-                  activate()
-                } else {
+        // Thumb — positioned via graphicsLayer reading the snapshot state so
+        // dragging never recomposes the subtree per pixel: `graphicsLayer`
+        // observes `dragPositionPx` in the draw phase only (no composition
+        // pass), while `thumbAnimPx` drives the non-drag snap/spring animation.
+        Box(
+          modifier = Modifier
+            .align(Alignment.CenterStart)
+            .graphicsLayer {
+              translationX = if (dragging || awaitingResult) dragPositionPx else thumbAnimPx
+              this.translationX += shakeX.value
+            }
+            .size(ThumbSize.dp)
+            .testTag("slide-power-thumb")
+            .background(thumbBackground ?: CyberHomeColors.card, CircleShape)
+            .border(1.dp, if (thumbBackground != null) Color.Transparent else CyberHomeColors.line, CircleShape)
+            .pointerInput(canSlide, isPowered, maxDragPx) {
+              if (!canSlide) return@pointerInput
+              detectHorizontalDragGestures(
+                onDragStart = { dragging = true },
+                onDragEnd = {
+                  val completed = if (isPowered == true) maxDragPx - dragPositionPx else dragPositionPx
+                  if (completed >= maxDragPx * CompletionThreshold) {
+                    activate()
+                  } else {
+                    dragging = false
+                    dragPositionPx = if (currentIsPowered == true) maxDragPx else 0f
+                  }
+                },
+                onDragCancel = {
                   dragging = false
                   dragPositionPx = if (currentIsPowered == true) maxDragPx else 0f
-                }
-              },
-              onDragCancel = {
-                dragging = false
-                dragPositionPx = if (currentIsPowered == true) maxDragPx else 0f
-              },
-              onHorizontalDrag = { change, dragAmount ->
-                change.consume()
-                dragPositionPx = (dragPositionPx + dragAmount).coerceIn(0f, maxDragPx)
-              },
-            )
-          },
-        contentAlignment = Alignment.Center,
-      ) {
-        Crossfade(
-          targetState = awaitingResult,
-          animationSpec = tween(AppMotion.status),
-          label = "powerThumbContent",
-        ) { awaiting ->
-          if (awaiting) {
-            CircularProgressIndicator(
-              modifier = Modifier.size(24.dp),
-              strokeWidth = 2.5.dp,
-              color = thumbContentColor ?: CyberHomeColors.ink,
-            )
-          } else {
-            LucideIcon(icon = Lucide.power, size = 28.dp, color = thumbContentColor ?: CyberHomeColors.ink)
+                },
+                onHorizontalDrag = { change, dragAmount ->
+                  change.consume()
+                  dragPositionPx = (dragPositionPx + dragAmount).coerceIn(0f, maxDragPx)
+                },
+              )
+            },
+          contentAlignment = Alignment.Center,
+        ) {
+          Crossfade(
+            targetState = awaitingResult,
+            animationSpec = tween(AppMotion.status),
+            label = "powerThumbContent",
+          ) { awaiting ->
+            if (awaiting) {
+              CircularProgressIndicator(
+                modifier = Modifier.size(24.dp),
+                strokeWidth = 2.5.dp,
+                color = thumbContentColor ?: CyberHomeColors.ink,
+              )
+            } else {
+              LucideIcon(icon = Lucide.power, size = 28.dp, color = thumbContentColor ?: CyberHomeColors.ink)
+            }
           }
         }
-      }
 
-      // Success overlay.
-      if (showSuccess) {
-        Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
-          Box(
-            modifier = Modifier
-              .graphicsLayer {
-                scaleX = successScale.value
-                scaleY = successScale.value
-              }
-              .size(44.dp)
-              .background(CyberHomeColors.primary.copy(alpha = 0.14f), CircleShape),
-            contentAlignment = Alignment.Center,
-          ) {
-            LucideIcon(icon = Lucide.check, size = 22.dp, color = CyberHomeColors.success)
+        // Success overlay.
+        if (showSuccess) {
+          Box(modifier = Modifier.matchParentSize(), contentAlignment = Alignment.Center) {
+            Box(
+              modifier = Modifier
+                .graphicsLayer {
+                  scaleX = successScale.value
+                  scaleY = successScale.value
+                }
+                .size(44.dp)
+                .background(CyberHomeColors.primary.copy(alpha = 0.14f), CircleShape),
+              contentAlignment = Alignment.Center,
+            ) {
+              LucideIcon(icon = Lucide.check, size = 22.dp, color = CyberHomeColors.success)
+            }
           }
         }
       }

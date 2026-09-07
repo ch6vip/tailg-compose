@@ -4,7 +4,7 @@
 
 - 点击切换页面；重复点击当前页面不会重复导航。
 - 横向拖动时底托跟手，松手后切换到目标页面，取消拖动则回到当前页面。拖动经过其他入口时不会打开它们。
-- 选项通过现有 AppPreferencesService / DataStore 保存，对 Cyber、九号及深浅主题生效。
+- 选项通过现有 AppPreferencesService / DataStore 保存，对 VECTOR、九号及深浅主题生效。
 - 底栏避让系统导航区和横向安全区，大屏居中显示，沿用系统字体缩放和动效设置；图标使用 Lucide。
 
 外形与交互参考 KernelSU Manager 的 `ui/component/FloatingBottomBar.kt` 非模糊模式，使用项目现有 Compose API 实现。主体位于 `FloatingBottomBar.kt`，通过 `TailgNavHost` 接入原有导航逻辑。

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="lucide_date_select">Select date</string>
+    <string name="lucide_date_input">Enter date</string>
+    <string name="lucide_date_show_calendar">Switch to calendar</string>
+    <string name="lucide_date_show_input">Enter date manually</string>
+    <string name="lucide_date_previous_month">Previous month</string>
+    <string name="lucide_date_next_month">Next month</string>
+    <string name="lucide_date_select_year">Select year</string>
+    <string name="lucide_date_show_days">Back to calendar</string>
+    <string name="lucide_date_year">Year</string>
+    <string name="lucide_date_month">Month</string>
+    <string name="lucide_date_day">Day</string>
+    <string name="lucide_date_invalid">Enter a valid date</string>
+    <string name="lucide_date_range">Available years: %1$s–%2$s</string>
+    <string name="lucide_date_unavailable">This date is unavailable</string>
+    <string name="lucide_date_today">Today, %1$s</string>
+</resources>

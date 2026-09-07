@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vector_control_range">Remaining range</string>
+    <string name="vector_control_controls">Control</string>
+    <string name="vector_control_power">Vehicle power</string>
+    <string name="vector_control_ride">Ride</string>
+    <string name="vector_control_power_unknown">Power unknown</string>
+    <string name="vector_control_lock_unknown">Lock state unknown</string>
+    <string name="vector_control_battery_description">Battery details, remaining range %1$s, battery %2$s</string>
+</resources>

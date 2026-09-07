@@ -143,7 +143,7 @@
     <string name="settings_ui_mode">UI style</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_desc">Dark mode, floating bottom bar and page scale</string>
-    <string name="theme_ui_mode_cyber">Cyber</string>
+    <string name="theme_ui_mode_vector">VECTOR</string>
     <string name="theme_ui_mode_ninebot">Ninebot</string>
     <string name="theme_mode_system">Follow system</string>
     <string name="theme_mode_light">Light</string>
@@ -305,4 +305,22 @@
     <string name="control_channel_mqtt_retry">MQTT reconnecting</string>
     <string name="control_channel_cloud_standby">Cloud standby</string>
     <string name="control_channel_unavailable">Unavailable</string>
+    <string name="map_stats_vehicle_location">Vehicle location %s</string>
+    <string name="profile_about_us">About us</string>
+    <string name="profile_edit_nickname">Edit nickname</string>
+    <string name="profile_login_now">Sign in</string>
+    <string name="profile_phone">Phone number</string>
+    <string name="profile_section_account">Account &amp; support</string>
+    <string name="profile_switch_vehicle">Switch default vehicle</string>
+    <string name="profile_unbound">Not linked</string>
+    <string name="service_fault_diag">Diagnostics</string>
+    <string name="service_fault_diag_desc">Vehicle health and troubleshooting</string>
+    <string name="service_official_account">Official account</string>
+    <string name="service_official_account_desc">Cloud sign-in and account sync</string>
+    <string name="service_vehicle_energy">Vehicle &amp; energy</string>
+    <string name="vehicle_header_offline">Offline</string>
+    <string name="vehicle_header_online">Online</string>
+    <string name="vehicle_header_powered">Powered on</string>
+    <string name="vehicle_header_unknown">Unknown</string>
+    <string name="vehicle_header_unpowered">Powered off</string>
 </resources>

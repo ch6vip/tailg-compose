@@ -70,6 +70,7 @@ import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.ui.components.BottomNavDestination
 import com.tailg.plus.ui.components.BottomNavigationContainerAlpha
+import com.tailg.plus.ui.components.VectorThemeMiniature
 import com.tailg.plus.ui.components.NinebotIcon
 import com.tailg.plus.ui.components.NinebotLucide
 import com.tailg.plus.ui.components.material.ExpressiveScaffold
@@ -77,8 +78,8 @@ import com.tailg.plus.ui.components.material.ExpressiveSwitch
 import com.tailg.plus.ui.components.material.ExpressiveToggleButton
 import com.tailg.plus.ui.components.material.TonalCard
 import com.tailg.plus.ui.components.material.expressiveTopAppBarColors
-import com.tailg.plus.ui.theme.CyberDarkColorScheme
-import com.tailg.plus.ui.theme.CyberLightColorScheme
+import com.tailg.plus.ui.theme.VectorDarkColorScheme
+import com.tailg.plus.ui.theme.VectorLightColorScheme
 import com.tailg.plus.ui.theme.ColorMode
 import com.tailg.plus.ui.theme.NinebotDarkColorScheme
 import com.tailg.plus.ui.theme.NinebotLightColorScheme
@@ -93,7 +94,7 @@ import com.tailg.plus.ui.components.AppSnackbarHost
  * Theme settings — KernelSU-derived chrome with the Tailg skin system:
  * mini-phone preview (follows the active UI style), text mode tabs
  * (跟随系统/浅色/深色), optional floating navigation and the page-scale slider. UI style
- * (Cyber / 九号) is picked in 设置 → 界面风格.
+ * (VECTOR / 九号) is picked in 设置 → 界面风格.
  */
 @Composable
 fun ThemeSettingsScreen(
@@ -103,7 +104,7 @@ fun ThemeSettingsScreen(
     val scope = rememberCoroutineScope()
     val prefs = preferencesService ?: rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
-    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
+    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.VECTOR.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     val floatingBottomBar by prefs.floatingBottomBar.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
@@ -317,7 +318,7 @@ fun ThemeSettingsScreen(
 }
 
 /**
- * Mini-phone mockup preview rendering the active UI style (Cyber or 九号)
+ * Mini-phone mockup preview rendering the active UI style (VECTOR or 九号)
  * under the given dark/AMOLED combination.
  */
 @Composable
@@ -333,7 +334,7 @@ private fun ThemePreviewCard(
     val screenRatio = screenWidth / screenHeight
 
     val colorScheme = when (uiMode) {
-        UiMode.CYBER -> if (isDark) CyberDarkColorScheme else CyberLightColorScheme
+        UiMode.VECTOR -> if (isDark) VectorDarkColorScheme else VectorLightColorScheme
         UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }.amoledBackground(isAmoled)
     val barHorizontalPadding by animateDpAsState(if (floatingBottomBar) 8.dp else 6.dp, label = "previewBarMargin")
@@ -364,7 +365,7 @@ private fun ThemePreviewCard(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             Text(
-                                text = stringResource(id = R.string.app_name),
+                                text = if (uiMode == UiMode.VECTOR) "VECTOR" else stringResource(id = R.string.app_name),
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = colorScheme.onSurface
                             )
@@ -372,30 +373,34 @@ private fun ThemePreviewCard(
                     }
 
                     BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                        val showInfoCard = maxHeight >= 72.dp
-                        Column(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .padding(horizontal = 6.dp, vertical = 2.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            TonalCard(
-                                containerColor = colorScheme.secondaryContainer,
+                        if (uiMode == UiMode.VECTOR) {
+                            VectorThemeMiniature(colorScheme)
+                        } else {
+                            val showInfoCard = maxHeight >= 72.dp
+                            Column(
                                 modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(40.dp),
-                                shape = RoundedCornerShape(8.dp),
-                                content = { }
-                            )
-                            if (showInfoCard) {
+                                    .fillMaxSize()
+                                    .padding(horizontal = 6.dp, vertical = 2.dp),
+                                verticalArrangement = Arrangement.spacedBy(6.dp)
+                            ) {
                                 TonalCard(
-                                    containerColor = colorScheme.surfaceBright,
+                                    containerColor = colorScheme.secondaryContainer,
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .weight(1f),
+                                        .height(40.dp),
                                     shape = RoundedCornerShape(8.dp),
                                     content = { }
                                 )
+                                if (showInfoCard) {
+                                    TonalCard(
+                                        containerColor = colorScheme.surfaceBright,
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .weight(1f),
+                                        shape = RoundedCornerShape(8.dp),
+                                        content = { }
+                                    )
+                                }
                             }
                         }
                     }
@@ -411,7 +416,7 @@ private fun ThemePreviewCard(
                         .padding(top = 4.dp, bottom = barBottomPadding)
                         .fillMaxWidth()
                         .testTag(if (floatingBottomBar) "theme-preview-floating-bar" else "theme-preview-classic-bar"),
-                    shape = CircleShape,
+                    shape = if (uiMode == UiMode.VECTOR && !floatingBottomBar) RoundedCornerShape(10.dp) else CircleShape,
                     shadowElevation = if (floatingBottomBar) 4.dp else 0.dp,
                     border = BorderStroke(0.5.dp, colorScheme.outlineVariant),
                 ) {
@@ -430,17 +435,21 @@ private fun ThemePreviewCard(
                                     .height(24.dp)
                                     .background(
                                         if (selected) {
-                                            if (floatingBottomBar) colorScheme.primary.copy(alpha = 0.15f)
-                                            else colorScheme.secondaryContainer
+                                            if (uiMode == UiMode.VECTOR || !floatingBottomBar) colorScheme.secondaryContainer
+                                            else colorScheme.primary.copy(alpha = 0.15f)
                                         } else androidx.compose.ui.graphics.Color.Transparent,
-                                        CircleShape,
+                                        if (uiMode == UiMode.VECTOR && !floatingBottomBar) RoundedCornerShape(7.dp) else CircleShape,
                                     ),
                                 contentAlignment = Alignment.Center,
                             ) {
                                 NinebotIcon(
                                     destination.iconRes,
                                     size = 14.dp,
-                                    color = if (selected && floatingBottomBar) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                    color = when {
+                                        selected && uiMode == UiMode.VECTOR -> colorScheme.onSecondaryContainer
+                                        selected && floatingBottomBar -> colorScheme.primary
+                                        else -> colorScheme.onSurfaceVariant
+                                    },
                                 )
                             }
                         }

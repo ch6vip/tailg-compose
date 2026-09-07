@@ -42,6 +42,8 @@ import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalUiMode
+import com.tailg.plus.ui.theme.UiMode
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 
@@ -79,63 +81,67 @@ fun ServiceHubScreen(
         .padding(padding)
         .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
     ) {
-      // Title block (Dart inlines the header instead of using CyberPageHeader).
-      Column(
-        modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
-      ) {
-        Text(
-          text = stringResource(R.string.service_title),
-          style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        )
-        Spacer(Modifier.height(6.dp))
-        Text(
-          text = stringResource(R.string.service_subtitle),
-          style = TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.4f, color = CyberHomeColors.inkMuted),
-        )
-      }
+      if (LocalUiMode.current == UiMode.VECTOR) {
+        VectorServiceContent(vehicleRouteId = vehicleRouteId, onNavigate = onNavigate)
+      } else {
+        // Title block (Dart inlines the header instead of using CyberPageHeader).
+        Column(
+          modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 20.dp, bottom = 8.dp),
+        ) {
+          Text(
+            text = stringResource(R.string.service_title),
+            style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+          )
+          Spacer(Modifier.height(6.dp))
+          Text(
+            text = stringResource(R.string.service_subtitle),
+            style = TextStyle(fontSize = 13.sp, lineHeight = 13.sp * 1.4f, color = CyberHomeColors.inkMuted),
+          )
+        }
 
-      // Hoisted so the tiles' lambdas stay identical across recompositions
-      // (fresh lists would defeat GlyphSection skipping).
-      val locationItems = remember(vehicleRouteId, onNavigate) {
-        listOf(
-          GlyphItem(Lucide.mapPin, strLocation) { onNavigate(Routes.location(vehicleRouteId)) },
-          GlyphItem(Lucide.route, strTravel) { onNavigate(Routes.location(vehicleRouteId, "travel")) },
-          GlyphItem(Lucide.fence, strFence) { onNavigate(Routes.location(vehicleRouteId, "fence")) },
-        )
-      }
-      val vehicleItems = remember(vehicleRouteId, onNavigate) {
-        listOf(
-          GlyphItem(Lucide.tune, strVehicleSettings) { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
-          GlyphItem(Lucide.battery, strBattery) { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
-          GlyphItem(Lucide.chart, strRideStats) { onNavigate(Routes.rideStats(vehicleRouteId)) },
-        )
-      }
+        // Hoisted so the tiles' lambdas stay identical across recompositions
+        // (fresh lists would defeat GlyphSection skipping).
+        val locationItems = remember(vehicleRouteId, onNavigate) {
+          listOf(
+            GlyphItem(Lucide.mapPin, strLocation) { onNavigate(Routes.location(vehicleRouteId)) },
+            GlyphItem(Lucide.route, strTravel) { onNavigate(Routes.location(vehicleRouteId, "travel")) },
+            GlyphItem(Lucide.fence, strFence) { onNavigate(Routes.location(vehicleRouteId, "fence")) },
+          )
+        }
+        val vehicleItems = remember(vehicleRouteId, onNavigate) {
+          listOf(
+            GlyphItem(Lucide.tune, strVehicleSettings) { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
+            GlyphItem(Lucide.battery, strBattery) { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
+            GlyphItem(Lucide.chart, strRideStats) { onNavigate(Routes.rideStats(vehicleRouteId)) },
+          )
+        }
 
-      ServiceSectionLabel(stringResource(R.string.service_location_section))
-      GlyphSection(items = locationItems)
+        ServiceSectionLabel(stringResource(R.string.service_location_section))
+        GlyphSection(items = locationItems)
 
-      ServiceSectionLabel(stringResource(R.string.service_vehicle_energy))
-      GlyphSection(items = vehicleItems)
+        ServiceSectionLabel(stringResource(R.string.service_vehicle_energy))
+        GlyphSection(items = vehicleItems)
 
-      ServiceSectionLabel(stringResource(R.string.service_more))
-      ServiceListCard {
-        ServiceListTile(
-          icon = Lucide.stethoscope,
-          title = stringResource(R.string.service_fault_diag),
-          subtitle = stringResource(R.string.service_fault_diag_desc),
-          onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
-        )
-        HorizontalDivider(
-          thickness = 1.dp,
-          color = CyberHomeColors.line,
-          modifier = Modifier.padding(start = 60.dp),
-        )
-        ServiceListTile(
-          icon = Lucide.cloud,
-          title = stringResource(R.string.service_official_account),
-          subtitle = stringResource(R.string.service_official_account_desc),
-          onClick = { onNavigate(Routes.OFFICIAL_CLOUD) },
-        )
+        ServiceSectionLabel(stringResource(R.string.service_more))
+        ServiceListCard {
+          ServiceListTile(
+            icon = Lucide.stethoscope,
+            title = stringResource(R.string.service_fault_diag),
+            subtitle = stringResource(R.string.service_fault_diag_desc),
+            onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
+          )
+          HorizontalDivider(
+            thickness = 1.dp,
+            color = CyberHomeColors.line,
+            modifier = Modifier.padding(start = 60.dp),
+          )
+          ServiceListTile(
+            icon = Lucide.cloud,
+            title = stringResource(R.string.service_official_account),
+            subtitle = stringResource(R.string.service_official_account_desc),
+            onClick = { onNavigate(Routes.OFFICIAL_CLOUD) },
+          )
+        }
       }
     }
   }

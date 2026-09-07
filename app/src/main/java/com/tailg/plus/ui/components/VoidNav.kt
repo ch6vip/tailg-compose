@@ -22,7 +22,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
@@ -35,11 +37,17 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
+import com.tailg.plus.ui.theme.LocalUiMode
+import com.tailg.plus.ui.theme.UiMode
+import com.tailg.plus.ui.theme.VectorFontFamily
+import androidx.compose.ui.text.font.FontFamily
 
 /**
  * Port of `lib/widgets/void_nav.dart` — four-entry floating nav
@@ -70,7 +78,9 @@ fun VoidOrbitalNav(
   onSettings: () -> Unit,
 ) {
   val haptics = LocalHapticFeedback.current
-  val shape = RoundedCornerShape(AppRadii.pill)
+  val vector = LocalUiMode.current == UiMode.VECTOR
+  val shape = RoundedCornerShape(if (vector) 22.dp else AppRadii.pill)
+  val borderColor = if (vector) MaterialTheme.colorScheme.outlineVariant else CyberHomeColors.white
 
   Box(
     modifier = modifier
@@ -96,12 +106,11 @@ fun VoidOrbitalNav(
           .clip(shape)
           .background(CyberHomeColors.navSurface.copy(alpha = BottomNavigationContainerAlpha)),
       )
-      // Border layer drawn on its own Box so the 1dp white stroke is not
-      // clipped by the rounded clip (Dart BoxDecoration border + borderRadius).
+      // Keep the fine outline outside the clipped background.
       Box(
         modifier = Modifier
           .matchParentSize()
-          .border(1.dp, CyberHomeColors.white, shape),
+          .border(1.dp, borderColor, shape),
       )
       // Content layer: crisp icons + labels, clipped to the pill.
       Row(
@@ -163,18 +172,24 @@ private fun RowScope.NavItem(
   onTap: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val vector = LocalUiMode.current == UiMode.VECTOR
+  val colors = MaterialTheme.colorScheme
   val color by animateColorAsState(
-    targetValue = if (selected) CyberHomeColors.ink else CyberHomeColors.inkSecondary,
+    targetValue = if (selected) {
+      if (vector) colors.onSecondaryContainer else CyberHomeColors.ink
+    } else CyberHomeColors.inkSecondary,
     animationSpec = tween(AppMotion.standard),
     label = "navColor",
   )
   val pillColor by animateColorAsState(
-    targetValue = if (selected) CyberHomeColors.navSelected else Color.Transparent,
+    targetValue = if (selected) {
+      if (vector) colors.secondaryContainer else CyberHomeColors.navSelected
+    } else Color.Transparent,
     animationSpec = tween(AppMotion.standard, easing = AppMotion.pressCurve),
     label = "navPill",
   )
   val bgRadius by animateDpAsState(
-    targetValue = AppRadii.pill,
+    targetValue = if (vector) 16.dp else AppRadii.pill,
     animationSpec = tween(AppMotion.standard, easing = AppMotion.pressCurve),
     label = "navPillRadius",
   )
@@ -195,15 +210,21 @@ private fun RowScope.NavItem(
   ) {
     NinebotIcon(icon = icon, size = 21.dp, color = color)
     Spacer(Modifier.height(3.dp))
-    Text(
+    BasicText(
       text = label,
+      modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
       style = androidx.compose.ui.text.TextStyle(
         fontSize = 10.sp,
-        lineHeight = 10.sp,
+        lineHeight = 13.sp,
         fontWeight = if (selected) FontWeight.W700 else FontWeight.W500,
+        fontFamily = if (vector) VectorFontFamily else FontFamily.Default,
         letterSpacing = 0.sp,
         color = color,
+        textAlign = TextAlign.Center,
       ),
+      autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = 10.sp),
+      maxLines = 1,
+      overflow = TextOverflow.Ellipsis,
     )
   }
 }

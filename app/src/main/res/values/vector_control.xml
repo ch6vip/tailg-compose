@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="vector_control_wordmark" translatable="false">VECTOR</string>
+    <string name="vector_control_range">剩余续航</string>
+    <string name="vector_control_controls">操控</string>
+    <string name="vector_control_power">车辆电源</string>
+    <string name="vector_control_ride">骑行</string>
+    <string name="vector_control_power_unknown">电源状态未知</string>
+    <string name="vector_control_lock_unknown">设防状态未知</string>
+    <string name="vector_control_battery_description">电池详情，剩余续航 %1$s，电量 %2$s</string>
+</resources>

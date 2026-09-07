@@ -1,6 +1,7 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,12 +16,11 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MenuDefaults
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Switch
@@ -49,6 +49,8 @@ import com.tailg.plus.ui.components.CyberSectionLabel
 import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
+import com.tailg.plus.ui.components.VectorSettingsHeader
+import com.tailg.plus.ui.components.VectorSettingsSection
 import com.tailg.plus.ui.components.cyberCaptionStyle
 import com.tailg.plus.ui.components.cyberItemTitleStyle
 import com.tailg.plus.ui.components.material.OffsetAnchoredExpressiveMenu
@@ -56,6 +58,7 @@ import com.tailg.plus.ui.components.material.trackPressPosition
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.UiMode
+import com.tailg.plus.ui.theme.LocalUiMode
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
 import androidx.compose.material3.SnackbarHostState
@@ -93,7 +96,7 @@ fun SettingsScreen(
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
-  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
+  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.VECTOR.value)
   val currentUiMode = UiMode.fromValue(uiMode)
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
@@ -109,8 +112,12 @@ fun SettingsScreen(
         .padding(padding)
         .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
     ) {
-      CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
-      CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
+      if (LocalUiMode.current == UiMode.VECTOR && !showBack) {
+        VectorSettingsHeader(onTheme = { onNavigate(Routes.THEME) })
+      } else {
+        CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
+      }
+      SettingsSection("01", stringResource(R.string.settings_account_vehicle))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.garage,
@@ -119,7 +126,7 @@ fun SettingsScreen(
           onClick = { onNavigate(Routes.GARAGE) },
         ),
       )
-      CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
+      SettingsSection("02", stringResource(R.string.settings_vehicle_usage))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.tune,
@@ -134,7 +141,7 @@ fun SettingsScreen(
           onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
         ),
       )
-      CyberSectionLabel(stringResource(R.string.settings_general))
+      SettingsSection("03", stringResource(R.string.settings_general))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.languages,
@@ -171,7 +178,7 @@ fun SettingsScreen(
           },
         ),
       )
-      CyberSectionLabel(stringResource(R.string.settings_appearance))
+      SettingsSection("04", stringResource(R.string.settings_appearance))
       // 界面风格 — KernelSU-style: the row opens an expressive dropdown menu
       // anchored at the press position (SegmentedDropdownItem UX), not a sheet.
       var showUiModeMenu by remember { mutableStateOf(false) }
@@ -209,7 +216,7 @@ fun SettingsScreen(
               shapes = MenuDefaults.itemShape(index = index, count = UiMode.entries.size),
               selectedLeadingIcon = {
                 Icon(
-                  Icons.Filled.Check,
+                  Lucide.check,
                   contentDescription = null,
                   modifier = Modifier.size(MenuDefaults.LeadingIconSize),
                 )
@@ -218,7 +225,7 @@ fun SettingsScreen(
           }
         }
       }
-      CyberSectionLabel(stringResource(R.string.settings_about))
+      SettingsSection("05", stringResource(R.string.settings_about))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.info,
@@ -231,11 +238,17 @@ fun SettingsScreen(
   }
 }
 
-/** Label for the UI-style picker (Cyber / 九号). */
+/** Public names of the available UI styles. */
 @Composable
 internal fun uiModeLabel(mode: UiMode): String = when (mode) {
-  UiMode.CYBER -> stringResource(R.string.theme_ui_mode_cyber)
+  UiMode.VECTOR -> stringResource(R.string.theme_ui_mode_vector)
   UiMode.NINEBOT -> stringResource(R.string.theme_ui_mode_ninebot)
+}
+
+@Composable
+private fun SettingsSection(index: String, title: String) {
+  if (LocalUiMode.current == UiMode.VECTOR) VectorSettingsSection(index, title)
+  else CyberSectionLabel(title)
 }
 
 /**
@@ -282,6 +295,20 @@ fun AdvancedDiagnosticsScreen(
 /** Dart `_group`: a [CyberCard] that stacks [items] with inset dividers between them. */
 @Composable
 internal fun SettingsGroup(vararg items: SettingItemModel) {
+  if (LocalUiMode.current == UiMode.VECTOR) {
+    Column(
+      Modifier.padding(horizontal = 20.dp).fillMaxWidth()
+        .clip(MaterialTheme.shapes.medium)
+        .background(MaterialTheme.colorScheme.surface)
+        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium),
+    ) {
+      items.forEachIndexed { index, item ->
+        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
+        SettingItemRow(item)
+      }
+    }
+    return
+  }
   CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
     Column {
       items.forEachIndexed { index, item ->

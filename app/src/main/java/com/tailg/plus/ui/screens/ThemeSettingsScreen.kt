@@ -1,11 +1,14 @@
 package com.tailg.plus.ui.screens
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
@@ -14,23 +17,26 @@ import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.captionBar
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawing
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicText
+import androidx.compose.foundation.text.TextAutoSize
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.rounded.AspectRatio
 import androidx.compose.material3.ButtonGroupDefaults
-import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.LargeFlexibleTopAppBar
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
@@ -50,19 +56,25 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.role
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.R
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.di.rememberTailgEntryPoint
+import com.tailg.plus.ui.components.BottomNavDestination
+import com.tailg.plus.ui.components.NinebotIcon
+import com.tailg.plus.ui.components.NinebotLucide
 import com.tailg.plus.ui.components.material.ExpressiveScaffold
+import com.tailg.plus.ui.components.material.ExpressiveSwitch
 import com.tailg.plus.ui.components.material.ExpressiveToggleButton
 import com.tailg.plus.ui.components.material.TonalCard
-import com.tailg.plus.ui.components.material.TopBarBackButton
 import com.tailg.plus.ui.components.material.expressiveTopAppBarColors
 import com.tailg.plus.ui.theme.CyberDarkColorScheme
 import com.tailg.plus.ui.theme.CyberLightColorScheme
@@ -76,7 +88,7 @@ import kotlinx.coroutines.launch
 /**
  * Theme settings — KernelSU-derived chrome with the Tailg skin system:
  * mini-phone preview (follows the active UI style), text mode tabs
- * (跟随系统/浅色/深色) and the global page-scale slider. UI style
+ * (跟随系统/浅色/深色), optional floating navigation and the page-scale slider. UI style
  * (Cyber / 九号) is picked in 设置 → 界面风格.
  */
 @Composable
@@ -89,6 +101,7 @@ fun ThemeSettingsScreen(
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
     val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
+    val floatingBottomBar by prefs.floatingBottomBar.collectAsStateWithLifecycle()
     LaunchedEffect(Unit) { prefs.init() }
 
     val currentColorMode = ColorMode.fromValue(themeMode)
@@ -101,7 +114,20 @@ fun ThemeSettingsScreen(
         topBar = {
             LargeFlexibleTopAppBar(
                 navigationIcon = {
-                    TopBarBackButton(onClick = onBack)
+                    IconButton(
+                        onClick = onBack,
+                        modifier = Modifier.padding(horizontal = 10.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            contentColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        ),
+                    ) {
+                        NinebotIcon(
+                            NinebotLucide.arrowLeft,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            contentDescription = stringResource(R.string.common_back),
+                        )
+                    }
                 },
                 title = { Text(stringResource(R.string.settings_theme)) },
                 colors = expressiveTopAppBarColors(),
@@ -127,6 +153,7 @@ fun ThemeSettingsScreen(
                 uiMode = currentUiMode,
                 isDark = isDark,
                 isAmoled = isAmoled,
+                floatingBottomBar = floatingBottomBar,
             )
 
             Column(
@@ -148,7 +175,7 @@ fun ThemeSettingsScreen(
                 }
 
                 Row(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min),
                     horizontalArrangement = Arrangement.spacedBy(ButtonGroupDefaults.ConnectedSpaceBetween)
                 ) {
                     modeOptions.forEachIndexed { index, (mode, label) ->
@@ -162,6 +189,7 @@ fun ThemeSettingsScreen(
                             },
                             modifier = Modifier
                                 .weight(1f)
+                                .fillMaxHeight()
                                 .semantics { role = Role.RadioButton },
                             shapes = when (index) {
                                 0 -> ButtonGroupDefaults.connectedLeadingButtonShapes()
@@ -169,16 +197,61 @@ fun ThemeSettingsScreen(
                                 else -> ButtonGroupDefaults.connectedMiddleButtonShapes()
                             },
                         ) {
-                            Text(
+                            BasicText(
                                 text = label,
-                                style = MaterialTheme.typography.labelLarge,
-                                maxLines = 1
+                                style = MaterialTheme.typography.labelLarge.copy(
+                                    color = LocalContentColor.current,
+                                    textAlign = TextAlign.Center,
+                                ),
+                                autoSize = TextAutoSize.StepBased(minFontSize = 11.sp, maxFontSize = 14.sp),
+                                maxLines = 2,
                             )
                         }
                     }
                 }
 
-                TonalCard(modifier = Modifier.padding(top = 4.dp)) {
+                TonalCard(modifier = Modifier.fillMaxWidth().padding(top = 4.dp)) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("theme-floating-bottom-bar-toggle")
+                            .toggleable(
+                                value = floatingBottomBar,
+                                role = Role.Switch,
+                                onValueChange = { enabled ->
+                                    haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
+                                    scope.launch { prefs.setFloatingBottomBar(enabled) }
+                                },
+                            )
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    ) {
+                        NinebotIcon(NinebotLucide.panelBottom, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(stringResource(R.string.theme_floating_bottom_bar), style = MaterialTheme.typography.titleMedium)
+                            Text(
+                                stringResource(R.string.theme_floating_bottom_bar_summary),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        ExpressiveSwitch(
+                            checked = floatingBottomBar,
+                            onCheckedChange = null,
+                            thumbContent = {
+                                NinebotIcon(
+                                    if (floatingBottomBar) NinebotLucide.check else NinebotLucide.x,
+                                    size = 16.dp,
+                                    color = if (floatingBottomBar) MaterialTheme.colorScheme.primary
+                                        else MaterialTheme.colorScheme.surfaceContainerHighest,
+                                )
+                            },
+                        )
+                    }
+                }
+
+                TonalCard {
                     var sliderValue by remember(pageScale) { mutableFloatStateOf(pageScale) }
 
                     Column(
@@ -189,10 +262,9 @@ fun ThemeSettingsScreen(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                Icons.Rounded.AspectRatio,
-                                contentDescription = stringResource(id = R.string.theme_page_scale),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            NinebotIcon(
+                                NinebotLucide.scaling,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
                             )
                             Spacer(modifier = Modifier.width(12.dp))
                             Column(
@@ -243,6 +315,7 @@ private fun ThemePreviewCard(
     uiMode: UiMode,
     isDark: Boolean,
     isAmoled: Boolean = false,
+    floatingBottomBar: Boolean = false,
 ) {
     val configuration = LocalConfiguration.current
     val screenWidth = configuration.screenWidthDp.toFloat()
@@ -253,6 +326,8 @@ private fun ThemePreviewCard(
         UiMode.CYBER -> if (isDark) CyberDarkColorScheme else CyberLightColorScheme
         UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }.amoledBackground(isAmoled)
+    val barHorizontalPadding by animateDpAsState(if (floatingBottomBar) 8.dp else 6.dp, label = "previewBarMargin")
+    val barBottomPadding by animateDpAsState(if (floatingBottomBar) 10.dp else 4.dp, label = "previewBarBottom")
 
     Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.TopCenter) {
         Surface(
@@ -314,20 +389,47 @@ private fun ThemePreviewCard(
                     }
                 }
 
-                // bottom bar
+                // The miniature mirrors the selected appearance without navigating away.
                 Surface(
                     color = colorScheme.surfaceContainer,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .padding(horizontal = barHorizontalPadding)
+                        .padding(top = 4.dp, bottom = barBottomPadding)
+                        .fillMaxWidth()
+                        .testTag(if (floatingBottomBar) "theme-preview-floating-bar" else "theme-preview-classic-bar"),
+                    shape = CircleShape,
+                    shadowElevation = if (floatingBottomBar) 4.dp else 0.dp,
+                    border = BorderStroke(0.5.dp, colorScheme.outlineVariant),
                 ) {
                     Row(
                         modifier = Modifier
-                            .height(40.dp)
+                            .height(30.dp)
                             .fillMaxWidth()
-                            .padding(horizontal = 8.dp),
-                        horizontalArrangement = Arrangement.Center,
+                            .padding(3.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Filled.Home, null, tint = colorScheme.primary)
+                        BottomNavDestination.entries.forEachIndexed { index, destination ->
+                            val selected = index == BottomNavDestination.CONTROL.ordinal
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(24.dp)
+                                    .background(
+                                        if (selected) {
+                                            if (floatingBottomBar) colorScheme.primary.copy(alpha = 0.15f)
+                                            else colorScheme.secondaryContainer
+                                        } else androidx.compose.ui.graphics.Color.Transparent,
+                                        CircleShape,
+                                    ),
+                                contentAlignment = Alignment.Center,
+                            ) {
+                                NinebotIcon(
+                                    destination.iconRes,
+                                    size = 14.dp,
+                                    color = if (selected && floatingBottomBar) colorScheme.primary else colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
             }

@@ -72,6 +72,9 @@ class AppPreferencesService(
     private val _pageScale = MutableStateFlow(1.0f)
     val pageScale: StateFlow<Float> = _pageScale.asStateFlow()
 
+    private val _floatingBottomBar = MutableStateFlow(false)
+    val floatingBottomBar: StateFlow<Boolean> = _floatingBottomBar.asStateFlow()
+
     private var initialized = false
     private val initMutex = Mutex()
     private val mutationMutex = Mutex()
@@ -85,6 +88,7 @@ class AppPreferencesService(
         _themeMode.value = prefs[KEY_THEME_MODE] ?: 0
         _uiMode.value = prefs[KEY_UI_MODE] ?: 0
         _pageScale.value = normalizePageScale(prefs[KEY_PAGE_SCALE] ?: 1.0f)
+        _floatingBottomBar.value = prefs[KEY_FLOATING_BOTTOM_BAR] ?: false
         initialized = true
     }
 
@@ -136,6 +140,14 @@ class AppPreferencesService(
         }.onFailure { if (it is CancellationException) throw it; logService.operation("setPageScale failed", detail = it.toString()) }
     }
 
+    suspend fun setFloatingBottomBar(value: Boolean) = mutationMutex.withLock {
+        init()
+        runCatching {
+            context.dataStore.edit { it[KEY_FLOATING_BOTTOM_BAR] = value }
+            _floatingBottomBar.value = value
+        }.onFailure { if (it is CancellationException) throw it; logService.operation("setFloatingBottomBar failed", detail = it.toString()) }
+    }
+
     private fun normalizePageScale(value: Float): Float =
         if (value.isFinite()) value.coerceIn(0.5f, 2.0f) else 1.0f
 
@@ -146,5 +158,6 @@ class AppPreferencesService(
         private val KEY_THEME_MODE = intPreferencesKey("app_theme_mode")
         private val KEY_UI_MODE = intPreferencesKey("app_ui_mode")
         private val KEY_PAGE_SCALE = floatPreferencesKey("app_page_scale")
+        private val KEY_FLOATING_BOTTOM_BAR = booleanPreferencesKey("app_floating_bottom_bar")
     }
 }

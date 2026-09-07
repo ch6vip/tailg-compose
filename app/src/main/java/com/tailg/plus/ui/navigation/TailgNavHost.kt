@@ -27,7 +27,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tailg.plus.ui.components.AppSnackbarHost
-import com.tailg.plus.ui.components.VoidOrbitalNav
+import com.tailg.plus.ui.components.TailgBottomNavigation
 import com.tailg.plus.ui.screens.MainViewModel
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
@@ -45,7 +45,7 @@ import java.util.Locale
  * - [vehicleNavGraph] — garage, control, vehicle detail screens
  * - [settingsNavGraph] — profile, settings, about screens
  *
- * Bottom-nav destinations (服务 / 控车 / 我的) share the [VoidOrbitalNav] bar;
+ * Bottom-nav destinations (服务 / 控车 / 我的 / 设置) share [TailgBottomNavigation];
  * all other routes are full-screen pushes without the bottom bar.
  */
 @Composable
@@ -106,6 +106,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
   val cloudService = vm.cloudService
+  val floatingBottomBar by vm.appPreferences.floatingBottomBar.collectAsStateWithLifecycle()
   // Narrow cloud projection — the nav scaffold only needs signed-in status and
   // the selected vehicle key. Collecting the whole `stateFlow` here used to
   // recompose the entire scaffold / bottom bar / NavHost on EVERY cloud
@@ -184,12 +185,18 @@ private fun TailgNavHostContent(vm: MainViewModel) {
           Routes.SETTINGS -> 3
           else -> 0
         }
-        VoidOrbitalNav(
+        TailgBottomNavigation(
           currentIndex = index,
-          onService = { navigateBottomTab(Routes.SERVICE_HUB) },
-          onVehicle = { navigateBottomTab(Routes.vehicleHome(vehicleRouteId)) },
-          onMine = { navigateBottomTab(Routes.PROFILE_MINE) },
-          onSettings = { navigateBottomTab(Routes.SETTINGS) },
+          floating = floatingBottomBar,
+          onSelected = { selected ->
+            val route = when (selected) {
+              0 -> Routes.SERVICE_HUB
+              1 -> Routes.vehicleHome(vehicleRouteId)
+              2 -> Routes.PROFILE_MINE
+              else -> Routes.SETTINGS
+            }
+            navigateBottomTab(route)
+          },
         )
       }
     },

@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.components
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
@@ -27,7 +28,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
@@ -52,9 +52,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  *   of the scrolling control page is a fling-jank source, so the bar uses
  *   [CyberHomeColors.navSurface] only.
  *
- * Icons: `Lucide.service` → `Icons.Filled.GridView`; `Lucide.vehicle` →
- * `Icons.Filled.DirectionsBike`; `Lucide.mine` → `Icons.Filled.Person`;
- * `Lucide.settings` → `Icons.Filled.Settings`.
+ * The original appearance uses the same Lucide vectors as the optional
+ * KernelSU-inspired floating bar.
  */
 object VoidOrbitalNav {
   const val barHeightDp = 64
@@ -117,7 +116,7 @@ fun VoidOrbitalNav(
       ) {
         NavItem(
           label = stringResource(R.string.nav_service),
-          icon = Lucide.service,
+          icon = NinebotLucide.layoutGrid,
           selected = currentIndex == 0,
           onTap = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
@@ -127,7 +126,7 @@ fun VoidOrbitalNav(
         )
         NavItem(
           label = stringResource(R.string.nav_control),
-          icon = Lucide.vehicle,
+          icon = NinebotLucide.bike,
           selected = currentIndex == 1,
           onTap = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
@@ -137,7 +136,7 @@ fun VoidOrbitalNav(
         )
         NavItem(
           label = stringResource(R.string.nav_mine),
-          icon = Lucide.mine,
+          icon = NinebotLucide.userRound,
           selected = currentIndex == 2,
           onTap = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
@@ -147,7 +146,7 @@ fun VoidOrbitalNav(
         )
         NavItem(
           label = stringResource(R.string.nav_settings),
-          icon = Lucide.settings,
+          icon = NinebotLucide.settings,
           selected = currentIndex == 3,
           onTap = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart selectionClick
@@ -163,7 +162,7 @@ fun VoidOrbitalNav(
 @Composable
 private fun RowScope.NavItem(
   label: String,
-  icon: ImageVector,
+  @DrawableRes icon: Int,
   selected: Boolean,
   onTap: () -> Unit,
   modifier: Modifier = Modifier,
@@ -198,7 +197,7 @@ private fun RowScope.NavItem(
     horizontalAlignment = Alignment.CenterHorizontally,
     verticalArrangement = Arrangement.Center,
   ) {
-    LucideIcon(icon = icon, size = 21.dp, color = color, strokeWidth = 1.9f)
+    NinebotIcon(icon = icon, size = 21.dp, color = color)
     Spacer(Modifier.height(3.dp))
     Text(
       text = label,

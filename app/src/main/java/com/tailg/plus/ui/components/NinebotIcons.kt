@@ -47,6 +47,19 @@ object NinebotLucide {
   val messageSquare: Int get() = R.drawable.ic_lucide_message_square
   val signal: Int get() = R.drawable.ic_lucide_signal
   val battery: Int get() = R.drawable.ic_lucide_battery
+  val arrowLeft: Int get() = R.drawable.ic_lucide_arrow_left
+  val arrowUpRight: Int get() = R.drawable.ic_lucide_arrow_up_right
+  val refreshCw: Int get() = R.drawable.ic_lucide_refresh_cw
+  val info: Int get() = R.drawable.ic_lucide_info
+  val circleHelp: Int get() = R.drawable.ic_lucide_circle_question_mark
+  val chevronDown: Int get() = R.drawable.ic_lucide_chevron_down
+  val triangleAlert: Int get() = R.drawable.ic_lucide_triangle_alert
+  val slidersHorizontal: Int get() = R.drawable.ic_lucide_sliders_horizontal
+  val rotateCcw: Int get() = R.drawable.ic_lucide_rotate_ccw
+  val cpu: Int get() = R.drawable.ic_lucide_cpu
+  val cloudDownload: Int get() = R.drawable.ic_lucide_cloud_download
+  val moveHorizontal: Int get() = R.drawable.ic_lucide_move_horizontal
+  val x: Int get() = R.drawable.ic_lucide_x
 
   /** 官方「更多功能」实心六角螺母(中心圆孔,evenOdd),单色可 tint。 */
   val nutFilled: Int get() = R.drawable.ic_nb_nut_filled

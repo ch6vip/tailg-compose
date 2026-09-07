@@ -76,6 +76,8 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
+import com.tailg.plus.ui.theme.LocalUiMode
+import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.util.BatteryHelpCopy
 import com.tailg.plus.util.formatDistanceKilometersText
 import com.tailg.plus.util.formatRelativeSyncText
@@ -145,7 +147,8 @@ fun BatteryDetailsScreen(
       officialBmsInfo = cloudState.bmsInfo,
     )
   }
-  val loading = cloudState.batteryInfoLoading || cloudState.bmsInfoLoading
+  var manualRefreshing by remember(vehicle?.key, cloudState.signedIn) { mutableStateOf(false) }
+  val loading = manualRefreshing || cloudState.batteryInfoLoading || cloudState.bmsInfoLoading
 
   val coulombMeterService = remember(connectionManager, cloudService, log, vehicle?.key) {
     val expectedToken = cloudService.currentState.token
@@ -188,25 +191,41 @@ fun BatteryDetailsScreen(
   }
 
   fun refreshAllBatteryData() {
+    if (manualRefreshing) return
     if (!cloudService.currentState.signedIn) {
       scope.launch { AppSnack.info(snackbarHostState, OfficialCloudMessages.SIGN_IN_REQUIRED) }
       return
     }
+    val refreshSession = cloudService.currentState
+    fun isCurrentRefresh(): Boolean {
+      val current = cloudService.currentState
+      return current.signedIn && current.token == refreshSession.token &&
+        current.selectedVehicle?.key == refreshSession.selectedVehicle?.key
+    }
+    manualRefreshing = true
     scope.launch {
+      var refreshError: String? = null
       try {
         cloudService.refreshBatteryInfo(force = true)
+        if (!isCurrentRefresh()) return@launch
         cloudService.refreshBmsInfo(force = true, silent = true)
-        val info = cloudService.currentState.batteryInfo
-        val bms = cloudService.currentState.bmsInfo
-        if (info?.hasData == true || bms?.hasData == true) {
-          AppSnack.success(snackbarHostState, strBatterySynced)
-        } else {
-          AppSnack.info(snackbarHostState, strBatterySyncedNoDetail)
-        }
       } catch (e: Exception) {
         if (e is kotlinx.coroutines.CancellationException) throw e
         log.operation(strBatteryRefreshFailed, detail = e.toString(), level = LogLevel.WARNING)
-        AppSnack.error(snackbarHostState, OfficialCloudRedactor.errorMessage(e))
+        refreshError = OfficialCloudRedactor.errorMessage(e)
+      } finally {
+        manualRefreshing = false
+      }
+      // Snackbar display suspends. Release the refresh gate before feedback,
+      // so dismissing an earlier snackbar cannot clear a newer request's gate.
+      if (!isCurrentRefresh()) return@launch
+      val current = cloudService.currentState
+      val error = refreshError ?: current.batteryInfoError ?: current.bmsInfoError
+      when {
+        error != null -> AppSnack.error(snackbarHostState, error)
+        current.batteryInfo?.hasData == true || current.bmsInfo?.hasData == true ->
+          AppSnack.success(snackbarHostState, strBatterySynced)
+        else -> AppSnack.info(snackbarHostState, strBatterySyncedNoDetail)
       }
     }
   }
@@ -281,6 +300,42 @@ fun BatteryDetailsScreen(
       onConsumeBatteryChanged()
       refreshAllBatteryData()
     }
+  }
+
+  if (LocalUiMode.current == UiMode.NINEBOT) {
+    NinebotBatteryContent(
+      state = NinebotBatteryState(
+        snapshot = data,
+        signedIn = cloudState.signedIn,
+        batteryLoading = loading,
+        bmsLoading = cloudState.bmsInfoLoading,
+        batteryError = cloudState.batteryInfoError,
+        bmsError = cloudState.bmsInfoError,
+        lastSync = cloudService.lastBatteryRefreshAt?.let { formatRelativeSyncText(it) },
+        coulomb = if (coulombSupported && !isLithium) NinebotCoulombState(
+          busy = coulombBusy,
+          enabled = coulombEnabled,
+          message = coulombMessage,
+          bleReady = bleReady,
+        ) else null,
+      ),
+      onBack = onBack,
+      onRefresh = { if (!loading) refreshAllBatteryData() },
+      onCorrect = {
+        val current = cloudService.currentState
+        when {
+          !current.signedIn -> scope.launch { AppSnack.info(snackbarHostState, OfficialCloudMessages.SIGN_IN_REQUIRED) }
+          current.selectedVehicle == null -> scope.launch { AppSnack.info(snackbarHostState, strSelectVehicleFirst) }
+          else -> onNavigate(Routes.replaceBattery("current"))
+        }
+      },
+      onAccount = { onNavigate(if (cloudState.signedIn) Routes.GARAGE else Routes.LOGIN) },
+      onCoulombToggle = { toggleCoulombMeter(it) },
+      onCoulombRefresh = { queryCoulombMeter(silent = false) },
+      snackbarHost = { NinebotBatterySnackbarHost(snackbarHostState) },
+      modifier = modifier,
+    )
+    return
   }
 
   Scaffold(

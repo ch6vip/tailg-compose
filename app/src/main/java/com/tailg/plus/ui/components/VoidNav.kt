@@ -14,11 +14,13 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawing
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -48,9 +50,8 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  *   same-named [CyberHomeColors] tokens; `AppRadii.pill` → [AppRadii.pill].
  * - `AppShadows.cyberNavShadow` → [Modifier.shadow] with
  *   [CyberHomeColors.actionShadow] spot (no dedicated nav-shadow token).
- * - Dart `BackdropFilter.blur(24)` is omitted on Android: live backdrop blur
- *   of the scrolling control page is a fling-jank source, so the bar uses
- *   [CyberHomeColors.navSurface] only.
+ * - A translucent [CyberHomeColors.navSurface] lets the page show through
+ *   without blurring the icons or labels.
  *
  * The original appearance uses the same Lucide vectors as the optional
  * KernelSU-inspired floating bar.
@@ -71,12 +72,11 @@ fun VoidOrbitalNav(
   val haptics = LocalHapticFeedback.current
   val shape = RoundedCornerShape(AppRadii.pill)
 
-  // Dart: EdgeInsets.fromLTRB(24, 0, 24, 8 + bottomInset * 0.45).
-  val bottomInset = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
   Box(
     modifier = modifier
       .fillMaxWidth()
-      .padding(start = 24.dp, end = 24.dp, bottom = 8.dp + bottomInset * 0.45f),
+      .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
+      .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
   ) {
     Box(
       modifier = Modifier
@@ -89,16 +89,12 @@ fun VoidOrbitalNav(
           spotColor = CyberHomeColors.actionShadow, // AppShadows.cyberNavShadow
         ),
     ) {
-      // Backdrop layer: the blur must apply to what is BEHIND the bar
-      // (Dart BackdropFilter), never to the bar's own icons/labels. So the
-      // renderEffect lives on a dedicated empty background layer; the content
-      // Row below it has no effect and stays crisp. alpha < 1 makes Compose
-      // capture (and blur) the backdrop instead of the layer's own content.
+      // Only the background is translucent; tab content stays fully opaque.
       Box(
         modifier = Modifier
           .matchParentSize()
           .clip(shape)
-          .background(CyberHomeColors.navSurface),
+          .background(CyberHomeColors.navSurface.copy(alpha = BottomNavigationContainerAlpha)),
       )
       // Border layer drawn on its own Box so the 1dp white stroke is not
       // clipped by the rounded clip (Dart BoxDecoration border + borderRadius).

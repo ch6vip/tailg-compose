@@ -199,7 +199,7 @@ fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier)
   val visual = AppSnackVisualState.current
   SnackbarHost(
     hostState = hostState,
-    modifier = modifier.padding(16.dp),
+    modifier = modifier.padding(bottom = LocalBottomNavigationPadding.current).padding(16.dp),
   ) { data ->
     Surface(
       shape = RoundedCornerShape(AppRadii.sm),

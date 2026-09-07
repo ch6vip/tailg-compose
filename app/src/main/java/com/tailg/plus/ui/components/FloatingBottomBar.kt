@@ -113,7 +113,7 @@ internal fun TailgBottomNavigation(
 }
 
 /**
- * Inspired by KernelSU's non-blurred floating bar: one sliding indicator,
+ * Translucent floating bar with a KernelSU-inspired sliding indicator,
  * a damped press response, and navigation committed only when a drag ends.
  * Compose handles tab focus, keyboard activation, and reduced-motion settings.
  */
@@ -172,7 +172,7 @@ internal fun FloatingBottomBar(
                 ambientColor = Color.Black.copy(alpha = if (dark) 0.2f else 0.06f),
                 spotColor = Color.Black.copy(alpha = if (dark) 0.25f else 0.12f),
             )
-            .background(colors.surfaceContainer, CircleShape)
+            .background(colors.surfaceContainer.copy(alpha = BottomNavigationContainerAlpha), CircleShape)
             .border(1.dp, colors.outlineVariant.copy(alpha = 0.45f), CircleShape)
             .clip(CircleShape)
             .selectableGroup()

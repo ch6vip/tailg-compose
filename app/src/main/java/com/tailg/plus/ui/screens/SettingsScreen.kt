@@ -46,6 +46,7 @@ import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.ui.components.CyberCard
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.CyberSectionLabel
+import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.components.cyberCaptionStyle
@@ -106,7 +107,7 @@ fun SettingsScreen(
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
         .padding(padding)
-        .padding(bottom = 32.dp),
+        .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
     ) {
       CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
       CyberSectionLabel(stringResource(R.string.settings_account_vehicle))

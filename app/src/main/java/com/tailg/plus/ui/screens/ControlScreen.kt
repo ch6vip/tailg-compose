@@ -78,6 +78,7 @@ import com.tailg.plus.ui.components.CyberControlGrid
 import com.tailg.plus.ui.components.CyberMapStatsRow
 import com.tailg.plus.ui.components.CyberRecentCommands
 import com.tailg.plus.ui.components.CyberVehicleHeader
+import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.NinebotStatsRow
 import com.tailg.plus.ui.components.NinebotVehicleHeader
 import com.tailg.plus.ui.components.OfficialBleChipState
@@ -999,7 +1000,7 @@ fun ControlScreen(
             Spacer(Modifier.height(16.dp))
             CyberRecentCommands(commands = commandActivities)
           }
-          Spacer(Modifier.height(24.dp))
+          Spacer(Modifier.height(24.dp + LocalBottomNavigationPadding.current))
         }
       }
       // Gate overlay (banner / loading skeleton) above the stable list.

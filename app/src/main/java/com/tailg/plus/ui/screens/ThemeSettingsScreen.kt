@@ -69,6 +69,7 @@ import com.tailg.plus.R
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.ui.components.BottomNavDestination
+import com.tailg.plus.ui.components.BottomNavigationContainerAlpha
 import com.tailg.plus.ui.components.NinebotIcon
 import com.tailg.plus.ui.components.NinebotLucide
 import com.tailg.plus.ui.components.material.ExpressiveScaffold
@@ -347,61 +348,65 @@ private fun ThemePreviewCard(
             shape = RoundedCornerShape(20.dp),
             border = BorderStroke(1.dp, color = colorScheme.outlineVariant)
         ) {
-            Column {
-                // top bar
-                Box(
-                    modifier = Modifier
-                        .height(48.dp)
-                        .fillMaxWidth(),
-                    contentAlignment = Alignment.TopStart
-                ) {
-                    Row(
+            Box {
+                Column(Modifier.fillMaxSize()) {
+                    // top bar
+                    Box(
                         modifier = Modifier
-                            .fillMaxSize()
-                            .padding(start = 12.dp, top = 16.dp, bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
+                            .height(48.dp)
+                            .fillMaxWidth(),
+                        contentAlignment = Alignment.TopStart
                     ) {
-                        Text(
-                            text = stringResource(id = R.string.app_name),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = colorScheme.onSurface
-                        )
-                    }
-                }
-
-                BoxWithConstraints(modifier = Modifier.weight(1f)) {
-                    val showInfoCard = maxHeight >= 72.dp
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(horizontal = 6.dp, vertical = 2.dp),
-                        verticalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        TonalCard(
-                            containerColor = colorScheme.secondaryContainer,
+                        Row(
                             modifier = Modifier
-                                .fillMaxWidth()
-                                .height(40.dp),
-                            shape = RoundedCornerShape(8.dp),
-                            content = { }
-                        )
-                        if (showInfoCard) {
+                                .fillMaxSize()
+                                .padding(start = 12.dp, top = 16.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = stringResource(id = R.string.app_name),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colorScheme.onSurface
+                            )
+                        }
+                    }
+
+                    BoxWithConstraints(modifier = Modifier.weight(1f)) {
+                        val showInfoCard = maxHeight >= 72.dp
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(horizontal = 6.dp, vertical = 2.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
                             TonalCard(
-                                containerColor = colorScheme.surfaceBright,
+                                containerColor = colorScheme.secondaryContainer,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .weight(1f),
+                                    .height(40.dp),
                                 shape = RoundedCornerShape(8.dp),
                                 content = { }
                             )
+                            if (showInfoCard) {
+                                TonalCard(
+                                    containerColor = colorScheme.surfaceBright,
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .weight(1f),
+                                    shape = RoundedCornerShape(8.dp),
+                                    content = { }
+                                )
+                            }
                         }
                     }
                 }
 
-                // The miniature mirrors the selected appearance without navigating away.
+                // Overlay the miniature bar on the cards, just like the real pages.
                 Surface(
-                    color = colorScheme.surfaceContainer,
+                    color = (if (floatingBottomBar) colorScheme.surfaceContainer else colorScheme.surfaceContainerLow)
+                        .copy(alpha = BottomNavigationContainerAlpha),
                     modifier = Modifier
+                        .align(Alignment.BottomCenter)
                         .padding(horizontal = barHorizontalPadding)
                         .padding(top = 4.dp, bottom = barBottomPadding)
                         .fillMaxWidth()

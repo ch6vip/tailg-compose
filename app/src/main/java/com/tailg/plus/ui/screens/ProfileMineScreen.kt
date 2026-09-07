@@ -63,6 +63,7 @@ import com.tailg.plus.data.model.OfficialUserProfile
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.di.rememberTailgEntryPoint
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.rememberModalBottomSheetState
 import com.tailg.plus.ui.components.AppSnackbarHost
@@ -208,7 +209,7 @@ fun ProfileMineScreen(
         .padding(padding)
         .imePadding()
         .verticalScroll(rememberScrollState())
-        .padding(top = 6.dp),
+        .padding(top = 6.dp, bottom = 16.dp + LocalBottomNavigationPadding.current),
     ) {
       Text(
         text = stringResource(R.string.nav_mine),

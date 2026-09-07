@@ -35,6 +35,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.ui.components.AppPressable
+import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.navigation.Routes
@@ -76,7 +77,7 @@ fun ServiceHubScreen(
         .fillMaxSize()
         .verticalScroll(rememberScrollState())
         .padding(padding)
-        .padding(bottom = 32.dp),
+        .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
     ) {
       // Title block (Dart inlines the header instead of using CyberPageHeader).
       Column(

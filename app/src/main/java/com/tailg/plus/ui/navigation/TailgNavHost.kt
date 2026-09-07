@@ -3,10 +3,7 @@ package com.tailg.plus.ui.navigation
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -27,6 +24,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.tailg.plus.ui.components.AppSnackbarHost
+import com.tailg.plus.ui.components.BottomNavigationScaffold
 import com.tailg.plus.ui.components.TailgBottomNavigation
 import com.tailg.plus.ui.screens.MainViewModel
 import com.tailg.plus.ui.theme.CyberHomeColors
@@ -179,9 +177,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
     }
   }
 
-  Scaffold(
-    containerColor = CyberHomeColors.pageBg,
-    contentWindowInsets = WindowInsets(0, 0, 0, 0),
+  BottomNavigationScaffold(
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
     bottomBar = {
       if (showBottomBar) {
@@ -207,13 +203,12 @@ private fun TailgNavHostContent(vm: MainViewModel) {
         )
       }
     },
-  ) { innerPadding ->
+  ) {
     NavHost(
       navController = navController,
       startDestination = startDestination,
       modifier = Modifier
         .fillMaxSize()
-        .padding(innerPadding)
         .background(CyberHomeColors.pageBg),
     ) {
       // ---- Auth graph ----

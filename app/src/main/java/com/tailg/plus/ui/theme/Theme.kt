@@ -236,7 +236,15 @@ fun TailgTheme(
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
     val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
-    LaunchedEffect(Unit) { prefs.init() }
+    LaunchedEffect(prefs) {
+        try {
+            prefs.init()
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            timber.log.Timber.tag("TailgTheme").w(e, "Appearance preferences could not be loaded")
+        }
+    }
 
     val colorMode = ColorMode.fromValue(themeMode)
     val isDark = when (colorMode) {

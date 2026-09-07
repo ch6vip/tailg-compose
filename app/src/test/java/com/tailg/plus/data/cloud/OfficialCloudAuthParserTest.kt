@@ -114,6 +114,13 @@ class OfficialCloudAuthParserTest {
   }
 
   @Test
+  fun `unicode paste is encoded as UTF-8 without crashing`() {
+    assertEquals("%E4%B8%AD%E6%96%87%E2%80%94%F0%9F%94%91",
+      OfficialCloudAuthParser.normalizeAuthorizationToken("中文\u2014\uD83D\uDD11"))
+    assertEquals("AZaz09-._~%C3%A9", OfficialCloudAuthParser.normalizeAuthorizationToken("AZaz09-._~é"))
+  }
+
+  @Test
   fun `real-world URL-encoded token passes through unchanged`() {
     val encoded = "c3fwod5KRO6B%2FPX7o6YOu81xVzPu24uGlaH5jEOudIG2d%2FKZ6i51depGp9NkWDN"
     assertEquals(encoded, OfficialCloudAuthParser.normalizeAuthorizationToken(encoded))

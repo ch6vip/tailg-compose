@@ -624,9 +624,10 @@ fun ControlScreen(
     // inside the send coroutine below (suspend check).
     viewModel.markCommandIssued(now)
     viewModel.setBusy(true, cmd)
-    val vehicleAtSend = cloudService.currentState.selectedVehicle
+    val cloudStateAtSend = cloudService.currentState
+    val vehicleAtSend = cloudStateAtSend.selectedVehicle
     val vehicleKeyAtSend = vehicleAtSend?.key
-    val tokenAtSend = cloudService.currentState.token
+    val sessionAtSend = cloudStateAtSend.sessionIdentity
     val baseline = vehicleStateSnapshot()
     val activityId = commandLog.start(cmd, strBusyFormat.format(cmd.label), strCommandSentWaiting)
     viewModel.bumpCommandVersion()
@@ -696,7 +697,7 @@ fun ControlScreen(
           }
         }
         // Abort if the selected vehicle changed mid-send (Dart 798-811).
-        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend || cloudService.currentState.token != tokenAtSend) {
+        if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend || cloudService.currentState.sessionIdentity != sessionAtSend) {
           AppSnack.error(scope, snackbarHostState, strVehicleOrChannelChanged)
           commandLog.finish(activityId, "${cmd.label}${strLogCancelled}", strConfirmChannelChanged, ControlCommandActivityStatus.CANCELLED)
           return@launch
@@ -711,7 +712,7 @@ fun ControlScreen(
         }
         val currentAvailability = viewModel.availabilityFor(cmd, includeBusy = false)
         if (cloudService.currentState.selectedVehicle?.key != vehicleKeyAtSend ||
-          cloudService.currentState.token != tokenAtSend ||
+          cloudService.currentState.sessionIdentity != sessionAtSend ||
           currentAvailability.channel != availability.channel || currentAvailability.willUseBle != availability.willUseBle
         ) {
           AppSnack.error(scope, snackbarHostState, strVehicleOrChannelChanged)

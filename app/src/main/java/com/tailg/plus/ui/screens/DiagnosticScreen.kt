@@ -196,9 +196,13 @@ data class DiagnosticRecord(
 /** Load persisted diagnostic history from DataStore. */
 private suspend fun loadHistory(context: Context, log: LogService, strLoadFailed: String): List<DiagnosticRecord> {
   return try {
-    val raw = context.diagnosticDataStore.data.first()[DIAGNOSTIC_HISTORY_KEY] ?: emptySet()
+    val raw = com.tailg.plus.data.store.withDataStoreReadTimeout {
+      context.diagnosticDataStore.data.first()
+    }[DIAGNOSTIC_HISTORY_KEY] ?: emptySet()
     raw.mapNotNull { parseRecord(it) }
       .sortedByDescending { it.time }
+  } catch (e: kotlinx.coroutines.CancellationException) {
+    throw e
   } catch (e: Exception) {
     log.operation(strLoadFailed, detail = e.toString(), level = LogLevel.WARNING)
     emptyList()

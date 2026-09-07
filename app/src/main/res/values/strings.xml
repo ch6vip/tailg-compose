@@ -533,6 +533,9 @@
     <string name="location_tap_read">点击读取</string>
     <string name="location_fence_refresh">刷新围栏</string>
     <string name="replica_nfc_keys">NFC钥匙</string>
+    <string name="replica_local_keys">本地钥匙记录</string>
+    <string name="replica_local_keys_desc">这些记录尚未绑定车辆钥匙。添加、编辑和删除只更新本机记录，不会更改车辆中的钥匙。</string>
+    <string name="replica_load_failed">本地记录加载失败，请重试</string>
     <string name="replica_local_fence">本地草稿围栏</string>
     <string name="replica_share_car">分享用车</string>
     <string name="replica_today_rides">今日骑行记录</string>

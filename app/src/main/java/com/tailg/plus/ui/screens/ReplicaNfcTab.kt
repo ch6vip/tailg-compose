@@ -51,7 +51,6 @@ import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.model.NfcKeyRecord
 import com.tailg.plus.data.store.ReplicaFeatureStore
-import com.tailg.plus.service.BleNfcService
 import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.Lucide
@@ -79,28 +78,41 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun NfcKeyTab(
   store: ReplicaFeatureStore,
-  bleNfc: BleNfcService,
+  showAddDialog: Boolean,
+  onDismissAddDialog: () -> Unit,
   snackbarHostState: SnackbarHostState,
   scope: kotlinx.coroutines.CoroutineScope,
 ) {
   var records by remember { mutableStateOf<List<NfcKeyRecord>>(emptyList()) }
   var loading by remember { mutableStateOf(true) }
+  var loaded by remember { mutableStateOf(false) }
+  var loadAttempt by remember { mutableStateOf(0) }
+  var saving by remember { mutableStateOf(false) }
   var showEditDialog by remember { mutableStateOf<NfcKeyRecord?>(null) }
-  var showAddDialog by remember { mutableStateOf(false) }
-  val strKeyDeleted = stringResource(R.string.replica_key_deleted)
-  val strKeyDeleteFailed = stringResource(R.string.replica_key_delete_failed)
-  val strKeyTypeCard = stringResource(R.string.replica_key_type_card)
-  val strKeyTypeWatch = stringResource(R.string.replica_key_type_watch)
-  val strKeyWritten = stringResource(R.string.replica_key_written)
-  val strKeyWriteFailed = stringResource(R.string.replica_key_write_failed)
-  val strNotLoggedInLocal = stringResource(R.string.replica_not_logged_in_local)
 
-  LaunchedEffect(Unit) {
-    records = store.loadNfcKeys()
-    loading = false
+  LaunchedEffect(store, loadAttempt) {
+    loading = true
+    try {
+      loaded = AppSnack.runAction(snackbarHostState) { records = store.loadNfcKeys() }
+    } finally {
+      loading = false
+    }
   }
 
-  val canBle = bleNfc.canWriteOfficialNfc
+  fun saveRecords(change: (List<NfcKeyRecord>) -> List<NfcKeyRecord>, onSaved: () -> Unit = {}) {
+    if (!loaded || saving) return
+    saving = true
+    scope.launch {
+      try {
+        AppSnack.runAction(snackbarHostState) {
+          records = store.updateNfcKeys(change)
+          onSaved()
+        }
+      } finally {
+        saving = false
+      }
+    }
+  }
 
   LazyColumn(
     modifier = Modifier.fillMaxSize(),
@@ -116,12 +128,8 @@ internal fun NfcKeyTab(
     item {
       ReplicaNotice(
         icon = Lucide.nfc,
-        title = if (canBle) stringResource(R.string.replica_nfc_available) else stringResource(R.string.replica_nfc_pending_login),
-        subtitle = if (canBle) {
-          stringResource(R.string.replica_nfc_logged_in_desc)
-        } else {
-          stringResource(R.string.replica_nfc_not_logged_in_desc)
-        },
+        title = stringResource(R.string.replica_local_keys),
+        subtitle = stringResource(R.string.replica_local_keys_desc),
       )
     }
     item { Spacer(Modifier.height(14.dp)) }
@@ -131,6 +139,8 @@ internal fun NfcKeyTab(
           CircularProgressIndicator(color = CyberHomeColors.primary)
         }
       }
+    } else if (!loaded) {
+      item { ReplicaLoadError(onRetry = { loadAttempt++ }) }
     } else if (records.isEmpty()) {
       item {
         EmptyReplicaCard(icon = Lucide.keyOff, title = stringResource(R.string.replica_no_keys), subtitle = stringResource(R.string.replica_no_keys_hint))
@@ -147,16 +157,9 @@ internal fun NfcKeyTab(
           records.forEachIndexed { i, record ->
             NfcKeyTile(
               record = record,
-              onEdit = { showEditDialog = record },
+              onEdit = { if (!saving) showEditDialog = record },
               onDelete = {
-                scope.launch {
-                  if (bleNfc.canWriteOfficialNfc) {
-                    val ok = bleNfc.delNfc("01")
-                    AppSnack.info(snackbarHostState, if (ok) strKeyDeleted else strKeyDeleteFailed)
-                  }
-                  records = records.filter { it.id != record.id }
-                  store.saveNfcKeys(records)
-                }
+                saveRecords({ current -> current.filter { it.id != record.id } })
               },
             )
             if (i != records.lastIndex) {
@@ -168,32 +171,14 @@ internal fun NfcKeyTab(
     }
   }
 
-  if (showAddDialog) {
+  if (showAddDialog && loaded && !loading) {
     NfcKeyEditDialog(
       record = null,
-      onDismiss = { showAddDialog = false },
+      saving = saving,
+      onDismiss = onDismissAddDialog,
       onSave = { name, type ->
-        scope.launch {
-          val newRecord = store.createNfcKey(name = name, type = type)
-          if (bleNfc.canWriteOfficialNfc) {
-            val ok = if (type == strKeyTypeCard) {
-              bleNfc.addCard("01")
-            } else {
-              bleNfc.addUserKey(keyType = if (type == strKeyTypeWatch) 2 else 1, type = "1")
-            }
-            if (ok) {
-              AppSnack.success(snackbarHostState, strKeyWritten)
-            } else {
-              AppSnack.info(snackbarHostState, strKeyWriteFailed)
-            }
-          } else {
-            AppSnack.info(snackbarHostState, strNotLoggedInLocal)
-          }
-          val next = records + newRecord
-          records = next
-          store.saveNfcKeys(next)
-        }
-        showAddDialog = false
+        val newRecord = store.createNfcKey(name = name, type = type)
+        saveRecords({ it + newRecord }, onSaved = onDismissAddDialog)
       },
     )
   }
@@ -201,13 +186,13 @@ internal fun NfcKeyTab(
   showEditDialog?.let { record ->
     NfcKeyEditDialog(
       record = record,
+      saving = saving,
       onDismiss = { showEditDialog = null },
       onSave = { name, type ->
         val updated = record.copyWith(name = name, type = type)
-        val next = records.map { if (it.id == updated.id) updated else it }
-        records = next
-        scope.launch { store.saveNfcKeys(next) }
-        showEditDialog = null
+        saveRecords({ current -> current.map { if (it.id == updated.id) updated else it } }) {
+          showEditDialog = null
+        }
       },
     )
   }
@@ -217,6 +202,7 @@ internal fun NfcKeyTab(
 @Composable
 internal fun NfcKeyEditDialog(
   record: NfcKeyRecord?,
+  saving: Boolean,
   onDismiss: () -> Unit,
   onSave: (String, String) -> Unit,
 ) {
@@ -226,7 +212,7 @@ internal fun NfcKeyEditDialog(
   var expanded by remember { mutableStateOf(false) }
 
   AlertDialog(
-    onDismissRequest = onDismiss,
+    onDismissRequest = { if (!saving) onDismiss() },
     containerColor = CyberHomeColors.card,
     shape = RoundedCornerShape(AppRadii.tile),
     title = {
@@ -239,6 +225,7 @@ internal fun NfcKeyEditDialog(
       Column {
         OutlinedTextField(
           value = name,
+          enabled = !saving,
           onValueChange = { name = it },
           singleLine = true,
           placeholder = { Text(stringResource(R.string.replica_key_name)) },
@@ -248,11 +235,12 @@ internal fun NfcKeyEditDialog(
         )
         Spacer(Modifier.height(12.dp))
         ExposedDropdownMenuBox(
-          expanded = expanded,
-          onExpandedChange = { expanded = it },
+          expanded = expanded && !saving,
+          onExpandedChange = { if (!saving) expanded = it },
         ) {
           OutlinedTextField(
             value = type,
+            enabled = !saving,
             onValueChange = {},
             readOnly = true,
             label = { Text(stringResource(R.string.replica_key_type)) },
@@ -261,10 +249,10 @@ internal fun NfcKeyEditDialog(
             shape = cyberTextFieldShape,
             modifier = Modifier
               .fillMaxWidth()
-              .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable),
+              .menuAnchor(androidx.compose.material3.ExposedDropdownMenuAnchorType.PrimaryNotEditable, enabled = !saving),
           )
           androidx.compose.material3.DropdownMenu(
-            expanded = expanded,
+            expanded = expanded && !saving,
             onDismissRequest = { expanded = false },
           ) {
             listOf(stringResource(R.string.replica_key_type_phone), stringResource(R.string.replica_key_type_watch), stringResource(R.string.replica_key_type_card)).forEach { item ->
@@ -279,6 +267,7 @@ internal fun NfcKeyEditDialog(
     },
     confirmButton = {
       Button(
+        enabled = !saving && name.isNotBlank(),
         onClick = {
           val trimmed = name.trim()
           if (trimmed.isNotEmpty()) onSave(trimmed, type)
@@ -290,7 +279,7 @@ internal fun NfcKeyEditDialog(
       }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) {
+      TextButton(onClick = onDismiss, enabled = !saving) {
         Text(stringResource(R.string.common_cancel), color = CyberHomeColors.inkMuted)
       }
     },
@@ -353,4 +342,3 @@ internal fun NfcKeyTile(
     }
   }
 }
-

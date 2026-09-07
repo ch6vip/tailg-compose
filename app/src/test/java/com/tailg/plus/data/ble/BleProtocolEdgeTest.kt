@@ -101,12 +101,33 @@ class BleProtocolEdgeTest {
   @Test
   fun nfcFramesMatchOfficialHeadersAndFillers() {
     assertEquals("85044A32010A3456789ABCDE", OfficialNfcBleFrames.checkNfcHex("0A"))
-    assertEquals("85054A32050201000000000000", OfficialNfcBleFrames.delNfcHex("01"))
-    assertEquals("85054A32020202000000000000", OfficialNfcBleFrames.addCardHex("02"))
+    assertEquals("85054A3205020156789ABCDE", OfficialNfcBleFrames.delNfcHex("01"))
+    assertEquals("85054A3202020256789ABCDE", OfficialNfcBleFrames.addCardHex("02"))
     assertArrayEquals(
       hexToBytes("85044A32010A3456789ABCDE"),
       OfficialNfcBleFrames.toBytes("85044A32010A3456789ABCDE"),
     )
+  }
+
+  @Test
+  fun allNfcFramesEncryptWithTheTlinkSessionToken() {
+    val frames = listOf(
+      OfficialNfcBleFrames.addUserKeyHex(1, "1"),
+      OfficialNfcBleFrames.addUserKeyHex(2, "0"),
+      OfficialNfcBleFrames.checkNfcHex("01"),
+      OfficialNfcBleFrames.delNfcHex("01"),
+      OfficialNfcBleFrames.addCardHex("01"),
+    )
+    for (frame in frames) {
+      val encrypted = aesEcbEncrypt(key, frame + token)
+      assertEquals(16, encrypted.size)
+      assertEquals(frame + token, framePlaintext(encrypted))
+    }
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun nfcRejectsAnIndexThatCouldChangeFrameLayout() {
+    OfficialNfcBleFrames.delNfcHex("0102")
   }
 
   // --- constants.dart: QGJ riding-mode read/patch ----------------------------

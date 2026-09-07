@@ -24,6 +24,24 @@ class OfficialCloudSessionConcurrencyTest {
         OfficialCloudApiResponse(200, emptyMap(), mapOf("code" to 200, "data" to data))
 
     @Test
+    fun mqttStatusKeepsTheSessionAndVehicleItWasValidatedAgainst() = runTest {
+        val service = OfficialCloudService(storage, api, mockk(relaxed = true), scope = backgroundScope)
+        val selected = OfficialVehicle(carId = "b", acc = 0, defenceStatus = 1)
+        val state = OfficialCloudState.initial().copyWith(
+            initialized = true, token = "new", vehicles = listOf(selected), selectedVehicleKey = selected.key,
+        )
+        service.setStateForTest(state)
+
+        service.applyMqttVehicleStatus(1, 0, token = "old", vehicleKey = selected.key, sessionGeneration = state.sessionGeneration)
+        assertEquals(state, service.currentState)
+        service.applyMqttVehicleStatus(1, 0, token = "new", vehicleKey = "a", sessionGeneration = state.sessionGeneration)
+        assertEquals(state, service.currentState)
+        service.applyMqttVehicleStatus(1, 0, token = "new", vehicleKey = selected.key, sessionGeneration = state.sessionGeneration)
+        assertEquals(1, service.currentState.selectedVehicle?.acc)
+        assertEquals(0, service.currentState.selectedVehicle?.defenceStatus)
+    }
+
+    @Test
     fun logoutDuringTokenVerificationCannotRestoreCredentials() = runTest {
         val result = CompletableDeferred<OfficialCloudApiResponse>()
         coEvery { api.request(any(), any(), any(), any(), any()) } coAnswers { result.await() }
@@ -48,7 +66,7 @@ class OfficialCloudSessionConcurrencyTest {
         val oldLogin = async { runCatching { service.loginWithToken("old-token") } }
         testScheduler.runCurrent()
         service.loginWithToken("new-token")
-        oldResult.completeExceptionally(OfficialCloudApiException("登录已失效"))
+        oldResult.completeExceptionally(OfficialCloudApiException("登录已失效", statusCode = 401))
 
         assertTrue(oldLogin.await().isFailure)
         assertEquals("new-token", service.currentState.token)
@@ -99,11 +117,51 @@ class OfficialCloudSessionConcurrencyTest {
         val request = async { runCatching { service.getMessageControl() } }
         testScheduler.runCurrent()
         service.setStateForTest(OfficialCloudState.initial().copyWith(initialized = true, token = "new"))
-        result.completeExceptionally(OfficialCloudApiException("登录已失效"))
+        result.completeExceptionally(OfficialCloudApiException("登录已失效", statusCode = 401))
         request.await()
 
         assertEquals("new", service.currentState.token)
         coVerify(exactly = 0) { storage.clearCredentialsAndSelection() }
+    }
+
+    @Test
+    fun sameTokenReloginRejectsOldAuthenticationFailure() = runTest {
+        val oldResult = CompletableDeferred<OfficialCloudApiResponse>()
+        coEvery { api.request(any(), any(), any(), any(), any()) } coAnswers {
+            if (arg<String>(0) == "app/msg/getMessageControl") oldResult.await() else response()
+        }
+        val service = OfficialCloudService(storage, api, mockk(relaxed = true), scope = backgroundScope)
+        service.setStateForTest(OfficialCloudState.initial().copyWith(initialized = true, token = "same-token"))
+        val oldRequest = async { runCatching { service.getMessageControl() } }
+        testScheduler.runCurrent()
+        service.logout()
+        service.loginWithToken("same-token")
+        oldResult.completeExceptionally(OfficialCloudApiException("登录已失效", statusCode = 401))
+        oldRequest.await()
+
+        assertEquals("same-token", service.currentState.token)
+        assertTrue(service.currentState.signedIn)
+    }
+
+    @Test
+    fun sameTokenReloginRejectsOldProfileResponse() = runTest {
+        val oldResult = CompletableDeferred<OfficialCloudApiResponse>()
+        var profileReads = 0
+        coEvery { api.request(any(), any(), any(), any(), any()) } coAnswers {
+            if (arg<String>(0) == "app/getUserProfile") {
+                if (++profileReads == 1) oldResult.await() else response(mapOf("nickName" to "current"))
+            } else response()
+        }
+        val service = OfficialCloudService(storage, api, mockk(relaxed = true), scope = backgroundScope)
+        service.setStateForTest(OfficialCloudState.initial().copyWith(initialized = true, token = "same-token"))
+        val oldRequest = async { service.refreshUserProfile(force = true) }
+        testScheduler.runCurrent()
+        service.logout()
+        service.loginWithToken("same-token")
+        oldResult.complete(response(mapOf("nickName" to "stale")))
+        oldRequest.await()
+
+        assertEquals("current", service.currentState.userProfile?.nickName)
     }
 
     @Test

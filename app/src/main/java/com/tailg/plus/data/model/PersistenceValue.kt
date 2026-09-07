@@ -4,6 +4,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.time.OffsetDateTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 
 /**
@@ -24,7 +25,7 @@ import java.time.ZoneOffset
  *   whereas Dart's `DateTime.tryParse` treats them as device-local time. This is
  *   deterministic and safe for round-tripping ISO-8601 strings produced by
  *   `Instant.toString()`; callers that need local wall-clock semantics must pass
- *   an explicit `ZoneId` conversion (see `OfficialRidePeriod.requestKey`).
+ *   their zone as `defaultZone` (see `OfficialCloudMessage`).
  */
 /**
  * Render a dynamic scalar the way Dart's `jsonDecode` + `toString()` would:
@@ -168,31 +169,28 @@ fun parsePersistedDateOr(
 /**
  * Lenient ISO-8601 parse mirroring Dart's `DateTime.tryParse`, which accepts a
  * space separator (`"2021-01-01 10:00:00"`), date-only values, and offset
- * suffixes. Naive values are assumed UTC (see file KDoc).
+ * suffixes. Naive persisted values default to UTC; wire parsers can supply
+ * the device zone to preserve local wall-clock semantics.
  */
-internal fun parseDateTimeLenient(text: String): Instant? {
+internal fun parseDateTimeLenient(text: String, defaultZone: ZoneId = ZoneOffset.UTC): Instant? {
+    val normalized = text.trim().replaceFirst(" ", "T")
     try {
-        return Instant.parse(text)
+        return Instant.parse(normalized)
     } catch (_: Exception) {
         // fall through to the next format
     }
     try {
-        return Instant.parse(text.replaceFirst(" ", "T"))
+        return OffsetDateTime.parse(normalized).toInstant()
     } catch (_: Exception) {
         // fall through
     }
     try {
-        return OffsetDateTime.parse(text).toInstant()
+        return LocalDateTime.parse(normalized).atZone(defaultZone).toInstant()
     } catch (_: Exception) {
         // fall through
     }
     try {
-        return LocalDateTime.parse(text).toInstant(ZoneOffset.UTC)
-    } catch (_: Exception) {
-        // fall through
-    }
-    try {
-        return LocalDate.parse(text).atStartOfDay(ZoneOffset.UTC).toInstant()
+        return LocalDate.parse(normalized).atStartOfDay(defaultZone).toInstant()
     } catch (_: Exception) {
         // fall through
     }

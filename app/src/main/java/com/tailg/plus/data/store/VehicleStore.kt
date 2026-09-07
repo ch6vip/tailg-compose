@@ -1,6 +1,8 @@
 package com.tailg.plus.data.store
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -12,12 +14,14 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import java.time.Instant
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private val Context.vehicleStoreDataStore by preferencesDataStore(name = "vehicle_store")
 
@@ -34,15 +38,15 @@ private val Context.vehicleStoreDataStore by preferencesDataStore(name = "vehicl
  *   [Context], [LogService] and clock (DI creates the single shared instance,
  *   per `CONVENTIONS.md`).
  * - Broadcast `Stream<List<VehicleProfile>>` → [vehiclesFlow] (`StateFlow`).
- * - The Dart `_saveQueue` serialization is not needed: DataStore serializes
- *   concurrent `edit` writes per instance.
+ * - A mutation mutex serializes memory changes together with their disk writes.
  * - Dart `dispose()` closes the stream controller; a `StateFlow` cannot be
  *   closed, so there is nothing to dispose and the method is omitted.
  */
 class VehicleStore(
-    private val context: Context,
+    context: Context,
     private val logService: LogService = LogService(),
     clock: () -> Instant = { Instant.now() },
+    private val dataStore: DataStore<Preferences> = context.vehicleStoreDataStore,
 ) {
 
     companion object {
@@ -63,6 +67,12 @@ class VehicleStore(
 
     private val _vehicles = mutableListOf<VehicleProfile>()
     private val _vehiclesFlow = MutableStateFlow<List<VehicleProfile>>(emptyList())
+    private val _defaultVehicleFlow = MutableStateFlow<VehicleProfile?>(null)
+
+    private data class Snapshot(val vehicles: List<VehicleProfile>, val defaultVehicleId: String?) {
+        val defaultVehicle: VehicleProfile?
+            get() = vehicles.firstOrNull { it.id == defaultVehicleId } ?: vehicles.firstOrNull()
+    }
 
     /**
      * Immutable snapshot of [_vehicles] for lock-free readers. Every mutation
@@ -72,13 +82,14 @@ class VehicleStore(
      * ConcurrentModificationException possible.
      */
     @Volatile
-    private var _vehiclesSnapshot: List<VehicleProfile> = emptyList()
+    private var snapshot = Snapshot(emptyList(), null)
 
     /** Dart `vehiclesStream`: snapshot emissions after load and after every save. */
     val vehiclesFlow: StateFlow<List<VehicleProfile>> = _vehiclesFlow.asStateFlow()
+    val defaultVehicleFlow: StateFlow<VehicleProfile?> = _defaultVehicleFlow.asStateFlow()
 
     private var _defaultVehicleId: String? = null
-    private var _initialized = false
+    @Volatile private var _initialized = false
     private val initMutex = Mutex()
 
     /**
@@ -90,20 +101,14 @@ class VehicleStore(
     private val mutationMutex = Mutex()
 
     /** Dart `vehicles`: immutable snapshot of the current list. */
-    val vehicles: List<VehicleProfile> get() = _vehiclesSnapshot
+    val vehicles: List<VehicleProfile> get() = snapshot.vehicles
 
     /** Dart `defaultVehicleId`. */
-    val defaultVehicleId: String? get() = _defaultVehicleId
+    val defaultVehicleId: String? get() = snapshot.defaultVehicleId
 
     /** Dart `defaultVehicle`: first vehicle when no default is set. */
     val defaultVehicle: VehicleProfile?
-        get() {
-            val list = _vehiclesSnapshot
-            if (list.isEmpty()) return null
-            val id = _defaultVehicleId
-            if (id == null) return list.first()
-            return list.firstOrNull { it.id == id } ?: list.first()
-        }
+        get() = snapshot.defaultVehicle
 
     /**
      * Dart `init()`: idempotent one-time load. The [Mutex] mirrors the Dart
@@ -121,15 +126,16 @@ class VehicleStore(
     /** Dart `resetForTest({clock})`. */
     fun resetForTest(clock: (() -> Instant)? = null) {
         _vehicles.clear()
-        _vehiclesSnapshot = emptyList()
+        snapshot = Snapshot(emptyList(), null)
         _defaultVehicleId = null
         _initialized = false
         this.clock = clock ?: { Instant.now() }
         _vehiclesFlow.value = emptyList()
+        _defaultVehicleFlow.value = null
     }
 
     private suspend fun load() {
-        val prefs = withDataStoreReadTimeout { context.vehicleStoreDataStore.data.first() }
+        val prefs = withDataStoreReadTimeout { dataStore.data.first() }
         _defaultVehicleId = normalizeId(prefs[KEY_DEFAULT_VEHICLE_ID])
         val rawProfiles = prefs[KEY_VEHICLES]
         val decodedVehicles = decodeVehicles(rawProfiles)
@@ -190,7 +196,7 @@ class VehicleStore(
     }
 
     /** Dart `rename`. */
-    suspend fun rename(id: String, name: String, savedAt: Instant? = null) = mutationMutex.withLock {
+    suspend fun rename(id: String, name: String, savedAt: Instant? = null): Unit = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         val normalizedName = normalizeName(name) ?: return
@@ -208,7 +214,7 @@ class VehicleStore(
         id: String,
         location: VehicleLocation,
         savedAt: Instant? = null,
-    ) = mutationMutex.withLock {
+    ): Unit = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         val index = _vehicles.indexOfFirst { it.id == normalizedId }
@@ -221,7 +227,7 @@ class VehicleStore(
     }
 
     /** Dart `setDefault`. */
-    suspend fun setDefault(id: String) = mutationMutex.withLock {
+    suspend fun setDefault(id: String): Unit = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         if (_vehicles.none { it.id == normalizedId }) return
@@ -230,7 +236,7 @@ class VehicleStore(
     }
 
     /** Dart `remove`. */
-    suspend fun remove(id: String) = mutationMutex.withLock {
+    suspend fun remove(id: String): Unit = mutationMutex.withLock {
         init()
         val normalizedId = normalizeId(id) ?: return
         _vehicles.removeAll { it.id == normalizedId }
@@ -332,27 +338,32 @@ class VehicleStore(
     // --- persistence (Dart `_save` / `_persistVehicleProfiles`) ---
 
     /**
-     * Dart `_save`: persist then notify. Save failures are logged and isolated
-     * so subsequent writes are not poisoned (Dart `catchError` semantics).
+     * Persist before publishing. Restore the committed state on failure so
+     * failed mutations cannot leak into a later successful save.
      */
     private suspend fun save() {
         try {
-            persistVehicleProfiles()
-            emit()
-        } catch (e: CancellationException) {
-            throw e
+            withContext(NonCancellable) {
+                persistVehicleProfiles()
+                emit()
+            }
         } catch (e: Exception) {
+            _vehicles.clear()
+            _vehicles.addAll(snapshot.vehicles)
+            _defaultVehicleId = snapshot.defaultVehicleId
+            if (e is CancellationException) throw e
             logService.operation(
                 "VehicleStore",
                 detail = "Save failed: $e",
                 level = LogLevel.ERROR,
             )
+            throw e
         }
     }
 
     private suspend fun persistVehicleProfiles() {
         val defaultVehicleId = _defaultVehicleId
-        context.vehicleStoreDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             prefs[KEY_VEHICLES] = StoreJson.encode(_vehicles.map { it.toJson() })
             if (defaultVehicleId == null) {
                 prefs.remove(KEY_DEFAULT_VEHICLE_ID)
@@ -365,8 +376,9 @@ class VehicleStore(
     private fun emit() {
         // Publish a fresh immutable copy; every later mutation replaces the
         // reference rather than mutating in place.
-        val snapshot = _vehicles.toList()
-        _vehiclesSnapshot = snapshot
-        _vehiclesFlow.value = snapshot
+        val committed = Snapshot(_vehicles.toList(), _defaultVehicleId)
+        snapshot = committed
+        _vehiclesFlow.value = committed.vehicles
+        _defaultVehicleFlow.value = committed.defaultVehicle
     }
 }

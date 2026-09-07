@@ -72,8 +72,7 @@ internal fun RideRecordTab(
     cloudService.currentState.signedIn,
     cloudService.currentState.selectedVehicle,
   ))
-  val vehicles by vehicleStore.vehiclesFlow.collectAsStateWithLifecycle()
-  val vehicle = vehicleStore.defaultVehicle
+  val vehicle by vehicleStore.defaultVehicleFlow.collectAsStateWithLifecycle()
   val location = vehicle?.lastLocation
   val cloudVehicle = if (rideSlice.signedIn) rideSlice.selectedVehicle else null
   val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: stringResource(R.string.replica_unbound)

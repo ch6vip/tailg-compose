@@ -51,6 +51,7 @@ import com.tailg.plus.R
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.CancellationException
 
 /**
  * Port of `lib/widgets/slide_power_button.dart` — official-like bidirectional
@@ -113,12 +114,13 @@ fun SlidePowerButton(
   val shakeX = remember { Animatable(0f) }
   val successScale = remember { Animatable(0.3f) }
 
-  val canSlide = enabled && !busy && !awaitingResult && isPowered != null
+  val canSlide = enabled && !busy && !awaitingResult && isPowered != null && maxDragPx > 0
   val canExplainUnavailable = !enabled && !busy && !awaitingResult && onUnavailable != null
 
   // Latest values for the async confirmation step.
   val currentIsPowered by rememberUpdatedState(isPowered)
   val currentCanSlide by rememberUpdatedState(canSlide)
+  val currentOnSlide by rememberUpdatedState(onSlide)
 
   // Drag position rendered through a graphicsLayer reading snapshot state:
   // while the user drags, writing `dragPositionPx` must NOT recompose the
@@ -139,10 +141,13 @@ fun SlidePowerButton(
     prevPowered = isPowered
     if (prev != null && isPowered != null && prev != isPowered) {
       showSuccess = true
-      successScale.snapTo(0.3f)
-      successScale.animateTo(1f, tween(AppMotion.emphasis, easing = EaseOutBack))
-      delay(800)
-      showSuccess = false
+      try {
+        successScale.snapTo(0.3f)
+        successScale.animateTo(1f, tween(AppMotion.emphasis, easing = EaseOutBack))
+        delay(800)
+      } finally {
+        showSuccess = false
+      }
     }
     if (!awaitingResult) {
       dragPositionPx = if (isPowered == true) maxDragPx else 0f
@@ -157,7 +162,7 @@ fun SlidePowerButton(
   }
 
   fun activate() {
-    if (!currentCanSlide) return
+    if (awaitingResult || !currentCanSlide) return
     val origin = currentIsPowered
     commandOriginPowered = origin
     awaitingResult = true
@@ -165,11 +170,19 @@ fun SlidePowerButton(
     dragPositionPx = completedPx
     haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart mediumImpact
     scope.launch {
-      onSlide()
-      val confirmed = currentIsPowered != origin
-      awaitingResult = false
-      commandOriginPowered = null
-      dragPositionPx = if (currentIsPowered == true) maxDragPx else 0f
+      var confirmed = false
+      try {
+        currentOnSlide()
+        confirmed = currentIsPowered != null && currentIsPowered != origin
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        timber.log.Timber.w("Power slide failed: %s", com.tailg.plus.data.cloud.OfficialCloudRedactor.errorMessage(e))
+      } finally {
+        awaitingResult = false
+        commandOriginPowered = null
+        dragPositionPx = if (currentIsPowered == true) maxDragPx else 0f
+      }
       if (!confirmed) {
         haptics.performHapticFeedback(HapticFeedbackType.LongPress) // Dart heavyImpact
         shakeX.snapTo(0f)

@@ -84,6 +84,9 @@ import com.tailg.plus.ui.theme.NinebotLightColorScheme
 import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.ui.theme.amoledBackground
 import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarHostState
+import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.AppSnackbarHost
 
 /**
  * Theme settings — KernelSU-derived chrome with the Tailg skin system:
@@ -102,7 +105,8 @@ fun ThemeSettingsScreen(
     val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     val floatingBottomBar by prefs.floatingBottomBar.collectAsStateWithLifecycle()
-    LaunchedEffect(Unit) { prefs.init() }
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(prefs) { AppSnack.runAction(snackbarHostState) { prefs.init() } }
 
     val currentColorMode = ColorMode.fromValue(themeMode)
     val currentUiMode = UiMode.fromValue(uiModeValue)
@@ -111,6 +115,7 @@ fun ThemeSettingsScreen(
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior(rememberTopAppBarState())
 
     ExpressiveScaffold(
+        snackbarHost = { AppSnackbarHost(snackbarHostState) },
         topBar = {
             LargeFlexibleTopAppBar(
                 navigationIcon = {
@@ -184,7 +189,7 @@ fun ThemeSettingsScreen(
                             onCheckedChange = {
                                 if (it) {
                                     haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    scope.launch { prefs.setThemeMode(mode.value) }
+                                    scope.launch { AppSnack.runAction(snackbarHostState) { prefs.setThemeMode(mode.value) } }
                                 }
                             },
                             modifier = Modifier
@@ -220,7 +225,7 @@ fun ThemeSettingsScreen(
                                 role = Role.Switch,
                                 onValueChange = { enabled ->
                                     haptic.performHapticFeedback(HapticFeedbackType.ContextClick)
-                                    scope.launch { prefs.setFloatingBottomBar(enabled) }
+                                    scope.launch { AppSnack.runAction(snackbarHostState) { prefs.setFloatingBottomBar(enabled) } }
                                 },
                             )
                             .padding(16.dp),
@@ -292,7 +297,11 @@ fun ThemeSettingsScreen(
                             value = sliderValue,
                             onValueChange = { sliderValue = it },
                             onValueChangeFinished = {
-                                scope.launch { prefs.setPageScale(sliderValue) }
+                                scope.launch {
+                                    if (!AppSnack.runAction(snackbarHostState) { prefs.setPageScale(sliderValue) }) {
+                                        sliderValue = prefs.pageScale.value
+                                    }
+                                }
                             },
                             valueRange = 0.8f..1.1f,
                             modifier = Modifier.fillMaxWidth()

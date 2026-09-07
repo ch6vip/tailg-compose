@@ -122,6 +122,7 @@ fun BatteryDetailsScreen(
       .map { state ->
         BatteryCloudSlice(
           signedIn = state.signedIn,
+          sessionGeneration = state.sessionGeneration,
           selectedVehicle = state.selectedVehicle,
           batteryInfo = state.batteryInfo,
           batteryInfoLoading = state.batteryInfoLoading,
@@ -147,14 +148,14 @@ fun BatteryDetailsScreen(
       officialBmsInfo = cloudState.bmsInfo,
     )
   }
-  var manualRefreshing by remember(vehicle?.key, cloudState.signedIn) { mutableStateOf(false) }
+  var manualRefreshing by remember(vehicle?.key, cloudState.sessionGeneration) { mutableStateOf(false) }
   val loading = manualRefreshing || cloudState.batteryInfoLoading || cloudState.bmsInfoLoading
 
-  val coulombMeterService = remember(connectionManager, cloudService, log, vehicle?.key) {
-    val expectedToken = cloudService.currentState.token
+  val coulombMeterService = remember(connectionManager, cloudService, log, vehicle?.key, cloudState.sessionGeneration) {
+    val expectedSession = cloudService.currentState.sessionIdentity
     CoulombMeterService(connectionManager = connectionManager, logService = log, ensureConnection = {
       val current = cloudService.currentState
-      check(current.signedIn && current.token == expectedToken && current.selectedVehicle?.key == vehicle?.key) {
+      check(current.signedIn && current.sessionIdentity == expectedSession && current.selectedVehicle?.key == vehicle?.key) {
         "车辆或登录状态已变化，请重新操作"
       }
       val availability = connectionManager.resolveControlAvailability(current.asControlCloudState(), OfficialControlChannel.BLE)
@@ -199,7 +200,7 @@ fun BatteryDetailsScreen(
     val refreshSession = cloudService.currentState
     fun isCurrentRefresh(): Boolean {
       val current = cloudService.currentState
-      return current.signedIn && current.token == refreshSession.token &&
+      return current.signedIn && current.sessionIdentity == refreshSession.sessionIdentity &&
         current.selectedVehicle?.key == refreshSession.selectedVehicle?.key
     }
     manualRefreshing = true
@@ -1213,6 +1214,7 @@ private fun temperatureDisplay(snapshot: BatterySnapshot): String {
  */
 private data class BatteryCloudSlice(
   val signedIn: Boolean,
+  val sessionGeneration: Long,
   val selectedVehicle: OfficialVehicle?,
   val batteryInfo: OfficialBatteryInfo?,
   val batteryInfoLoading: Boolean,
@@ -1224,6 +1226,7 @@ private data class BatteryCloudSlice(
   companion object {
     fun from(state: OfficialCloudState): BatteryCloudSlice = BatteryCloudSlice(
       signedIn = state.signedIn,
+      sessionGeneration = state.sessionGeneration,
       selectedVehicle = state.selectedVehicle,
       batteryInfo = state.batteryInfo,
       batteryInfoLoading = state.batteryInfoLoading,

@@ -108,7 +108,6 @@ fun NavGraphBuilder.settingsNavGraph(
         OfficialReplicaScreen(
             cloudService = cloudService,
             vehicleStore = vehicleStore,
-            connectionManager = connectionManager,
             onBack = { navController.popBackStack() },
         )
     }

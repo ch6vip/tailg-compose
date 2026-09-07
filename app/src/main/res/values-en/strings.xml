@@ -295,6 +295,9 @@
     <string name="control_grid_unavailable_format">%s unavailable</string>
     <string name="control_grid_unavailable_reason_format">%1$s unavailable: %2$s</string>
     <string name="replica_nfc_keys">NFC keys</string>
+    <string name="replica_local_keys">Local key records</string>
+    <string name="replica_local_keys_desc">These records are not linked to vehicle keys. Adding, editing, and deleting only changes records on this device; it does not change keys in the vehicle.</string>
+    <string name="replica_load_failed">Could not load local records. Please retry.</string>
     <string name="control_channel_ble_direct">BLE direct</string>
     <string name="control_channel_ble_connecting">Bluetooth connecting</string>
     <string name="control_channel_mqtt_remote">MQTT remote</string>

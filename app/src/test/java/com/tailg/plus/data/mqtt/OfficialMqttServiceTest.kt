@@ -48,7 +48,7 @@ class OfficialMqttServiceTest {
     cloud = mockk()
     every { cloud.stateFlow } returns MutableStateFlow(OfficialCloudState.initial())
     every { cloud.currentState } returns OfficialCloudState.initial()
-    every { cloud.applyMqttVehicleStatus(any(), any()) } just Runs
+    every { cloud.applyMqttVehicleStatus(any(), any(), any(), any(), any()) } just Runs
     coEvery { cloud.sendCommand(any()) } returns "success"
   }
 
@@ -194,6 +194,30 @@ class OfficialMqttServiceTest {
   }
 
   @Test
+  fun failedPublishCannotFallBackAfterSameTokenRelogin() = runTest {
+    val original = signedInState(vehicle("vehicle-a"))
+    val states = MutableStateFlow(original)
+    every { cloud.stateFlow } returns states
+    every { cloud.currentState } answers { states.value }
+    val mqtt = OfficialMqttService(defaultCloud = cloud, scope = backgroundScope)
+    val publishing = CompletableDeferred<Unit>()
+    val release = CompletableDeferred<Unit>()
+    mqtt.publishCommandOverride = { _, _, _ ->
+      publishing.complete(Unit)
+      release.await()
+      error("broker unavailable")
+    }
+    val send = async { runCatching { mqtt.sendCommandPreferMqtt(CommandCode.UNLOCK, cloud) } }
+    publishing.await()
+    states.value = original.copyWith(sessionGeneration = original.sessionGeneration + 1)
+    release.complete(Unit)
+
+    assertTrue(send.await().isFailure)
+    coVerify(exactly = 0) { cloud.sendCommand(any()) }
+    mqtt.dispose()
+  }
+
+  @Test
   fun disconnectClearsPendingWithoutAcknowledgingCommand() = runBlocking {
     val mqtt = OfficialMqttService(defaultCloud = cloud)
     try {
@@ -240,7 +264,7 @@ class OfficialMqttServiceTest {
 
       assertEquals("lock", mqtt.pendingCommandApiName)
       assertEquals("车辆未断电，请勿操作", mqtt.pendingCommandError)
-      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any()) }
+      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any(), any(), any(), any()) }
     } finally {
       mqtt.resetForTest()
     }
@@ -263,7 +287,7 @@ class OfficialMqttServiceTest {
       assertNull(mqtt.pendingCommandApiName)
       assertNull(mqtt.pendingCommandError)
       assertEquals("lock", mqtt.acknowledgedCommandApiName)
-      verify { cloud.applyMqttVehicleStatus(0, 1) }
+      verify { cloud.applyMqttVehicleStatus(0, 1, "tok", "car-860000000000001", 0) }
     } finally {
       mqtt.resetForTest()
     }
@@ -280,13 +304,33 @@ class OfficialMqttServiceTest {
       mqtt.handleStatusPayload("""{"imei":"another-imei","defenceStatus":"1"}""")
 
       assertEquals("lock", mqtt.pendingCommandApiName)
-      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any()) }
+      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any(), any(), any(), any()) }
     } finally {
       mqtt.resetForTest()
     }
   }
 
   // --- push-driven confirmation signal ------------------------------------
+
+  @Test
+  fun filtersStatusUsingTheSameImeiAsTheMqttTopics() = runTest {
+    // This model uses its primary IMEI for HTTP but its GPS IMEI for MQTT.
+    val selected = vehicle("primary-imei").copy(modelType = 5, imeiGps = "gps-imei")
+    val state = signedInState(selected)
+    every { cloud.stateFlow } returns MutableStateFlow(state)
+    every { cloud.currentState } returns state
+    val mqtt = OfficialMqttService(defaultCloud = cloud, scope = backgroundScope)
+    mqtt.publishCommandOverride = { _, _, _ -> }
+    mqtt.sendCommandPreferMqtt(CommandCode.LOCK, cloud)
+
+    mqtt.handleStatusPayload("""{"imei":"primary-imei","defenceStatus":"1"}""")
+    assertEquals("lock", mqtt.pendingCommandApiName)
+    mqtt.handleStatusPayload("""{"imei":"gps-imei","defenceStatus":"1"}""")
+
+    assertEquals("lock", mqtt.acknowledgedCommandApiName)
+    assertNull(mqtt.pendingCommandApiName)
+    verify(exactly = 1) { cloud.applyMqttVehicleStatus(null, 1, "tok", selected.key, 0) }
+  }
 
   @Test
   fun emitsStatusPayloadEventsForCurrentVehicleOnly() = runBlocking {
@@ -326,7 +370,7 @@ class OfficialMqttServiceTest {
 
       val payload = mqtt.statusPayloadEvents.first()
       assertEquals(3, payload.defenceErrorStatus)
-      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any()) }
+      verify(exactly = 0) { cloud.applyMqttVehicleStatus(any(), any(), any(), any(), any()) }
     } finally {
       mqtt.resetForTest()
     }

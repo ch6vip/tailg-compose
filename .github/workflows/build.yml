@@ -122,7 +122,7 @@ jobs:
           KEYSTORE_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.KEYSTORE_PASSWORD || '' }}
           KEY_ALIAS: ${{ github.event_name != 'pull_request' && secrets.KEY_ALIAS || '' }}
           KEY_PASSWORD: ${{ github.event_name != 'pull_request' && secrets.KEY_PASSWORD || '' }}
-        run: ./gradlew assembleDebug testDebugUnitTest lintDebug assembleRelease --continue --stacktrace
+        run: ./gradlew assembleDebug testDebugUnitTest lintDebug assembleRelease bundleRelease --continue --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v7
@@ -131,15 +131,23 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 3
 
-      # Signed APKs stay out of PR artifacts: on a public repo, artifacts are
-      # downloadable by anyone with read access. (Stopgap until the release
-      # keystore is moved out of the repo into Secrets — see docs/CI_REVIEW.md.)
-      - name: Upload signed release APK
+      # Include unsigned smoke-test builds when signing secrets are absent.
+      - name: Upload release APK
         if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v7
         with:
           name: app-release
-          path: app/build/outputs/apk/release/app-release.apk
+          path: app/build/outputs/apk/release/app-release*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload release App Bundle
+        if: github.event_name != 'pull_request'
+        uses: actions/upload-artifact@v7
+        with:
+          name: app-release-bundle
+          path: app/build/outputs/bundle/release/*.aab
+          if-no-files-found: error
           retention-days: 14
 
       # Always publish reports (even on failure) so CI reds are debuggable

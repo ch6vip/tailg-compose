@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -40,6 +41,9 @@ import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.ui.components.CyberCard
+import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.AppSnackbarHost
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.CyberSectionLabel
 import com.tailg.plus.ui.components.LucideIcon
@@ -80,25 +84,34 @@ fun LanguageSettingsScreen(
   var selected by remember { mutableStateOf(AppLanguagePreference.System) }
   var saving by remember { mutableStateOf(false) }
   val scope = rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
 
-  LaunchedEffect(Unit) {
-    prefs.init()
-    selected = prefs.language.value
+  LaunchedEffect(prefs) {
+    AppSnack.runAction(snackbarHostState) {
+      prefs.init()
+      selected = prefs.language.value
+    }
   }
 
   val confirm: () -> Unit = {
     if (!saving) {
       saving = true
       scope.launch {
-        prefs.setLanguage(selected)
-        saving = false
-        onBack()
+        try {
+          AppSnack.runAction(snackbarHostState) {
+            prefs.setLanguage(selected)
+            onBack()
+          }
+        } finally {
+          saving = false
+        }
       }
     }
   }
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
+    snackbarHost = { AppSnackbarHost(snackbarHostState) },
   ) { padding ->
     Column(
       modifier = Modifier
@@ -155,21 +168,21 @@ fun UnitSettingsScreen(
 ) {
   val prefs = preferencesService
     ?: com.tailg.plus.di.rememberTailgEntryPoint().appPreferences()
-  var selected by remember { mutableStateOf(DistanceUnitPreference.Metric) }
+  val selected by prefs.distanceUnit.collectAsStateWithLifecycle()
   val scope = rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
 
-  LaunchedEffect(Unit) {
-    prefs.init()
-    selected = prefs.distanceUnit.value
+  LaunchedEffect(prefs) {
+    AppSnack.runAction(snackbarHostState) { prefs.init() }
   }
 
   val select: (DistanceUnitPreference) -> Unit = { preference ->
-    selected = preference
-    scope.launch { prefs.setDistanceUnit(preference) }
+    scope.launch { AppSnack.runAction(snackbarHostState) { prefs.setDistanceUnit(preference) } }
   }
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
+    snackbarHost = { AppSnackbarHost(snackbarHostState) },
   ) { padding ->
     Column(
       modifier = Modifier

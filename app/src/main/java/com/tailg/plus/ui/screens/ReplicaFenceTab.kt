@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
 import com.tailg.plus.data.model.VehicleLocation
+import com.tailg.plus.data.model.isValidCoordinate
 import com.tailg.plus.data.store.ReplicaFeatureStore
 import com.tailg.plus.data.store.VehicleStore
 import com.tailg.plus.ui.components.AppPressable
@@ -68,6 +69,7 @@ import com.tailg.plus.ui.theme.AppSpacing
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.formatDateText
+import com.tailg.plus.util.formatFixed
 import kotlinx.coroutines.launch
 
 /**
@@ -87,6 +89,9 @@ internal fun ElectricFenceTab(
   var lngText by remember { mutableStateOf("") }
   var radiusText by remember { mutableStateOf("500") }
   var loading by remember { mutableStateOf(true) }
+  var loaded by remember { mutableStateOf(false) }
+  var loadAttempt by remember { mutableStateOf(0) }
+  var saving by remember { mutableStateOf(false) }
   var lastLocation by remember { mutableStateOf<VehicleLocation?>(null) }
   val context = androidx.compose.ui.platform.LocalContext.current
   val strInvalidCoords = stringResource(R.string.replica_invalid_coords)
@@ -94,17 +99,25 @@ internal fun ElectricFenceTab(
   val strRadiusHint = stringResource(R.string.replica_radius_hint)
   val strFenceSavedDraft = stringResource(R.string.replica_fence_saved_draft)
 
-  LaunchedEffect(Unit) {
-    vehicleStore.init()
-    val config = store.loadFenceConfig()
-    lastLocation = vehicleStore.defaultVehicle?.lastLocation
-    val latitude = config?.latitude ?: lastLocation?.latitude
-    val longitude = config?.longitude ?: lastLocation?.longitude
-    enabled = config?.enabled ?: false
-    latText = latitude?.let { "%.6f".format(it) } ?: ""
-    lngText = longitude?.let { "%.6f".format(it) } ?: ""
-    radiusText = (config?.radiusMeters ?: 500).toString()
-    loading = false
+  LaunchedEffect(store, vehicleStore, loadAttempt) {
+    loading = true
+    try {
+      loaded = AppSnack.runAction(snackbarHostState) {
+        vehicleStore.init()
+        val config = store.loadFenceConfig()
+        lastLocation = vehicleStore.defaultVehicle?.lastLocation?.takeIf {
+          isValidCoordinate(it.latitude, it.longitude)
+        }
+        val latitude = config?.latitude ?: lastLocation?.latitude
+        val longitude = config?.longitude ?: lastLocation?.longitude
+        enabled = config?.enabled ?: false
+        latText = latitude?.let { formatFixed(it, 6) } ?: ""
+        lngText = longitude?.let { formatFixed(it, 6) } ?: ""
+        radiusText = (config?.radiusMeters ?: 500).toString()
+      }
+    } finally {
+      loading = false
+    }
   }
 
   Column(
@@ -130,6 +143,8 @@ internal fun ElectricFenceTab(
       Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
         CircularProgressIndicator(color = CyberHomeColors.primary)
       }
+    } else if (!loaded) {
+      ReplicaLoadError(onRetry = { loadAttempt++ })
     } else {
       Column(
         modifier = Modifier
@@ -142,6 +157,7 @@ internal fun ElectricFenceTab(
         Row(verticalAlignment = Alignment.CenterVertically) {
           Switch(
             checked = enabled,
+            enabled = !saving,
             onCheckedChange = { enabled = it },
             colors = androidx.compose.material3.SwitchDefaults.colors(
               checkedThumbColor = CyberHomeColors.white,
@@ -165,6 +181,7 @@ internal fun ElectricFenceTab(
         Spacer(Modifier.height(8.dp))
         OutlinedTextField(
           value = latText,
+          enabled = !saving,
           onValueChange = { latText = it },
           singleLine = true,
           label = { Text(stringResource(R.string.replica_center_lat)) },
@@ -176,6 +193,7 @@ internal fun ElectricFenceTab(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
           value = lngText,
+          enabled = !saving,
           onValueChange = { lngText = it },
           singleLine = true,
           label = { Text(stringResource(R.string.replica_center_lng)) },
@@ -187,6 +205,7 @@ internal fun ElectricFenceTab(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
           value = radiusText,
+          enabled = !saving,
           onValueChange = { radiusText = it.filter { c -> c.isDigit() } },
           singleLine = true,
           label = { Text(stringResource(R.string.replica_radius_m)) },
@@ -200,11 +219,11 @@ internal fun ElectricFenceTab(
           OutlinedButton(
             onClick = {
               lastLocation?.let {
-                latText = "%.6f".format(it.latitude)
-                lngText = "%.6f".format(it.longitude)
+                latText = formatFixed(it.latitude, 6)
+                lngText = formatFixed(it.longitude, 6)
               }
             },
-            enabled = lastLocation != null,
+            enabled = lastLocation != null && !saving,
             shape = cyberButtonShape,
             colors = cyberOutlinedButtonColors(),
             border = cyberOutlinedButtonBorder,
@@ -220,7 +239,7 @@ internal fun ElectricFenceTab(
             onClick = {
               val lat = latText.trim().toDoubleOrNull()
               val lng = lngText.trim().toDoubleOrNull()
-              if (lat == null || lng == null) {
+              if (!isValidCoordinate(lat, lng)) {
                 scope.launch { AppSnack.info(snackbarHostState, strInvalidCoords) }
               } else {
                 val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
@@ -246,21 +265,31 @@ internal fun ElectricFenceTab(
         }
         Spacer(Modifier.height(10.dp))
         Button(
+          enabled = !saving,
           onClick = {
+            if (saving) return@Button
             val latitude = latText.trim().toDoubleOrNull()
             val longitude = lngText.trim().toDoubleOrNull()
-            val radius = radiusText.trim().toIntOrNull() ?: 500
-            if (latitude == null || longitude == null) {
+            val radius = radiusText.trim().toIntOrNull()
+            if (latitude == null || longitude == null || !isValidCoordinate(latitude, longitude)) {
               scope.launch { AppSnack.info(snackbarHostState, strInvalidCoords) }
               return@Button
             }
-            if (radius < 100 || radius > 10000) {
+            if (radius == null || radius !in 100..10000) {
               scope.launch { AppSnack.info(snackbarHostState, strRadiusHint) }
               return@Button
             }
+            saving = true
+            val config = store.createFenceConfig(enabled = enabled, latitude = latitude, longitude = longitude, radiusMeters = radius)
             scope.launch {
-              store.saveFenceConfig(store.createFenceConfig(enabled = enabled, latitude = latitude, longitude = longitude, radiusMeters = radius))
-              AppSnack.info(snackbarHostState, strFenceSavedDraft)
+              try {
+                AppSnack.runAction(snackbarHostState) {
+                  store.saveFenceConfig(config)
+                  AppSnack.info(snackbarHostState, strFenceSavedDraft)
+                }
+              } finally {
+                saving = false
+              }
             }
           },
           shape = cyberButtonShape,

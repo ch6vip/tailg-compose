@@ -13,33 +13,38 @@ import kotlinx.coroutines.CancellationException
  *
  * Usage:
  * ```kotlin
- * apiCall(service, token = state.token, silent = false) {
+ * apiCall(service, session = state.sessionIdentity, silent = false) { token ->
  *   service.apiClient.request("app/endpoint", method = "POST", token = token)
  * }
  * ```
  */
 internal suspend fun <T : Any> apiCall(
     service: OfficialCloudService,
-    token: String? = service.state.token,
+    session: OfficialCloudSession = service.state.sessionIdentity,
     silent: Boolean = false,
     loading: Boolean = !silent,
     tokenRequired: Boolean = true,
     failureMessage: String = "请求失败",
     block: suspend (token: String) -> T,
 ): T? {
-    val effectiveToken = token ?: service.state.token
+    val effectiveToken = session.token
+    fun isCurrent() = !service.disposed && service.state.sessionIdentity == session
+    fun setLoading(value: Boolean) = service.updateState { current ->
+        if (current.sessionIdentity == session) current.copyWith(loading = value) else current
+    }
     if (tokenRequired && effectiveToken.isEmpty()) {
         if (!silent) throw OfficialCloudApiException(OfficialCloudMessages.SIGN_IN_REQUIRED)
         return null
     }
-    if (loading) service.setLoading(true)
+    if (!isCurrent()) return null
+    if (loading) setLoading(true)
     return try {
         val result = block(effectiveToken)
         service.ensureSuccess(
             getBody(result),
             fallback = failureMessage,
         )
-        if (service.state.token != effectiveToken) return null
+        if (!isCurrent()) return null
         service.log.operation(
             failureMessage.replace("失败", "成功"),
             level = LogLevel.INFO,
@@ -47,8 +52,8 @@ internal suspend fun <T : Any> apiCall(
         result
     } catch (e: Exception) {
         if (e is CancellationException) throw e
-        if (service.state.token != effectiveToken) return null
-        service.handleAuthFailureIfNeeded(e, effectiveToken)
+        if (!isCurrent()) return null
+        service.handleAuthFailureIfNeeded(e, session)
         if (!silent) throw e
         service.log.operation(
             failureMessage,
@@ -57,7 +62,7 @@ internal suspend fun <T : Any> apiCall(
         )
         null
     } finally {
-        if (loading && service.state.token == effectiveToken) service.setLoading(false)
+        if (loading) setLoading(false)
     }
 }
 

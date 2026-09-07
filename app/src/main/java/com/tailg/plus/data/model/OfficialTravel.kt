@@ -166,7 +166,7 @@ data class OfficialTravelPoint(
     val latitude: Double? get() = lat.toDoubleOrNull()
     val longitude: Double? get() = lng.toDoubleOrNull()
 
-    val hasCoordinate: Boolean get() = latitude != null && longitude != null
+    val hasCoordinate: Boolean get() = isValidCoordinate(latitude, longitude)
 
     companion object {
         fun fromJson(json: Map<String, Any?>): OfficialTravelPoint = OfficialTravelPoint(

@@ -47,7 +47,7 @@ fun OffsetAnchoredExpressiveMenu(
     }
 }
 
-fun Modifier.trackPressPosition(onPress: (Offset) -> Unit): Modifier = pointerInput(Unit) {
+fun Modifier.trackPressPosition(onPress: (Offset) -> Unit): Modifier = pointerInput(onPress) {
     awaitEachGesture {
         val down = awaitFirstDown(requireUnconsumed = false)
         onPress(down.position)

@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -38,6 +39,17 @@ import com.tailg.plus.ui.theme.CyberHomeColors
  * Shared UI pieces of [OfficialReplicaScreen]: page header, notice banner,
  * empty-state card, metric block and circular icon.
  */
+
+@Composable
+internal fun ReplicaLoadError(onRetry: () -> Unit) {
+  Column(
+    modifier = Modifier.fillMaxWidth().padding(20.dp),
+    horizontalAlignment = Alignment.CenterHorizontally,
+  ) {
+    Text(stringResource(R.string.replica_load_failed), color = CyberHomeColors.inkMuted)
+    TextButton(onClick = onRetry) { Text(stringResource(R.string.common_retry)) }
+  }
+}
 
 @Composable
 internal fun ReplicaPageHeader(

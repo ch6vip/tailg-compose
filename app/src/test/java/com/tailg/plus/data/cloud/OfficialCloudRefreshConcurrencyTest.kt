@@ -143,6 +143,27 @@ class OfficialCloudRefreshConcurrencyTest {
   }
 
   @Test
+  fun failedMonthSwitchDoesNotRelabelTripsFromThePreviousMonth() = runTest {
+    val pending = CompletableDeferred<OfficialCloudApiResponse>()
+    val api = mockk<OfficialCloudApiClientInterface>()
+    coEvery { api.request(any(), any(), any(), any(), any()) } coAnswers { pending.await() }
+    val service = service(api, backgroundScope)
+    service.setStateForTest(state("a").copyWith(
+      travelMonth = "2026-08",
+      travelDays = listOf(OfficialTravelDay(travelDate = "2026-08-01")),
+    ))
+
+    val request = async { runCatching { service.refreshTravelHistory(month = "2026-09") } }
+    testScheduler.runCurrent()
+    assertEquals("2026-09", service.currentState.travelMonth)
+    assertTrue(service.currentState.travelDays.isEmpty())
+    pending.complete(response(code = 500))
+    assertTrue(request.await().isFailure)
+    assertTrue(service.currentState.travelDays.isEmpty())
+    assertFalse(service.currentState.travelLoading)
+  }
+
+  @Test
   fun silentRideRefreshCanReturnToAPreviouslyLoadedPeriod() = runTest {
     var requests = 0
     val api = mockk<OfficialCloudApiClientInterface>()

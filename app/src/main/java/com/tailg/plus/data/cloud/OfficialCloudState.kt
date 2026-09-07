@@ -113,8 +113,12 @@ data class OfficialCloudState(
     val systemMessages: List<OfficialCloudMessage>,
     val messagesLoading: Boolean,
     val messagesError: String?,
+    val sessionGeneration: Long = 0,
 ) {
     val signedIn: Boolean get() = token.isNotEmpty()
+
+    internal val sessionIdentity: OfficialCloudSession
+        get() = OfficialCloudSession(token, sessionGeneration)
 
     val selectedVehicle: OfficialVehicle?
         get() {
@@ -186,6 +190,7 @@ data class OfficialCloudState(
         systemMessages: List<OfficialCloudMessage>? = null,
         messagesLoading: Boolean? = null,
         messagesError: String? = SENTINEL_STRING,
+        sessionGeneration: Long = this.sessionGeneration,
     ): OfficialCloudState = OfficialCloudState(
         initialized = initialized ?: this.initialized,
         token = token ?: this.token,
@@ -224,6 +229,7 @@ data class OfficialCloudState(
         systemMessages = systemMessages ?: this.systemMessages,
         messagesLoading = messagesLoading ?: this.messagesLoading,
         messagesError = if (messagesError === SENTINEL_STRING) this.messagesError else messagesError,
+        sessionGeneration = sessionGeneration,
     )
 
     companion object {

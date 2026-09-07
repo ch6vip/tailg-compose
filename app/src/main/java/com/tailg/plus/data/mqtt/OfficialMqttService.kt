@@ -152,6 +152,7 @@ class OfficialMqttService(
 
     private data class ConnectionIdentity(
         val token: String?,
+        val sessionGeneration: Long?,
         val vehicleKey: String,
         val userId: String,
         val broker: String,
@@ -163,9 +164,10 @@ class OfficialMqttService(
         override fun toString(): String = "ConnectionIdentity(redacted)"
     }
 
-    private fun connectionIdentity(vehicle: OfficialVehicle, userId: String, token: String?) =
+    private fun connectionIdentity(vehicle: OfficialVehicle, userId: String, state: OfficialCloudState?) =
         ConnectionIdentity(
-            token = token,
+            token = state?.token,
+            sessionGeneration = state?.sessionGeneration,
             vehicleKey = vehicle.key,
             userId = userId.trim(),
             broker = OfficialMqttConfig.brokerUriFor(vehicle),
@@ -180,7 +182,7 @@ class OfficialMqttService(
         if (cloud == null) return true
         val state = cloud.currentState
         val vehicle = state.selectedVehicle ?: return false
-        return state.signedIn && connectionIdentity(vehicle, state.userId, state.token) == identity
+        return state.signedIn && connectionIdentity(vehicle, state.userId, state) == identity
     }
 
     private fun ensureCurrentConnection(identity: ConnectionIdentity, cloud: OfficialCloudService?) {
@@ -283,7 +285,7 @@ class OfficialMqttService(
         // trigger), and every cloud-state emission here used to re-run
         // preconnect (config assembly + IMEI derivation + lock + logging)
         // even for unrelated refreshes (loading flags, messages, battery).
-        val sessionKey = connectionIdentity(vehicle, state.userId, state.token)
+        val sessionKey = connectionIdentity(vehicle, state.userId, state)
         if (sessionKey == _lastSessionKey) return
         preconnect(vehicle = vehicle, userId = state.userId)
         if (isCurrentConnection(sessionKey, _boundCloud ?: defaultCloud)) _lastSessionKey = sessionKey
@@ -308,7 +310,7 @@ class OfficialMqttService(
         force: Boolean = false,
     ) {
         val cloud = _boundCloud ?: defaultCloud
-        val identity = connectionIdentity(vehicle, userId, cloud?.currentState?.token)
+        val identity = connectionIdentity(vehicle, userId, cloud?.currentState)
         preconnectMutex.withLock { preconnectInternal(vehicle, userId, force, identity, cloud) }
     }
 
@@ -451,8 +453,9 @@ class OfficialMqttService(
      */
     private suspend fun autoReconnectLoop(lostClient: MqttAsyncClient, generation: Long) {
         val cloud = _boundCloud ?: return
-        val expectedToken = cloud.currentState.token
-        val expectedVehicleKey = cloud.currentState.selectedVehicle?.key
+        val expectedState = cloud.currentState
+        val expectedSession = expectedState.sessionIdentity
+        val expectedVehicleKey = expectedState.selectedVehicle?.key
         for (attempt in 1..AUTO_RECONNECT_MAX_ATTEMPTS) {
             val delayMs = (AUTO_RECONNECT_BASE_DELAY_MS shl (attempt - 1))
                 .coerceAtMost(AUTO_RECONNECT_MAX_DELAY_MS)
@@ -463,7 +466,7 @@ class OfficialMqttService(
             if (_client != null && _client !== lostClient) return
             val state = cloud.currentState
             val vehicle = state.selectedVehicle
-            if (!state.signedIn || vehicle == null || state.token != expectedToken || vehicle.key != expectedVehicleKey) return
+            if (!state.signedIn || vehicle == null || state.sessionIdentity != expectedSession || vehicle.key != expectedVehicleKey) return
             try {
                 log.operation(
                     "官方 MQTT 自动重连",
@@ -551,7 +554,7 @@ class OfficialMqttService(
      */
     suspend fun ensureConnected(vehicle: OfficialVehicle, userId: String) {
         val cloud = _boundCloud ?: defaultCloud
-        val identity = connectionIdentity(vehicle, userId, cloud?.currentState?.token)
+        val identity = connectionIdentity(vehicle, userId, cloud?.currentState)
         lifecycleMutex.withLock { ensureConnectedInternal(vehicle, userId, identity, cloud) }
     }
 
@@ -759,7 +762,7 @@ class OfficialMqttService(
         if (_disposed || _client !== client) return
         if (_pendingCommandApiName != null) {
             try {
-                handleStatusPayload(raw)
+                handleStatusPayload(raw, client)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -784,7 +787,7 @@ class OfficialMqttService(
                 for ((client, raw) in statusPayloads) {
                     if (_disposed || _client !== client) continue
                     try {
-                        handleStatusPayload(raw)
+                        handleStatusPayload(raw, client)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Throwable) {
@@ -805,17 +808,19 @@ class OfficialMqttService(
      * (Dart `handleStatusPayload`). Exposed for unit tests; used by the live
      * updates listener. Thread-safe: Paho callback thread and test callers.
      */
-    fun handleStatusPayload(raw: String) {
-        if (_disposed) return
+    fun handleStatusPayload(raw: String) = handleStatusPayload(raw, sourceClient = null)
+
+    private fun handleStatusPayload(raw: String, sourceClient: MqttAsyncClient?) {
+        if (_disposed || (sourceClient != null && _client !== sourceClient)) return
         val identity = _connectedIdentity
         if (identity != null && !isCurrentConnection(identity, _boundCloud ?: defaultCloud)) return
         val payload = OfficialMqttStatusPayload.tryParse(raw) ?: return
 
         val cloud = _boundCloud ?: defaultCloud
-        if (cloud != null) {
-            val state = cloud.currentState
+        val state = cloud?.currentState
+        if (state != null) {
             if (!state.signedIn || state.selectedVehicle == null) return
-            val selectedImei = state.selectedVehicle?.commandImei?.trim().orEmpty()
+            val selectedImei = OfficialMqttConfig.commandImei(requireNotNull(state.selectedVehicle)).trim()
             val payloadImei = payload.imei?.trim().orEmpty()
             if (payloadImei.isNotEmpty() && selectedImei.isNotEmpty() && payloadImei != selectedImei) {
                 log.operation(
@@ -826,12 +831,16 @@ class OfficialMqttService(
                 return
             }
         }
-        _latestStatusPayload = payload
-
         var failMessage: String? = null
         var failDetail: String? = null
         var ackMessage: String? = null
         synchronized(lock) {
+            if (sourceClient != null && _client !== sourceClient) return
+            if (identity != null && !isCurrentConnection(identity, cloud)) return
+            if (cloud != null && state != null && (cloud.currentState.token != state.token ||
+                    cloud.currentState.sessionGeneration != state.sessionGeneration ||
+                    cloud.currentState.selectedVehicle?.key != state.selectedVehicle?.key)) return
+            _latestStatusPayload = payload
             val pending = _pendingCommandApiName
             val controlError = payload.controlErrorMessage(pending)
             if (pending != null && controlError != null) {
@@ -849,8 +858,14 @@ class OfficialMqttService(
         ackMessage?.let { log.operation(it) }
 
         // Official also applies ACC/defence fields opportunistically on any status.
-        if (payload.hasVehicleState) {
-            cloud?.applyMqttVehicleStatus(acc = payload.accInt, defenceStatus = payload.defenceStatusInt)
+        if (payload.hasVehicleState && cloud != null && state?.selectedVehicle != null) {
+            cloud.applyMqttVehicleStatus(
+                acc = payload.accInt,
+                defenceStatus = payload.defenceStatusInt,
+                token = state.token,
+                vehicleKey = requireNotNull(state.selectedVehicle).key,
+                sessionGeneration = state.sessionGeneration,
+            )
         }
         // Wake push-driven confirmation waiters after the state/pending
         // bookkeeping above settled so their re-check sees the new snapshot.
@@ -866,8 +881,7 @@ class OfficialMqttService(
         commandApiName: String,
     ) {
         val cloud = _boundCloud ?: defaultCloud
-        val token = cloud?.currentState?.token
-        val identity = connectionIdentity(vehicle, userId, token)
+        val identity = connectionIdentity(vehicle, userId, cloud?.currentState)
         val override = publishCommandOverride
         if (override != null) {
             setPending(commandApiName, null)
@@ -875,11 +889,7 @@ class OfficialMqttService(
             return
         }
         ensureConnected(vehicle = vehicle, userId = userId)
-        if (cloud != null &&
-            (cloud.currentState.token != token || cloud.currentState.selectedVehicle?.key != vehicle.key)
-        ) {
-            throw OfficialCloudApiException("车辆或登录状态已变化，请重新操作")
-        }
+        ensureCurrentConnection(identity, cloud)
         val client = _client
         if (client == null || !client.isConnected) {
             throw OfficialCloudApiException("官方 MQTT 未连接")
@@ -938,7 +948,7 @@ class OfficialMqttService(
 
         fun ensureSameSession() {
             val current = cloud.currentState
-            if (current.token != state.token || current.selectedVehicle?.key != vehicle.key) {
+            if (current.sessionIdentity != state.sessionIdentity || current.selectedVehicle?.key != vehicle.key) {
                 throw OfficialCloudApiException("车辆或登录状态已变化，请重新操作")
             }
         }
@@ -959,7 +969,9 @@ class OfficialMqttService(
             return "mqtt:success"
         } catch (e: Throwable) {
             if (e is CancellationException) throw e
+            ensureSameSession()
             synchronized(lock) {
+                ensureSameSession()
                 _pendingCommandApiName = null
                 _pendingCommandError = null
                 _acknowledgedCommandApiName = null
@@ -977,6 +989,7 @@ class OfficialMqttService(
                 level = LogLevel.WARNING,
             )
             val httpMsg = cloud.sendCommand(command)
+            ensureSameSession()
             val trimmed = httpMsg.trim()
             log.operation("官方远程通道: HTTP", detail = "command=${api.apiName} msg=$trimmed")
             if (trimmed.isEmpty() || trimmed == "success" || trimmed.lowercase() == "ok") {

@@ -72,17 +72,40 @@ import kotlinx.coroutines.launch
 @Composable
 internal fun ShareBikeTab(
   store: ReplicaFeatureStore,
+  showAddDialog: Boolean,
+  onDismissAddDialog: () -> Unit,
   snackbarHostState: SnackbarHostState,
   scope: kotlinx.coroutines.CoroutineScope,
 ) {
   var members by remember { mutableStateOf<List<ShareMemberRecord>>(emptyList()) }
   var loading by remember { mutableStateOf(true) }
-  var showAddDialog by remember { mutableStateOf(false) }
+  var loaded by remember { mutableStateOf(false) }
+  var loadAttempt by remember { mutableStateOf(0) }
+  var saving by remember { mutableStateOf(false) }
   var editMember by remember { mutableStateOf<ShareMemberRecord?>(null) }
 
-  LaunchedEffect(Unit) {
-    members = store.loadShareMembers()
-    loading = false
+  LaunchedEffect(store, loadAttempt) {
+    loading = true
+    try {
+      loaded = AppSnack.runAction(snackbarHostState) { members = store.loadShareMembers() }
+    } finally {
+      loading = false
+    }
+  }
+
+  fun saveMembers(change: (List<ShareMemberRecord>) -> List<ShareMemberRecord>, onSaved: () -> Unit = {}) {
+    if (!loaded || saving) return
+    saving = true
+    scope.launch {
+      try {
+        AppSnack.runAction(snackbarHostState) {
+          members = store.updateShareMembers(change)
+          onSaved()
+        }
+      } finally {
+        saving = false
+      }
+    }
   }
 
   LazyColumn(
@@ -110,6 +133,8 @@ internal fun ShareBikeTab(
           CircularProgressIndicator(color = CyberHomeColors.primary)
         }
       }
+    } else if (!loaded) {
+      item { ReplicaLoadError(onRetry = { loadAttempt++ }) }
     } else if (members.isEmpty()) {
       item {
         EmptyReplicaCard(icon = Lucide.groupOff, title = stringResource(R.string.replica_no_members), subtitle = stringResource(R.string.replica_no_members_hint))
@@ -126,12 +151,9 @@ internal fun ShareBikeTab(
           members.forEachIndexed { i, member ->
             ShareMemberTile(
               member = member,
-              onEdit = { editMember = member },
+              onEdit = { if (!saving) editMember = member },
               onDelete = {
-                scope.launch {
-                  members = members.filter { it.id != member.id }
-                  store.saveShareMembers(members)
-                }
+                saveMembers({ current -> current.filter { it.id != member.id } })
               },
             )
             if (i != members.lastIndex) {
@@ -143,18 +165,14 @@ internal fun ShareBikeTab(
     }
   }
 
-  if (showAddDialog) {
+  if (showAddDialog && loaded && !loading) {
     ShareMemberEditDialog(
       member = null,
-      onDismiss = { showAddDialog = false },
+      saving = saving,
+      onDismiss = onDismissAddDialog,
       onSave = { name, phone ->
-        scope.launch {
-          val newMember = store.createShareMember(name = name, phone = phone)
-          val next = members + newMember
-          members = next
-          store.saveShareMembers(next)
-        }
-        showAddDialog = false
+        val newMember = store.createShareMember(name = name, phone = phone)
+        saveMembers({ it + newMember }, onSaved = onDismissAddDialog)
       },
     )
   }
@@ -162,13 +180,13 @@ internal fun ShareBikeTab(
   editMember?.let { member ->
     ShareMemberEditDialog(
       member = member,
+      saving = saving,
       onDismiss = { editMember = null },
       onSave = { name, phone ->
         val updated = member.copyWith(name = name, phone = phone)
-        val next = members.map { if (it.id == updated.id) updated else it }
-        members = next
-        scope.launch { store.saveShareMembers(next) }
-        editMember = null
+        saveMembers({ current -> current.map { if (it.id == updated.id) updated else it } }) {
+          editMember = null
+        }
       },
     )
   }
@@ -177,6 +195,7 @@ internal fun ShareBikeTab(
 @Composable
 internal fun ShareMemberEditDialog(
   member: ShareMemberRecord?,
+  saving: Boolean,
   onDismiss: () -> Unit,
   onSave: (String, String) -> Unit,
 ) {
@@ -184,7 +203,7 @@ internal fun ShareMemberEditDialog(
   var phone by remember { mutableStateOf(member?.phone ?: "") }
 
   AlertDialog(
-    onDismissRequest = onDismiss,
+    onDismissRequest = { if (!saving) onDismiss() },
     containerColor = CyberHomeColors.card,
     shape = RoundedCornerShape(AppRadii.tile),
     title = {
@@ -197,6 +216,7 @@ internal fun ShareMemberEditDialog(
       Column {
         OutlinedTextField(
           value = name,
+          enabled = !saving,
           onValueChange = { name = it },
           singleLine = true,
           label = { Text(stringResource(R.string.replica_member_name)) },
@@ -207,6 +227,7 @@ internal fun ShareMemberEditDialog(
         Spacer(Modifier.height(12.dp))
         OutlinedTextField(
           value = phone,
+          enabled = !saving,
           onValueChange = { phone = it },
           singleLine = true,
           label = { Text(stringResource(R.string.replica_member_phone)) },
@@ -219,6 +240,7 @@ internal fun ShareMemberEditDialog(
     },
     confirmButton = {
       Button(
+        enabled = !saving && name.isNotBlank(),
         onClick = {
           val trimmed = name.trim()
           if (trimmed.isNotEmpty()) onSave(trimmed, phone.trim())
@@ -230,7 +252,7 @@ internal fun ShareMemberEditDialog(
       }
     },
     dismissButton = {
-      TextButton(onClick = onDismiss) {
+      TextButton(onClick = onDismiss, enabled = !saving) {
         Text(stringResource(R.string.common_cancel), color = CyberHomeColors.inkMuted)
       }
     },

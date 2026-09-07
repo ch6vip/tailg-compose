@@ -146,7 +146,6 @@ fun VehicleMessageScreen(
 
   // Bootstrap: load read state + refresh messages.
   LaunchedEffect(Unit) {
-    messageReadStore.ensureLoaded()
     refreshMessages(
       cloudService = cloudService,
       messageReadStore = messageReadStore,
@@ -162,10 +161,12 @@ fun VehicleMessageScreen(
   // Sync from cloud state changes — keyed on the message lists only (keying
   // the whole slice re-ran the badge sync on every unrelated emission).
   LaunchedEffect(cloudState.vehicleMessages, cloudState.systemMessages) {
-    messageReadStore.syncFromCloudMessages(
-      vehicleMessages = cloudState.vehicleMessages,
-      systemMessages = cloudState.systemMessages,
-    )
+    AppSnack.runAction(snackbarHostState) {
+      messageReadStore.syncFromCloudMessages(
+        vehicleMessages = cloudState.vehicleMessages,
+        systemMessages = cloudState.systemMessages,
+      )
+    }
   }
 
   // Map + sort/filter split with narrow keys: any unrelated cloudState field
@@ -218,7 +219,7 @@ fun VehicleMessageScreen(
         onBack = onBack,
         onMarkRead = {
           scope.launch {
-            messageReadStore.markRead(tabMessages.map { it.id })
+            AppSnack.runAction(snackbarHostState) { messageReadStore.markRead(tabMessages.map { it.id }) }
           }
         },
         onClear = {
@@ -309,7 +310,7 @@ fun VehicleMessageScreen(
                 read = read,
                 onOpen = {
                   if (message.id !in readIds) {
-                    scope.launch { messageReadStore.markRead(listOf(message.id)) }
+                    scope.launch { AppSnack.runAction(snackbarHostState) { messageReadStore.markRead(listOf(message.id)) } }
                   }
                   detailMessage = message
                 },
@@ -421,6 +422,7 @@ private suspend fun refreshMessages(
   onLoading(true)
   onError(null)
   try {
+    messageReadStore.ensureLoaded()
     cloudService.refreshMessages(force = force)
     onLoading(false)
     onInitialized(true)
@@ -435,6 +437,8 @@ private suspend fun refreshMessages(
     onInitialized(true)
     onError(OfficialCloudRedactor.errorMessage(e))
     log.operation(strRefreshFailed, detail = OfficialCloudRedactor.errorMessage(e), level = LogLevel.WARNING)
+  } finally {
+    onLoading(false)
   }
 }
 

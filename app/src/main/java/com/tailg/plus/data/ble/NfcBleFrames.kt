@@ -9,7 +9,7 @@
  *   HEADER_SEND_NFC_DEL="85054A320502" · HEADER_SEND_NFC_FAC_SET="85054A320412"
  * and `TLinkBleManager` addUserKey tails:
  *   "010103842000DE"/"000103842000DE" (phone key) · "011003789ABCDE"/"001003789ABCDE" (BLE key).
- * `HEADER_SEND_CUSHION_SET_BODY` (TailgBleUtils) is the "000000000000" filler.
+ * `HEADER_SEND_CUSHION_SET_BODY` (TailgBleUtils) is the "56789ABCDE" filler.
  */
 package com.tailg.plus.data.ble
 
@@ -21,14 +21,16 @@ object OfficialNfcBleFrames {
   const val headerNfcCheck = "85044A3201"
   const val headerNfcDel = "85054A320502"
   const val headerNfcFacSet = "85054A320412"
-  /** TailgBleUtils.HEADER_SEND_CUSHION_SET_BODY fallback. */
-  const val cushionSetBody = "000000000000"
+  /** TailgBleUtils.HEADER_SEND_CUSHION_SET_BODY (official 3.5.9). */
+  const val cushionSetBody = "56789ABCDE"
 
   /**
    * Phone/card key add (keyType 1 = phone, 2 = BLE key).
    * Port of Dart `addUserKeyHex`.
    */
   fun addUserKeyHex(keyType: Int, type: String): String {
+    require(keyType == 1 || keyType == 2) { "Unsupported NFC key type" }
+    require(type == "0" || type == "1") { "NFC key mode must be 0 or 1" }
     if (keyType == 1) {
       val tail = if (type == "1") "010103842000DE" else "000103842000DE"
       return "$headerAddUserKey$tail"
@@ -39,14 +41,21 @@ object OfficialNfcBleFrames {
 
   /** Port of Dart `checkNfcHex`. */
   fun checkNfcHex(index: String): String =
-    "$headerNfcCheck$index" + "3456789ABCDE"
+    "$headerNfcCheck${validatedIndex(index)}" + "3456789ABCDE"
 
   /** Port of Dart `delNfcHex`. */
-  fun delNfcHex(index: String): String = "$headerNfcDel$index$cushionSetBody"
+  fun delNfcHex(index: String): String = "$headerNfcDel${validatedIndex(index)}$cushionSetBody"
 
   /** Port of Dart `addCardHex`. */
   fun addCardHex(index: String): String =
-    "$headerNfcAddMode$index$cushionSetBody"
+    "$headerNfcAddMode${validatedIndex(index)}$cushionSetBody"
+
+  private fun validatedIndex(index: String): String {
+    require(index.length == 2 && index.all { it in '0'..'9' || it in 'a'..'f' || it in 'A'..'F' }) {
+      "NFC index must be one hexadecimal byte"
+    }
+    return index.uppercase()
+  }
 
   /** Port of Dart `toBytes`. */
   fun toBytes(hex: String): ByteArray = hexToBytes(hex)

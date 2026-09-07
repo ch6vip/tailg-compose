@@ -4,8 +4,7 @@ import com.tailg.plus.data.model.CommandCode
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.CancellationException
-import kotlinx.coroutines.TimeoutCancellationException
-import kotlinx.coroutines.withTimeout
+import kotlinx.coroutines.withTimeoutOrNull
 
 /**
  * Port of `lib/services/control_command_executor.dart`.
@@ -65,15 +64,13 @@ class ControlCommandExecutor(
     return try {
       val preflight = beforeBleCommand
       if (preflight != null) {
-        val failure = try {
-          withTimeout(bleTimeout) { preflight(command) }
-        } catch (e: TimeoutCancellationException) {
-          return ControlCommandResult.failure(
+        val preflightResult = withTimeoutOrNull(bleTimeout) { Result.success(preflight(command)) }
+          ?: return ControlCommandResult.failure(
             command,
             transport = ControlCommandTransport.BLE,
             message = "BLE preflight timed out",
           )
-        }
+        val failure = preflightResult.getOrThrow()
         if (failure != null && failure.trim().isNotEmpty()) {
           return ControlCommandResult.failure(
             command,
@@ -82,15 +79,12 @@ class ControlCommandExecutor(
           )
         }
       }
-      val success = try {
-        withTimeout(bleTimeout) { sender(command) }
-      } catch (e: TimeoutCancellationException) {
-        return ControlCommandResult.failure(
+      val success = withTimeoutOrNull(bleTimeout) { sender(command) }
+        ?: return ControlCommandResult.failure(
           command,
           transport = ControlCommandTransport.BLE,
           message = "BLE command timed out",
         )
-      }
       if (success) return ControlCommandResult.bleSuccess(command)
       ControlCommandResult.failure(
         command,
@@ -98,8 +92,8 @@ class ControlCommandExecutor(
         message = "${command.label}失败",
       )
     } catch (e: CancellationException) {
-      // TimeoutCancellationException is handled above; rethrow real
-      // cooperative cancellation so structured concurrency is preserved.
+      // Only this executor's time budget becomes a failure result. Caller
+      // cancellation (including an enclosing timeout) must stop the operation.
       throw e
     } catch (e: Exception) {
       ControlCommandResult.failure(
@@ -112,15 +106,12 @@ class ControlCommandExecutor(
 
   private suspend fun sendCloud(command: CommandCode): ControlCommandResult {
     return try {
-      val message = try {
-        withTimeout(cloudTimeout) { sendCloudCommand(command) }
-      } catch (e: TimeoutCancellationException) {
-        return ControlCommandResult.failure(
+      val message = withTimeoutOrNull(cloudTimeout) { sendCloudCommand(command) }
+        ?: return ControlCommandResult.failure(
           command,
           transport = ControlCommandTransport.OFFICIAL_CLOUD,
           message = OfficialRemoteErrorMessages.NETWORK_UNAVAILABLE,
         )
-      }
       ControlCommandResult.cloudSuccess(command, message = message)
     } catch (e: CancellationException) {
       throw e

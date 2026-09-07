@@ -1,6 +1,7 @@
 package com.tailg.plus.data.model
 
 import java.time.Instant
+import java.time.ZoneId
 
 /**
  * Port of `lib/models/official_cloud_message.dart`.
@@ -77,7 +78,7 @@ data class OfficialCloudMessage(
         private fun parseMessageTime(value: Any?): Instant {
             val text = clean(value)
             if (text == null) return Instant.EPOCH
-            return parseDateTimeLenient(text.replaceFirst(" ", "T")) ?: Instant.EPOCH
+            return parseDateTimeLenient(text, defaultZone = ZoneId.systemDefault()) ?: Instant.EPOCH
         }
 
         private fun clean(value: Any?): String? = cleanTextOrNull(value)

@@ -1,6 +1,7 @@
 package com.tailg.plus.data.store
 
 import android.content.Context
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -13,7 +14,12 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import java.time.Instant
 import java.time.temporal.ChronoUnit
+import java.util.concurrent.atomic.AtomicInteger
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 
 private val Context.replicaFeatureStoreDataStore by preferencesDataStore(name = "replica_feature_store")
 
@@ -40,6 +46,7 @@ class ReplicaFeatureStore(
     private val context: Context,
     private val logService: LogService = LogService(),
     clock: () -> Instant = { Instant.now() },
+    private val dataStore: DataStore<Preferences> = context.replicaFeatureStoreDataStore,
 ) {
 
     companion object {
@@ -60,12 +67,13 @@ class ReplicaFeatureStore(
     private var clock: () -> Instant = clock
 
     /** Dart `_idCounter`: reset by [resetForTest], never persisted. */
-    private var idCounter = 0
+    private val idCounter = AtomicInteger()
+    private val persistenceMutex = Mutex()
 
     /** Dart `resetForTest({clock})`. */
     fun resetForTest(clock: (() -> Instant)? = null) {
         this.clock = clock ?: { Instant.now() }
-        idCounter = 0
+        idCounter.set(0)
     }
 
     private fun logWarning(message: String, error: Any) {
@@ -75,11 +83,11 @@ class ReplicaFeatureStore(
     // --- NFC keys ---
 
     /** Dart `loadNfcKeys`. */
-    suspend fun loadNfcKeys(): List<NfcKeyRecord> {
+    suspend fun loadNfcKeys(): List<NfcKeyRecord> = persistenceMutex.withLock {
         val raw = withDataStoreReadTimeout {
-            context.replicaFeatureStoreDataStore.data.first()
+            dataStore.data.first()
         }[KEY_NFC_KEYS]
-        return decodeList(raw) { json, fallbackNow ->
+        decodeList(raw) { json, fallbackNow ->
             NfcKeyRecord.fromJson(json, fallbackNow = fallbackNow)
         }
     }
@@ -88,6 +96,11 @@ class ReplicaFeatureStore(
     suspend fun saveNfcKeys(records: List<NfcKeyRecord>) {
         saveList(KEY_NFC_KEYS, records.map { it.toJson() })
     }
+
+    /** Apply a change to the latest committed list, including changes from other screens. */
+    suspend fun updateNfcKeys(change: (List<NfcKeyRecord>) -> List<NfcKeyRecord>): List<NfcKeyRecord> =
+        updateList(KEY_NFC_KEYS, { json, now -> NfcKeyRecord.fromJson(json, fallbackNow = now) },
+            NfcKeyRecord::toJson, change)
 
     /** Dart `createNfcKey`. */
     fun createNfcKey(name: String, type: String): NfcKeyRecord {
@@ -103,19 +116,22 @@ class ReplicaFeatureStore(
     // --- geofence config ---
 
     /** Dart `loadFenceConfig`: `null` when absent or undecodable. */
-    suspend fun loadFenceConfig(): FenceConfig? {
+    suspend fun loadFenceConfig(): FenceConfig? = persistenceMutex.withLock {
         val raw = withDataStoreReadTimeout {
-            context.replicaFeatureStoreDataStore.data.first()
+            dataStore.data.first()
         }[KEY_FENCE_CONFIG]
         val decoded = decodeMap(raw)
-        if (decoded == null) return null
-        return FenceConfig.fromJson(decoded, fallbackNow = clock())
+        decoded?.let { FenceConfig.fromJson(it, fallbackNow = clock()) }
     }
 
     /** Dart `saveFenceConfig`. */
     suspend fun saveFenceConfig(config: FenceConfig) {
-        context.replicaFeatureStoreDataStore.edit { prefs ->
-            prefs[KEY_FENCE_CONFIG] = StoreJson.encode(config.toJson())
+        persistenceMutex.withLock {
+            withContext(NonCancellable) {
+                dataStore.edit { prefs ->
+                    prefs[KEY_FENCE_CONFIG] = StoreJson.encode(config.toJson())
+                }
+            }
         }
     }
 
@@ -136,11 +152,11 @@ class ReplicaFeatureStore(
     // --- share members ---
 
     /** Dart `loadShareMembers`. */
-    suspend fun loadShareMembers(): List<ShareMemberRecord> {
+    suspend fun loadShareMembers(): List<ShareMemberRecord> = persistenceMutex.withLock {
         val raw = withDataStoreReadTimeout {
-            context.replicaFeatureStoreDataStore.data.first()
+            dataStore.data.first()
         }[KEY_SHARE_MEMBERS]
-        return decodeList(raw) { json, fallbackNow ->
+        decodeList(raw) { json, fallbackNow ->
             ShareMemberRecord.fromJson(json, fallbackNow = fallbackNow)
         }
     }
@@ -149,6 +165,10 @@ class ReplicaFeatureStore(
     suspend fun saveShareMembers(records: List<ShareMemberRecord>) {
         saveList(KEY_SHARE_MEMBERS, records.map { it.toJson() })
     }
+
+    suspend fun updateShareMembers(change: (List<ShareMemberRecord>) -> List<ShareMemberRecord>): List<ShareMemberRecord> =
+        updateList(KEY_SHARE_MEMBERS, { json, now -> ShareMemberRecord.fromJson(json, fallbackNow = now) },
+            ShareMemberRecord::toJson, change)
 
     /** Dart `createShareMember`. */
     fun createShareMember(name: String, phone: String): ShareMemberRecord {
@@ -168,10 +188,10 @@ class ReplicaFeatureStore(
      * `DateTime.microsecondsSinceEpoch`.
      */
     fun makeId(now: Instant? = null): String {
-        idCounter++
+        val counter = idCounter.incrementAndGet()
         val instant = now ?: clock()
         val micros = ChronoUnit.MICROS.between(Instant.EPOCH, instant)
-        return "${micros}_$idCounter"
+        return "${micros}_$counter"
     }
 
     // --- decoding (Dart `_decodeList` / `_decodeMap` family) ---
@@ -247,8 +267,26 @@ class ReplicaFeatureStore(
     // --- persistence (Dart `_saveList`) ---
 
     private suspend fun saveList(key: Preferences.Key<String>, records: List<Map<String, Any?>>) {
-        context.replicaFeatureStoreDataStore.edit { prefs ->
-            prefs[key] = StoreJson.encode(records)
+        persistenceMutex.withLock {
+            withContext(NonCancellable) {
+                dataStore.edit { prefs -> prefs[key] = StoreJson.encode(records) }
+            }
+        }
+    }
+
+    private suspend fun <T> updateList(
+        key: Preferences.Key<String>,
+        decode: (Map<String, Any?>, Instant) -> T,
+        encode: (T) -> Map<String, Any?>,
+        change: (List<T>) -> List<T>,
+    ): List<T> = persistenceMutex.withLock {
+        withContext(NonCancellable) {
+            var updated = emptyList<T>()
+            dataStore.edit { prefs ->
+                updated = change(decodeList(prefs[key], decode))
+                prefs[key] = StoreJson.encode(updated.map(encode))
+            }
+            updated
         }
     }
 }

@@ -37,11 +37,16 @@ import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
+import android.os.Bundle
+import android.os.ResultReceiver
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.tailg.plus.MainActivity
 import com.tailg.plus.R
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.coroutines.resume
 import timber.log.Timber
 
 class InductionForegroundService : Service() {
@@ -52,6 +57,8 @@ class InductionForegroundService : Service() {
   }
 
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+    @Suppress("DEPRECATION")
+    val result = intent?.getParcelableExtra<ResultReceiver>(EXTRA_START_RESULT)
     val vehicleLabel = intent?.getStringExtra(EXTRA_VEHICLE_LABEL)
     val openApp = Intent(this, MainActivity::class.java).apply {
       addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP or Intent.FLAG_ACTIVITY_CLEAR_TOP)
@@ -86,7 +93,11 @@ class InductionForegroundService : Service() {
       } else {
         startForeground(NOTIFICATION_ID, notification)
       }
+      runningService = this
+      result?.send(1, null)
     } catch (e: Exception) {
+      if (runningService === this) runningService = null
+      result?.send(0, null)
       Timber.tag("InductionFgs").w(e, "startForeground failed; stopping")
       stopSelf()
     }
@@ -94,11 +105,17 @@ class InductionForegroundService : Service() {
   }
 
   override fun onTaskRemoved(rootIntent: Intent?) {
+    if (runningService === this) runningService = null
     stopSelf()
     super.onTaskRemoved(rootIntent)
   }
 
   override fun onBind(intent: Intent?): IBinder? = null
+
+  override fun onDestroy() {
+    if (runningService === this) runningService = null
+    super.onDestroy()
+  }
 
   private fun createNotificationChannel() {
     if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
@@ -114,6 +131,9 @@ class InductionForegroundService : Service() {
   }
 
   companion object {
+    internal const val EXTRA_START_RESULT = "startResult"
+    @Volatile private var runningService: InductionForegroundService? = null
+    internal val isRunning: Boolean get() = runningService != null
     /** Dart MethodChannel extra name (`de.tttq.tailg_ble_app/induction_service`). */
     const val EXTRA_VEHICLE_LABEL = "vehicleLabel"
 
@@ -124,15 +144,17 @@ class InductionForegroundService : Service() {
     const val NOTIFICATION_ID = 2031
 
     /** Dart `InductionForegroundService.start` — launch the foreground service. */
-    fun start(context: Context, vehicleLabel: String?) {
+    fun start(context: Context, vehicleLabel: String?, result: ResultReceiver? = null) {
       val intent = Intent(context, InductionForegroundService::class.java).apply {
         putExtra(EXTRA_VEHICLE_LABEL, vehicleLabel ?: "")
+        putExtra(EXTRA_START_RESULT, result)
       }
       ContextCompat.startForegroundService(context, intent)
     }
 
     /** Dart `InductionForegroundService.stop` — stop the foreground service. */
     fun stop(context: Context) {
+      runningService = null
       val intent = Intent(context, InductionForegroundService::class.java)
       context.stopService(intent)
     }
@@ -143,6 +165,9 @@ class InductionForegroundService : Service() {
 interface InductionForegroundServiceBridge {
   /** Dart `supportsBackgroundRssi` — true on Android. */
   val supportsBackgroundRssi: Boolean
+
+  /** True only while Android has successfully promoted the service. */
+  val isRunning: Boolean
 
   /** Dart `start({vehicleLabel})` — false when the platform refuses the start. */
   suspend fun start(vehicleLabel: String?): Boolean
@@ -164,10 +189,19 @@ class AndroidInductionForegroundServiceBridge(private val context: Context) :
   InductionForegroundServiceBridge {
 
   override val supportsBackgroundRssi: Boolean = true
+  override val isRunning: Boolean get() = InductionForegroundService.isRunning
 
   override suspend fun start(vehicleLabel: String?): Boolean = try {
-    InductionForegroundService.start(context, vehicleLabel)
-    true
+    withTimeoutOrNull(5_000) {
+      suspendCancellableCoroutine { continuation ->
+        val result = object : ResultReceiver(null) {
+          override fun onReceiveResult(resultCode: Int, resultData: Bundle?) {
+            if (continuation.isActive) continuation.resume(resultCode == 1)
+          }
+        }
+        InductionForegroundService.start(context, vehicleLabel, result)
+      }
+    } == true
   } catch (e: Exception) {
     if (e is CancellationException) throw e
     false

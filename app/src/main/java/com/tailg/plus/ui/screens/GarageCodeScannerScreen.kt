@@ -36,6 +36,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -57,6 +58,8 @@ import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanner
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
@@ -112,6 +115,17 @@ fun GarageCodeScannerScreen(
     if (!hasCameraPermission) {
       permissionLauncher.launch(Manifest.permission.CAMERA)
     }
+  }
+
+  DisposableEffect(lifecycleOwner, context) {
+    val observer = LifecycleEventObserver { _, event ->
+      if (event == Lifecycle.Event.ON_RESUME) {
+        hasCameraPermission = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA) ==
+          PackageManager.PERMISSION_GRANTED
+      }
+    }
+    lifecycleOwner.lifecycle.addObserver(observer)
+    onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
   }
 
   // Dart: AnnotatedRegion<SystemUiOverlayStyle> — dark scanner page needs
@@ -240,9 +254,10 @@ private fun CameraPreview(
 ) {
   val context = LocalContext.current
 
-  val previewView = remember { PreviewView(context) }
-  val analyzer = remember { BarcodeAnalyzer(barcodeScanner, onDetected) }
-  val mainExecutor = remember { ContextCompat.getMainExecutor(context) }
+  val previewView = remember(context) { PreviewView(context) }
+  val currentOnDetected by rememberUpdatedState(onDetected)
+  val analyzer = remember(lifecycleOwner, barcodeScanner) { BarcodeAnalyzer(barcodeScanner) { currentOnDetected(it) } }
+  val mainExecutor = remember(context) { ContextCompat.getMainExecutor(context) }
 
   AndroidView(
     factory = { previewView },
@@ -252,7 +267,7 @@ private fun CameraPreview(
   // Stop frame analysis as soon as the host has handled a barcode (or the
   // permission state flipped away) — ML Kit would otherwise keep burning CPU
   // on every frame for the rest of the page session.
-  LaunchedEffect(analyzerEnabled) {
+  LaunchedEffect(analyzer, analyzerEnabled) {
     analyzer.enabled = analyzerEnabled
   }
 
@@ -261,7 +276,7 @@ private fun CameraPreview(
   // the composable but the camera kept running (ImageAnalysis delivered
   // frames to ML Kit until the whole activity paused). DisposableEffect
   // releases the camera when this page leaves the tree.
-  DisposableEffect(Unit) {
+  DisposableEffect(lifecycleOwner, previewView, analyzer) {
     var disposed = false
     val future = ProcessCameraProvider.getInstance(context)
     val listener = Runnable {
@@ -303,6 +318,7 @@ private fun CameraPreview(
       // (Guava's ListenableFuture has no removeListener on the interface;
       // the listener is released once the provider future completes.)
       disposed = true
+      analyzer.enabled = false
       // The provider future may not have resolved before disposal; when it
       // has, release the camera (and with it the analyzer) right away.
       if (future.isDone) {
@@ -321,7 +337,7 @@ private fun CameraPreview(
  * [BarcodeScanning]. Detection runs on the ML Kit task thread; the callback
  * is dispatched back to the main executor set on the ImageAnalysis.
  */
-private class BarcodeAnalyzer(
+internal class BarcodeAnalyzer(
   private val scanner: BarcodeScanner,
   private val onDetected: (String) -> Unit,
 ) : ImageAnalysis.Analyzer {
@@ -343,22 +359,30 @@ private class BarcodeAnalyzer(
       return
     }
 
-    val inputImage = InputImage.fromMediaImage(
-      mediaImage,
-      imageProxy.imageInfo.rotationDegrees,
-    )
+    try {
+      val inputImage = InputImage.fromMediaImage(
+        mediaImage,
+        imageProxy.imageInfo.rotationDegrees,
+      )
 
-    scanner.process(inputImage)
-      .addOnSuccessListener { barcodes ->
-        for (barcode in barcodes) {
-          val value = barcode.rawValue?.trim() ?: ""
-          if (value.isNotEmpty()) {
-            onDetected(value)
-            break
+      scanner.process(inputImage)
+        .addOnSuccessListener { barcodes ->
+          if (!enabled) return@addOnSuccessListener
+          for (barcode in barcodes) {
+            val value = barcode.rawValue?.trim() ?: ""
+            if (value.isNotEmpty()) {
+              enabled = false
+              onDetected(value)
+              break
+            }
           }
         }
-      }
-      .addOnCompleteListener { imageProxy.close() }
+        .addOnFailureListener { Timber.tag("GarageCodeScanner").w(it, "Barcode analysis failed") }
+        .addOnCompleteListener { imageProxy.close() }
+    } catch (e: Exception) {
+      imageProxy.close()
+      Timber.tag("GarageCodeScanner").w(e, "Barcode analysis could not start")
+    }
   }
 }
 

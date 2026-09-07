@@ -154,10 +154,12 @@ fun ProfileMineScreen(
   // Message badge — re-sync whenever the (signed-in) message lists change.
   LaunchedEffect(signedIn, cloudState.vehicleMessages, cloudState.systemMessages) {
     if (signedIn) {
-      messageReadStore.syncFromCloudMessages(
-        vehicleMessages = cloudState.vehicleMessages,
-        systemMessages = cloudState.systemMessages,
-      )
+      AppSnack.runAction(snackbarHostState) {
+        messageReadStore.syncFromCloudMessages(
+          vehicleMessages = cloudState.vehicleMessages,
+          systemMessages = cloudState.systemMessages,
+        )
+      }
     }
   }
 

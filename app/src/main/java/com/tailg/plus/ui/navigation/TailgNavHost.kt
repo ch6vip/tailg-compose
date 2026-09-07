@@ -55,8 +55,14 @@ fun TailgNavHost() {
   val respectTextScale by preferences.respectSystemTextScale.collectAsStateWithLifecycle()
   val language by preferences.language.collectAsStateWithLifecycle()
   val distanceUnit by preferences.distanceUnit.collectAsStateWithLifecycle()
-  LaunchedEffect(Unit) {
-    preferences.init()
+  LaunchedEffect(preferences) {
+    try {
+      preferences.init()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      throw e
+    } catch (e: Exception) {
+      Timber.tag("TailgNavHost").w(e, "Application preferences could not be loaded")
+    }
   }
   val baseContext = LocalContext.current
   val baseConfiguration = LocalConfiguration.current
@@ -140,6 +146,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
     try {
       cloudService.init()
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       Timber.tag("TailgNavHost").w(e, "cloud session restore failed")
     }
     bootstrapped = true

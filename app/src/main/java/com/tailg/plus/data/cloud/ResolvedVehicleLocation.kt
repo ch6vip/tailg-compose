@@ -6,6 +6,7 @@ import com.tailg.plus.data.model.VehicleLocation
 import com.tailg.plus.data.model.VehicleProfile
 import com.tailg.plus.data.model.formatCoordinateText
 import com.tailg.plus.data.model.isZeroCoordinate
+import com.tailg.plus.data.model.isValidCoordinate
 import com.tailg.plus.util.formatDateMinuteText
 import java.time.ZoneId
 
@@ -35,7 +36,8 @@ data class ResolvedVehicleLocation(
         get() {
             val lat = latitude ?: return false
             val lng = longitude ?: return false
-            return !isZeroCoordinate(lat, lng, tolerance = vehicleCoordinateTolerance)
+            return isValidCoordinate(lat, lng) &&
+                !isZeroCoordinate(lat, lng, tolerance = vehicleCoordinateTolerance)
         }
 
     val coordinateText: String
@@ -92,6 +94,7 @@ internal fun resolveVehicleLocation(
         val cloudLng = cloudLocation.longitude
         if (cloudLat != null &&
             cloudLng != null &&
+            isValidCoordinate(cloudLat, cloudLng) &&
             !isZeroCoordinate(cloudLat, cloudLng, tolerance = vehicleCoordinateTolerance)
         ) {
             return ResolvedVehicleLocation(
@@ -119,6 +122,7 @@ internal fun resolveVehicleLocation(
     val vehicleLng = officialVehicle?.longitude?.toDoubleOrNull()
     if (vehicleLat != null &&
         vehicleLng != null &&
+        isValidCoordinate(vehicleLat, vehicleLng) &&
         !isZeroCoordinate(vehicleLat, vehicleLng, tolerance = vehicleCoordinateTolerance)
     ) {
         return ResolvedVehicleLocation(
@@ -133,6 +137,7 @@ internal fun resolveVehicleLocation(
 
     val local: VehicleLocation? = localVehicle?.lastLocation
     if (local != null &&
+        isValidCoordinate(local.latitude, local.longitude) &&
         !isZeroCoordinate(local.latitude, local.longitude, tolerance = vehicleCoordinateTolerance)
     ) {
         return ResolvedVehicleLocation(

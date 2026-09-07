@@ -25,6 +25,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -62,6 +63,13 @@ fun CaptchaSliderDialog(
 ) {
   val context = LocalContext.current
   var failed by remember { mutableStateOf(false) }
+  val currentOnResult by rememberUpdatedState(onResult)
+  val bridge: CaptchaJsInterface = remember(context) {
+    CaptchaJsInterface(
+      onResult = { ticket, randstr -> currentOnResult(ticket, randstr) },
+      onError = { failed = true },
+    )
+  }
 
   val webView = remember(context) {
     WebView(context).apply {
@@ -73,23 +81,18 @@ fun CaptchaSliderDialog(
         cacheMode = WebSettings.LOAD_DEFAULT
         mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
       }
-      addJavascriptInterface(
-        CaptchaJsInterface(
-          onResult = { ticket, randstr ->
-            Handler(Looper.getMainLooper()).post { onResult(ticket, randstr) }
-          },
-          onError = {
-            Handler(Looper.getMainLooper()).post { failed = true }
-          },
-        ),
-        "tailgAppJsInterface",
-      )
+      registerCaptchaBridge(this, bridge)
       webViewClient = WebViewClient()
       loadUrl(CAPTCHA_URL)
     }
   }
-  DisposableEffect(webView) {
-    onDispose { webView.destroy() }
+  DisposableEffect(webView, bridge) {
+    onDispose {
+      bridge.close()
+      webView.removeJavascriptInterface("tailgAppJsInterface")
+      webView.stopLoading()
+      webView.destroy()
+    }
   }
 
   Dialog(
@@ -168,14 +171,29 @@ fun CaptchaSliderDialog(
   }
 }
 
+// Lint's TypeEvaluator follows a remembered local back to remember<T>'s raw
+// return type. A typed parameter keeps registration tied to the annotated class.
+private fun registerCaptchaBridge(webView: WebView, bridge: CaptchaJsInterface) {
+  webView.addJavascriptInterface(bridge, "tailgAppJsInterface")
+}
+
 /**
  * `tailgAppJsInterface` —— appCode.html 通过 `navigator.userAgent` 判断平台后，
  * Android 分支调用 `window.tailgAppJsInterface.setSmsInfo(data)`。
  */
-private class CaptchaJsInterface(
+internal class CaptchaJsInterface(
   private val onResult: (String, String) -> Unit,
   private val onError: (String) -> Unit,
 ) {
+  private val handler = Handler(Looper.getMainLooper())
+  @Volatile private var closed = false
+  private var delivered = false
+
+  fun close() {
+    closed = true
+    handler.removeCallbacksAndMessages(null)
+  }
+
   @JavascriptInterface
   fun setSmsInfo(data: String) {
     try {
@@ -183,7 +201,12 @@ private class CaptchaJsInterface(
       val ticket = json.optString("ticket")
       val randstr = json.optString("randstr")
       if (ticket.isNotBlank()) {
-        onResult(ticket, randstr)
+        handler.post {
+          if (!closed && !delivered) {
+            delivered = true
+            onResult(ticket, randstr)
+          }
+        }
       }
     } catch (_: Exception) {
       // 解析失败按无结果处理，页面会通过 setError 上报。
@@ -192,7 +215,7 @@ private class CaptchaJsInterface(
 
   @JavascriptInterface
   fun setError(errorCode: String) {
-    onError(errorCode)
+    handler.post { if (!closed && !delivered) onError(errorCode) }
   }
 }
 

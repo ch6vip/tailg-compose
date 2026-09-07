@@ -23,13 +23,12 @@ class BleNfcService(
   private val log: LogService = logService ?: LogService()
 
   /**
-   * Dart `canWriteOfficialNfc`: standard-stack LOGIN with a KKS or TLink
-   * protocol (official `writeData` path); QGJ is not supported.
+   * These frames belong to TLink. Its four-byte session token completes the
+   * AES block; they are not KKS or QGJ commands.
    */
   val canWriteOfficialNfc: Boolean
     get() = connectionManager.isProtocolLoggedIn &&
-      (connectionManager.protocol == ProtocolType.KKS ||
-        connectionManager.protocol == ProtocolType.TLINK)
+      connectionManager.protocol == ProtocolType.TLINK
 
   /** Dart `addUserKey({keyType, type})`. */
   suspend fun addUserKey(keyType: Int, type: String): Boolean =
@@ -54,7 +53,7 @@ class BleNfcService(
   private suspend fun write(hex: String, label: String): Boolean {
     if (!canWriteOfficialNfc) {
       log.operation(
-        "官方 NFC 写入跳过（需 standard LOGIN）",
+        "官方 NFC 写入跳过（需 TLink LOGIN）",
         detail = label,
         level = LogLevel.WARNING,
       )

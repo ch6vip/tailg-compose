@@ -142,7 +142,7 @@ class InductionModeService(
   private val _snapshot: InductionModeSnapshot get() = _snapshotState.value
   private val bindingLock = Any()
   private val operationMutex = Mutex()
-  private var bindingGeneration = 0L
+  @Volatile private var bindingGeneration = 0L
   private val activeOperations = mutableSetOf<Job>()
   private var _connJob: Job? = null
   private var _appInForeground = true
@@ -601,11 +601,13 @@ class InductionModeService(
   private fun startRssiLoop() {
     synchronized(rssiLock) {
       if (_rssiJob?.isActive == true) return
-      val session = RssiSession()
+      val session = RssiSession(bindingGeneration, rssiConnectionKey(), _rssiCalibration)
       val label = _boundCarId
       _rssiJob = scope.launch(start = CoroutineStart.LAZY) {
         val thisJob = currentCoroutineContext().job
         try {
+          _manual.init()
+          if (!rssiReady(session)) return@launch
           // Start the foreground service FIRST: if it cannot start (Android 12+
           // bans background FGS starts — a BLE reconnect restarting this loop
           // while backgrounded used to leave the poll running unprotected, with
@@ -617,7 +619,16 @@ class InductionModeService(
           _log.operation("RSSI 感应轮询已启动", level = LogLevel.INFO)
           while (isActive) {
             delay(rssiPollInterval)
+            if (!_foregroundService.isRunning) break
             rssiTick(session)
+          }
+        } catch (e: Exception) {
+          if (e is CancellationException) throw e
+          _log.operation("RSSI 感应轮询失败", detail = e.toString(), level = LogLevel.WARNING)
+          synchronized(bindingLock) {
+            if (bindingGeneration == session.generation) {
+              publish(_snapshot.copyWith(lastError = OfficialCloudRedactor.errorMessage(e)))
+            }
           }
         } finally {
           synchronized(rssiLock) {
@@ -655,16 +666,35 @@ class InductionModeService(
       .onFailure { _log.operation("RSSI 前台服务停止失败", detail = it.toString(), level = LogLevel.WARNING) }
   }
 
-  private class RssiSession {
+  private class RssiSession(
+    val generation: Long,
+    val connectionKey: String?,
+    val calibration: RssiCalibration,
+  ) {
     val samples = ArrayDeque<Int>()
     var taskState = RssiTaskState.idle
   }
 
+  private fun rssiConnectionKey(): String? =
+    cm.connectionContext?.targetMacCompact?.takeIf { it.isNotEmpty() }
+      ?: runCatching { cm.device?.address?.replace(":", "")?.uppercase() }.getOrNull()
+
+  private fun rssiReady(session: RssiSession): Boolean =
+    !_manual.enabled && bindingGeneration == session.generation &&
+      bleReadyFor(InductionStack.RSSI) && rssiConnectionKey() == session.connectionKey
+
   private suspend fun rssiTick(session: RssiSession) {
-    if (_manual.enabled) return
-    if (!cm.isProtocolLoggedIn) return
+    if (!rssiReady(session) || !_foregroundService.isRunning) {
+      session.samples.clear()
+      session.taskState = RssiTaskState.idle
+      return
+    }
     val rssi = cm.readRemoteRssi() ?: return
     currentCoroutineContext().ensureActive()
+    if (!rssiReady(session) || !_foregroundService.isRunning) {
+      session.samples.clear()
+      return
+    }
     session.samples.addLast(rssi)
     while (session.samples.size > rssiSampleWindow) {
       session.samples.removeFirst()
@@ -673,13 +703,13 @@ class InductionModeService(
 
     val distance = estimateDistanceFromRssiSamples(
       session.samples.toList(),
-      rssiA = _rssiCalibration.rssiA,
-      rssiFactor = _rssiCalibration.rssiFactor,
+      rssiA = session.calibration.rssiA,
+      rssiFactor = session.calibration.rssiFactor,
     )
     val action = classifyDistance(
       distance,
-      minDistanceM = _rssiCalibration.minDistanceM,
-      maxDistanceM = _rssiCalibration.maxDistanceM,
+      minDistanceM = session.calibration.minDistanceM,
+      maxDistanceM = session.calibration.maxDistanceM,
     )
     if (!shouldFireRssiAction(action, session.taskState)) {
       session.samples.removeFirst()
@@ -697,7 +727,7 @@ class InductionModeService(
         // Re-check manual mode before every command: the user may have flipped
         // the 感应|手动 switch while a previous step was in flight.
         currentCoroutineContext().ensureActive()
-        if (_manual.enabled || !cm.isProtocolLoggedIn) break
+        if (!rssiReady(session) || !_foregroundService.isRunning) break
         val command = when (step) {
           RssiProximityStep.unlock -> CommandCode.unlock
           RssiProximityStep.powerOn -> CommandCode.powerOn
@@ -706,6 +736,7 @@ class InductionModeService(
         }
         val ok = cm.sendCommand(command)
         currentCoroutineContext().ensureActive()
+        if (!rssiReady(session)) break
         session.taskState = confirmedRssiState(session.taskState, step, success = ok)
         if (!ok) {
           _log.operation("RSSI 感应步骤未确认", detail = command.label, level = LogLevel.WARNING)

@@ -57,6 +57,9 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
+import androidx.compose.material3.SnackbarHostState
+import com.tailg.plus.ui.components.AppSnack
+import com.tailg.plus.ui.components.AppSnackbarHost
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 
@@ -92,9 +95,11 @@ fun SettingsScreen(
   val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.CYBER.value)
   val currentUiMode = UiMode.fromValue(uiMode)
   val scope = androidx.compose.runtime.rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
 
   Scaffold(
     containerColor = CyberHomeColors.pageBg,
+    snackbarHost = { AppSnackbarHost(snackbarHostState) },
   ) { padding ->
     Column(
       modifier = Modifier
@@ -152,7 +157,7 @@ fun SettingsScreen(
               onCheckedChange = { value ->
                 // Fire-and-forget; the StateFlow will reflect the new value.
                 scope.launch {
-                  prefs.setRespectSystemTextScale(value)
+                  AppSnack.runAction(snackbarHostState) { prefs.setRespectSystemTextScale(value) }
                 }
               },
               colors = SwitchDefaults.colors(
@@ -197,7 +202,7 @@ fun SettingsScreen(
               selected = mode == currentUiMode,
               onClick = {
                 haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                scope.launch { prefs.setUiMode(mode.value) }
+                scope.launch { AppSnack.runAction(snackbarHostState) { prefs.setUiMode(mode.value) } }
                 showUiModeMenu = false
               },
               shapes = MenuDefaults.itemShape(index = index, count = UiMode.entries.size),

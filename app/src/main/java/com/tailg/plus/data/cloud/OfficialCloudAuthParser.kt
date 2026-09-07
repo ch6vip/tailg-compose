@@ -88,13 +88,16 @@ object OfficialCloudAuthParser {
     private const val HEX_DIGITS = "0123456789ABCDEF"
 
     private fun percentEncode(value: String): String = buildString(value.length) {
-        for (char in value) {
-            if (char.isLetterOrDigit() || char == '-' || char == '.' || char == '_' || char == '~') {
-                append(char)
+        for (byte in value.toByteArray(Charsets.UTF_8)) {
+            val code = byte.toInt() and 0xFF
+            if (code in 0x41..0x5A || code in 0x61..0x7A || code in 0x30..0x39 ||
+                code == 0x2D || code == 0x2E || code == 0x5F || code == 0x7E
+            ) {
+                append(code.toChar())
             } else {
                 append('%')
-                append(HEX_DIGITS[char.code ushr 4])
-                append(HEX_DIGITS[char.code and 0x0F])
+                append(HEX_DIGITS[code ushr 4])
+                append(HEX_DIGITS[code and 0x0F])
             }
         }
     }

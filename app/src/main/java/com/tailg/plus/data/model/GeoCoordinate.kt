@@ -17,6 +17,12 @@ fun formatCoordinateText(latitude: Double, longitude: Double): String =
 fun googleMapsSearchUri(latitude: Double, longitude: Double): URI =
     URI.create("https://www.google.com/maps/search/?api=1&query=$latitude,$longitude")
 
+/** Geographic validity only; callers may additionally reject a device's zero sentinel. */
+fun isValidCoordinate(latitude: Double?, longitude: Double?): Boolean =
+    latitude != null && longitude != null &&
+        latitude.isFinite() && longitude.isFinite() &&
+        latitude in -90.0..90.0 && longitude in -180.0..180.0
+
 fun isZeroCoordinate(
     latitude: Double,
     longitude: Double,

@@ -18,6 +18,7 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
+import com.tailg.plus.data.model.isValidCoordinate
 import com.tailg.plus.ui.theme.CyberHomeColors
 import org.osmdroid.tileprovider.MapTileProviderBasic
 import org.osmdroid.tileprovider.tilesource.OnlineTileSourceBase
@@ -30,9 +31,6 @@ import org.osmdroid.views.overlay.Overlay
 import org.osmdroid.views.overlay.Polygon
 import org.osmdroid.views.overlay.Polyline
 import org.osmdroid.views.overlay.TilesOverlay
-import kotlin.math.PI
-import kotlin.math.cos
-import kotlin.math.sin
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 
@@ -59,15 +57,12 @@ class TemplateTileSource(
 
 /** Circle outline in geo coordinates for a fence radius (Dart CircleLayer radiusInMeter). */
 fun circleGeoPoints(center: GeoPoint, radiusMeters: Double, segments: Int = 64): List<GeoPoint> {
-  val latRad = Math.toRadians(center.latitude)
-  val dLat = radiusMeters / 111_320.0
-  val dLng = radiusMeters / (111_320.0 * cos(latRad).coerceAtLeast(1e-6))
+  if (!isValidCoordinate(center.latitude, center.longitude) ||
+    !radiusMeters.isFinite() || radiusMeters <= 0 || segments < 3
+  ) return emptyList()
   return List(segments) { i ->
-    val angle = 2.0 * PI * i / segments
-    GeoPoint(
-      center.latitude + dLat * sin(angle),
-      center.longitude + dLng * cos(angle),
-    )
+    val point = center.destinationPoint(radiusMeters, 360.0 * i / segments)
+    GeoPoint(point.latitude, ((point.longitude + 180.0) % 360.0 + 360.0) % 360.0 - 180.0)
   }
 }
 
@@ -77,6 +72,7 @@ private class CameraTarget {
   var centerLng: Double? = null
   var trackKey: List<Pair<Double, Double>>? = null
   var initialized = false
+  var disposed = false
 }
 
 private data class MapDataKey(
@@ -159,13 +155,16 @@ fun CyberMapView(
   val labelTemplate = remember { MapTileConfig.annotationUrlTemplate() }
   val strVehicleLocation = stringResource(R.string.map_view_vehicle_location)
 
-  val hasCenter = latitude != null && longitude != null
+  val hasCenter = isValidCoordinate(latitude, longitude)
+  val validTrackPoints = remember(trackPoints) {
+    trackPoints.filter { isValidCoordinate(it.latitude, it.longitude) }
+  }
 
   // No coordinate → nothing to show: skip creating the osmdroid MapView
   // entirely. osmdroid initialization is heavy (thread pools, bitmap pool,
   // tile cache) and the official app only ever mounts its map (AMap) when it
   // has a location to render — the placeholder is a plain static view.
-  if (!hasCenter && trackPoints.size < 2) {
+  if (!hasCenter && validTrackPoints.size < 2) {
     Box(modifier = modifier) {
       Box(
         modifier = Modifier
@@ -235,7 +234,7 @@ fun CyberMapView(
     )
   }
 
-  DisposableEffect(lifecycleOwner) {
+  DisposableEffect(lifecycleOwner, mapView) {
     val observer = LifecycleEventObserver { _, event ->
       when (event) {
         Lifecycle.Event.ON_RESUME -> if (!overlayState.tilesPaused) mapView.onResume()
@@ -246,6 +245,13 @@ fun CyberMapView(
     lifecycleOwner.lifecycle.addObserver(observer)
     onDispose {
       lifecycleOwner.lifecycle.removeObserver(observer)
+      mapView.onPause()
+    }
+  }
+
+  DisposableEffect(mapView, labelProvider) {
+    onDispose {
+      camera.disposed = true
       mapView.onDetach()
       labelProvider?.detach()
     }
@@ -261,13 +267,17 @@ fun CyberMapView(
         view.setMultiTouchControls(interactive)
         if (tilesPaused != overlayState.tilesPaused) {
           overlayState.tilesPaused = tilesPaused
-          if (tilesPaused) view.onPause() else view.onResume()
+          if (!tilesPaused && lifecycleOwner.lifecycle.currentState.isAtLeast(Lifecycle.State.RESUMED)) {
+            view.onResume()
+          } else {
+            view.onPause()
+          }
         }
 
-        val center: GeoPoint? = if (latitude != null && longitude != null) GeoPoint(latitude, longitude) else null
-        val hasTrack = trackPoints.size >= 2
+        val center: GeoPoint? = if (hasCenter) GeoPoint(latitude!!, longitude!!) else null
+        val hasTrack = validTrackPoints.size >= 2
         val trackKey = if (hasTrack) {
-          trackPoints.map { it.latitude to it.longitude }
+          validTrackPoints.map { it.latitude to it.longitude }
         } else {
           null
         }
@@ -277,16 +287,16 @@ fun CyberMapView(
 
         // Track polyline with white casing (Dart: 5px green over 3px white border).
         if (hasTrack) {
-          overlayState.trackCasing.setPoints(trackPoints)
-          overlayState.trackLine.setPoints(trackPoints)
+          overlayState.trackCasing.setPoints(validTrackPoints)
+          overlayState.trackLine.setPoints(validTrackPoints)
         }
         overlayState.trackVisible = hasTrack
 
         // Fence circle centered on the vehicle pin (Dart CircleLayer useRadiusInMeter).
         val radius = fenceRadiusMeters
-        val showFence = center != null && radius != null && radius > 0
+        val showFence = center != null && radius != null && radius.isFinite() && radius > 0
         if (showFence) {
-          val circle = circleGeoPoints(center!!, radius!!)
+          val circle = circleGeoPoints(center, radius)
           overlayState.fence.points = circle + listOf(circle.first())
           val base = if (fenceEnabled) android.graphics.Color.rgb(0x22, 0xC5, 0x5E) else android.graphics.Color.rgb(0xF5, 0x9E, 0x0B)
           overlayState.fence.fillPaint.color = base
@@ -310,9 +320,9 @@ fun CyberMapView(
         when {
           trackKey != null && camera.trackKey != trackKey -> {
             camera.trackKey = trackKey
-            val box = BoundingBox.fromGeoPoints(trackPoints).increaseByScale(1.25f)
+            val box = BoundingBox.fromGeoPoints(validTrackPoints).increaseByScale(1.25f)
             view.post {
-              if (camera.trackKey == trackKey) view.zoomToBoundingBox(box, false, 64)
+              if (!camera.disposed && camera.trackKey == trackKey) view.zoomToBoundingBox(box, false, 64)
             }
           }
           trackKey == null && center != null &&

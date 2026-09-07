@@ -124,9 +124,11 @@ fun LogScreen(
         AppSnack.info(snackbarHostState, strNoCopy)
         return@launch
       }
-      val report = exportService.buildReport(entries)
-      clipboard.writeClipboardText(report)
-      AppSnack.success(snackbarHostState, strCopiedFormat.format(entries.size))
+      AppSnack.runAction(snackbarHostState) {
+        val report = exportService.buildReport(entries)
+        clipboard.writeClipboardText(report)
+        AppSnack.success(snackbarHostState, strCopiedFormat.format(entries.size))
+      }
     }
   }
 

@@ -231,6 +231,54 @@ class GarageScreenTest : ComposeRegressionTest() {
         assertTrue(actions.isEmpty())
     }
 
+    @Test
+    fun aNewSessionWithTheSameTokenReloadsTheGarage() {
+        openGarage()
+        val replacement = OfficialVehicle(carId = "replacement", carNickName = "重新登录后的车辆")
+        compose.runOnIdle {
+            environment.api.respond = { request ->
+                if (request.path == "app/userCarPage") garageResponse(replacement)
+                else environment.api.unexpected(request)
+            }
+            val previous = environment.cloud.currentState
+            environment.cloud.setStateForTest(previous.copyWith(sessionGeneration = previous.sessionGeneration + 1))
+        }
+
+        compose.onNodeWithText(replacement.displayName).assertIsDisplayed()
+        compose.onNodeWithText(target.displayName).assertDoesNotExist()
+        assertEquals(2, environment.api.requests.count { it.path == "app/userCarPage" })
+    }
+
+    @Test
+    fun aNewSessionCancelsASwitchWaitingForChannelTeardown() {
+        val disconnected = CompletableDeferred<Unit>()
+        coEvery { mqtt.disconnect() } coAnswers {
+            actions += "mqtt"
+            withContext(NonCancellable) { disconnected.await() }
+        }
+        try {
+            openGarage()
+            chooseTarget()
+            button(R.string.common_switch).performClick()
+            compose.waitForIdle()
+            assertEquals(listOf("mqtt"), actions)
+
+            compose.runOnIdle {
+                val previous = environment.cloud.currentState
+                environment.cloud.setStateForTest(previous.copyWith(sessionGeneration = previous.sessionGeneration + 1))
+            }
+            compose.waitForIdle()
+            compose.runOnIdle { disconnected.complete(Unit) }
+            compose.waitForIdle()
+
+            assertEquals(listOf("mqtt"), actions)
+            assertEquals(current.key, environment.cloud.currentState.selectedVehicleKey)
+            assertTrue(environment.api.requests.none { it.path == "app/centralControl/changeUsingCar" })
+        } finally {
+            disconnected.complete(Unit)
+        }
+    }
+
     private fun search(query: String) {
         compose.onNode(hasSetTextAction()).performTextReplacement(query)
         compose.onNode(hasSetTextAction()).performImeAction()

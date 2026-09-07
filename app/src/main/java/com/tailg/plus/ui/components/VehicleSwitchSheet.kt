@@ -19,6 +19,8 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -111,9 +113,15 @@ fun VehicleSwitchSheet(
                 if (selectingKey == null) {
                   selectingKey = vehicle.key
                   scope.launch {
-                    val ok = onSelect(vehicle)
-                    selectingKey = null
-                    if (ok) onDismiss()
+                    try {
+                      if (onSelect(vehicle)) onDismiss()
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                      throw e
+                    } catch (e: Exception) {
+                      timber.log.Timber.w("Vehicle selection failed: %s", com.tailg.plus.data.cloud.OfficialCloudRedactor.errorMessage(e))
+                    } finally {
+                      selectingKey = null
+                    }
                   }
                 }
               }
@@ -139,6 +147,7 @@ private fun VehicleTile(
     modifier = Modifier
       .fillMaxWidth()
       .background(if (selected) CyberHomeColors.primary.copy(alpha = 0.06f) else Color.Transparent)
+      .selectable(selected = selected, enabled = onTap != null, role = Role.RadioButton, onClick = { onTap?.invoke() })
       .padding(horizontal = 20.dp, vertical = 14.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {

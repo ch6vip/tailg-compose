@@ -98,10 +98,10 @@ class OfficialCloudService(
 
     // Concurrent containers: runSilentRefresh jobs on the multi-threaded
     // [scope] (and the UI thread) read/write these alongside each other.
-    internal val lastSuccessfulRefresh: MutableMap<String, LocalDateTime> = ConcurrentHashMap()
-    internal val inFlightRefreshes: MutableMap<String, Deferred<Unit>> = ConcurrentHashMap()
-    internal val smartServiceStatuses: MutableMap<String, OfficialSmartServiceStatus> = ConcurrentHashMap()
-    internal val smartServiceStatusLoadedKeys: MutableSet<String> = ConcurrentHashMap.newKeySet()
+    internal val lastSuccessfulRefresh: MutableMap<OfficialCloudResourceKey, LocalDateTime> = ConcurrentHashMap()
+    internal val inFlightRefreshes: MutableMap<OfficialCloudResourceKey, Deferred<Unit>> = ConcurrentHashMap()
+    internal val smartServiceStatuses: MutableMap<OfficialCloudResourceKey, OfficialSmartServiceStatus> = ConcurrentHashMap()
+    internal val smartServiceStatusLoadedKeys: MutableSet<OfficialCloudResourceKey> = ConcurrentHashMap.newKeySet()
     internal val rideStatisticsGeneration = AtomicInteger()
     private val rideStatisticsLock = Any()
     @Volatile internal var initialized: Boolean = false
@@ -123,24 +123,26 @@ class OfficialCloudService(
 
     val lastRequest: OfficialCloudRequestSummary? get() = apiClient.lastRequest
 
-    val lastVehiclesRefreshAt: LocalDateTime? get() = lastSuccessfulRefresh["vehicles"]
+    val lastVehiclesRefreshAt: LocalDateTime? get() = lastSuccessfulRefresh[state.sessionIdentity.resourceKey("vehicles")]
 
     val lastBatteryRefreshAt: LocalDateTime?
-        get() = lastSuccessfulRefresh["batteryInfo:${state.selectedVehicle?.key.orEmpty()}"]
+        get() = state.let { lastSuccessfulRefresh[it.sessionIdentity.resourceKey("batteryInfo:${it.selectedVehicle?.key.orEmpty()}")] }
 
     val lastBmsRefreshAt: LocalDateTime?
-        get() = lastSuccessfulRefresh["bmsInfo:${state.selectedVehicle?.key.orEmpty()}"]
+        get() = state.let { lastSuccessfulRefresh[it.sessionIdentity.resourceKey("bmsInfo:${it.selectedVehicle?.key.orEmpty()}")] }
 
     val selectedSmartServiceStatus: OfficialSmartServiceStatus?
         get() {
-            val key = state.selectedVehicle?.key ?: return null
-            return smartServiceStatuses[key]
+            val current = state
+            val key = current.selectedVehicle?.key ?: return null
+            return smartServiceStatuses[current.sessionIdentity.resourceKey(key)]
         }
 
     val selectedRemoteControlServiceDecision: OfficialSmartServiceControlDecision
         get() {
-            val vehicle = state.selectedVehicle
-            val status = selectedSmartServiceStatus
+            val current = state
+            val vehicle = current.selectedVehicle
+            val status = vehicle?.let { smartServiceStatuses[current.sessionIdentity.resourceKey(it.key)] }
             if (vehicle == null || status == null) {
                 return OfficialSmartServiceControlDecision()
             }
@@ -180,7 +182,7 @@ class OfficialCloudService(
         initialized = false
         loginGeneration++
         this.clock = clock ?: { LocalDateTime.now() }
-        _state.value = OfficialCloudState.initial()
+        _state.value = OfficialCloudState.initial().copyWith(sessionGeneration = state.sessionGeneration + 1)
         clearRefreshCache()
         rideStatisticsGeneration.incrementAndGet()
         sentCommands.clear()
@@ -310,8 +312,8 @@ class OfficialCloudService(
 
     suspend fun changeUsingVehicle(vehicle: OfficialVehicle) = operationsLogic.changeUsingVehicle(vehicle)
 
-    fun applyMqttVehicleStatus(acc: Int?, defenceStatus: Int?) =
-        operationsLogic.applyMqttVehicleStatus(acc, defenceStatus)
+    fun applyMqttVehicleStatus(acc: Int?, defenceStatus: Int?, token: String, vehicleKey: String, sessionGeneration: Long) =
+        operationsLogic.applyMqttVehicleStatus(acc, defenceStatus, OfficialCloudSession(token, sessionGeneration), vehicleKey)
 
     suspend fun affirmBatteryInfo(request: AffirmBatteryInfoRequest) =
         operationsLogic.affirmBatteryInfo(request)
@@ -370,24 +372,27 @@ class OfficialCloudService(
      * Non-silent callers always wait for a fresh run.
      */
     internal suspend fun coalesceRefresh(
+        session: OfficialCloudSession,
         refreshKey: String,
         silent: Boolean,
         force: Boolean,
         run: suspend () -> Unit,
     ) {
-        if (!force && silent && shouldUseRecentRefresh(refreshKey)) return
+        if (!force && silent && shouldUseRecentRefresh(session, refreshKey)) return
+        val cacheKey = session.resourceKey(refreshKey)
         // Single-flight via a placeholder future registered ATOMICALLY with
         // putIfAbsent. The old read-then-write let two concurrent callers both
         // see "no in-flight refresh" and launch duplicate requests (each with
         // its own dependent cascade).
         while (true) {
-            val existing = inFlightRefreshes[refreshKey]
+            if (!isCurrentSession(session)) return
+            val existing = inFlightRefreshes[cacheKey]
             if (silent && existing != null) {
                 existing.await()
                 return
             }
             val placeholder = CompletableDeferred<Unit>()
-            val raced = inFlightRefreshes.putIfAbsent(refreshKey, placeholder)
+            val raced = inFlightRefreshes.putIfAbsent(cacheKey, placeholder)
             if (raced != null) {
                 raced.await()
                 if (silent) return
@@ -398,20 +403,20 @@ class OfficialCloudService(
             try {
                 coroutineScope { run() }
             } finally {
-                inFlightRefreshes.remove(refreshKey, placeholder)
+                inFlightRefreshes.remove(cacheKey, placeholder)
                 placeholder.complete(Unit)
             }
             return
         }
     }
 
-    internal fun shouldUseRecentRefresh(key: String): Boolean {
-        val refreshedAt = lastSuccessfulRefresh[key] ?: return false
-        return Duration.between(refreshedAt, clock()).toMillis() < SILENT_REFRESH_TTL_MILLIS
+    internal fun shouldUseRecentRefresh(session: OfficialCloudSession, key: String): Boolean {
+        val refreshedAt = lastSuccessfulRefresh[session.resourceKey(key)] ?: return false
+        return Duration.between(refreshedAt, clock()).toMillis() in 0 until SILENT_REFRESH_TTL_MILLIS
     }
 
-    internal fun markRefreshSuccess(key: String) {
-        lastSuccessfulRefresh[key] = clock()
+    internal fun markRefreshSuccess(session: OfficialCloudSession, key: String) {
+        if (isCurrentSession(session)) lastSuccessfulRefresh[session.resourceKey(key)] = clock()
     }
 
     internal fun clearRefreshCache() {
@@ -437,11 +442,11 @@ class OfficialCloudService(
         }
     }
 
-    internal fun isCurrentSession(token: String): Boolean =
-        !disposed && token.isNotEmpty() && state.token == token
+    internal fun isCurrentSession(session: OfficialCloudSession): Boolean =
+        !disposed && session.matches(state)
 
-    internal fun updateSessionState(token: String, transform: (OfficialCloudState) -> OfficialCloudState) {
-        updateState { current -> if (token.isNotEmpty() && current.token == token) transform(current) else current }
+    internal fun updateSessionState(session: OfficialCloudSession, transform: (OfficialCloudState) -> OfficialCloudState) {
+        updateState { current -> if (session.matches(current)) transform(current) else current }
     }
 
     /** Serialize local session writes; finish a started disk transaction even if its caller leaves. */
@@ -455,6 +460,7 @@ class OfficialCloudService(
         updateState { current ->
             OfficialCloudState.initial().copyWith(
                 initialized = true,
+                sessionGeneration = current.sessionGeneration + 1,
                 localVehicleLinks = current.localVehicleLinks,
                 token = token,
                 phone = phone,
@@ -464,27 +470,27 @@ class OfficialCloudService(
         }
     }
 
-    internal suspend fun persistCurrentVehicle(token: String) = withSessionWrite {
-        if (isCurrentSession(token)) {
+    internal suspend fun persistCurrentVehicle(session: OfficialCloudSession) = withSessionWrite {
+        if (isCurrentSession(session)) {
             storage.saveSelectedVehicleKey(state.selectedVehicleKey)
             storage.saveCarControlInfo(state.selectedVehicle)
         }
     }
 
-    internal suspend fun persistCurrentUserProfile(token: String) = withSessionWrite {
-        if (isCurrentSession(token)) storage.saveUserProfile(state.userProfile)
+    internal suspend fun persistCurrentUserProfile(session: OfficialCloudSession) = withSessionWrite {
+        if (isCurrentSession(session)) storage.saveUserProfile(state.userProfile)
     }
 
-    internal fun isCurrentVehicleSession(token: String, vehicleKey: String?): Boolean =
-        isCurrentSession(token) && state.selectedVehicle?.key == vehicleKey
+    internal fun isCurrentVehicleSession(session: OfficialCloudSession, vehicleKey: String?): Boolean =
+        !disposed && state.let { session.matches(it) && it.selectedVehicle?.key == vehicleKey }
 
     internal fun updateVehicleState(
-        token: String,
+        session: OfficialCloudSession,
         vehicleKey: String?,
         transform: (OfficialCloudState) -> OfficialCloudState,
     ) {
         updateState { current ->
-            if (current.token == token && current.selectedVehicle?.key == vehicleKey) {
+            if (session.matches(current) && current.selectedVehicle?.key == vehicleKey) {
                 transform(current)
             } else {
                 current
@@ -492,8 +498,8 @@ class OfficialCloudService(
         }
     }
 
-    internal fun ensureCurrentSession(token: String) {
-        if (!isCurrentSession(token)) {
+    internal fun ensureCurrentSession(session: OfficialCloudSession) {
+        if (!isCurrentSession(session)) {
             throw OfficialCloudApiException("官方登录状态已变化，请重试")
         }
     }
@@ -511,6 +517,7 @@ class OfficialCloudService(
         updateState { it.copyWith(loading = loading) }
     }
 
+    /** Called inside withSessionWrite so link read-modify-write and selection stay ordered. */
     internal suspend fun saveLinks(links: Map<String, String>) {
         val normalized = OfficialCloudVehicleLinks.normalize(links)
         storage.saveLinks(normalized)
@@ -539,22 +546,22 @@ class OfficialCloudService(
 
     internal fun currentMonth(): String = formatMonthText(clock())
 
-    internal suspend fun handleAuthFailureIfNeeded(error: Throwable, token: String) {
+    internal suspend fun handleAuthFailureIfNeeded(error: Throwable, session: OfficialCloudSession) {
         if (!OfficialCloudAuthParser.looksLikeAuthError(error)) return
-        operationsLogic.logout(expectedToken = token, error = "官方登录已失效，请重新登录")
+        operationsLogic.logout(expectedSession = session, error = "官方登录已失效，请重新登录")
     }
 
     internal fun beginRideStatisticsRequest(
-        token: String,
+        session: OfficialCloudSession,
         vehicleKey: String,
         period: OfficialRidePeriod,
         silent: Boolean,
     ): Int? = synchronized(rideStatisticsLock) {
-        if (!isCurrentVehicleSession(token, vehicleKey) || (silent && state.rideStatisticsLoading)) {
+        if (!isCurrentVehicleSession(session, vehicleKey) || (silent && state.rideStatisticsLoading)) {
             return@synchronized null
         }
         val generation = rideStatisticsGeneration.incrementAndGet()
-        updateVehicleState(token, vehicleKey) { current ->
+        updateVehicleState(session, vehicleKey) { current ->
             if (generation != rideStatisticsGeneration.get()) current else current.copyWith(
                 rideStatistics = if (current.ridePeriod == period) current.rideStatistics else null,
                 ridePeriod = period,
@@ -567,12 +574,12 @@ class OfficialCloudService(
 
     internal fun updateRideStatisticsState(
         generation: Int,
-        token: String,
+        session: OfficialCloudSession,
         vehicleKey: String,
         period: OfficialRidePeriod,
         transform: (OfficialCloudState) -> OfficialCloudState,
     ) {
-        updateVehicleState(token, vehicleKey) { current ->
+        updateVehicleState(session, vehicleKey) { current ->
             if (generation == rideStatisticsGeneration.get() && current.ridePeriod == period) {
                 transform(current)
             } else {
@@ -583,12 +590,12 @@ class OfficialCloudService(
 
     internal fun isCurrentRideStatisticsRequest(
         generation: Int,
-        token: String,
+        session: OfficialCloudSession,
         vehicleKey: String,
         period: OfficialRidePeriod,
     ): Boolean =
         generation == rideStatisticsGeneration.get() &&
-            isCurrentSession(token) &&
+            isCurrentSession(session) &&
             state.selectedVehicle?.key == vehicleKey &&
             state.ridePeriod == period
 
@@ -642,23 +649,23 @@ class OfficialCloudService(
      * reuse the linked local vehicle when present, otherwise upsert a profile
      * derived from the official one and record the link (P1-5).
      */
-    internal suspend fun applySelectedVehicleToLocalProfile() {
-        val vehicle = state.selectedVehicle ?: return
+    internal suspend fun applySelectedVehicleToLocalProfile() = withSessionWrite {
+        val vehicle = state.selectedVehicle ?: return@withSessionWrite
         vehicleStore.init()
 
         val decision = OfficialCloudVehicleSyncPlanner.plan(
             selectedVehicle = vehicle,
             localVehicleLinks = state.localVehicleLinks,
             localVehicles = vehicleStore.vehicles,
-        ) ?: return
+        ) ?: return@withSessionWrite
 
         val linkedLocalVehicleId = decision.linkedLocalVehicleId
         if (linkedLocalVehicleId != null) {
             vehicleStore.setDefault(linkedLocalVehicleId)
-            return
+            return@withSessionWrite
         }
 
-        val profileData = decision.profileData ?: return
+        val profileData = decision.profileData ?: return@withSessionWrite
         val profile = vehicleStore.upsert(
             id = profileData.id,
             name = profileData.name,

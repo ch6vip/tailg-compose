@@ -101,27 +101,16 @@ internal enum class ReplicaPage { NFC, FENCE, SHARE, RIDE }
 fun OfficialReplicaScreen(
   cloudService: OfficialCloudService,
   vehicleStore: VehicleStore,
-  connectionManager: ConnectionManager,
   onBack: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
   val scope = rememberCoroutineScope()
-  val log = com.tailg.plus.di.rememberTailgEntryPoint().logService()
+  val entryPoint = com.tailg.plus.di.rememberTailgEntryPoint()
+  val log = entryPoint.logService()
   val snackbarHostState = remember { SnackbarHostState() }
-  val context = androidx.compose.ui.platform.LocalContext.current
-  val store = remember(context) { ReplicaFeatureStore(context) }
-  val bleNfc = remember(connectionManager, log) {
-    BleNfcService(connectionManager = connectionManager, logService = log)
-  }
-
-  val strKeyDeleted = stringResource(R.string.replica_key_deleted)
-  val strKeyDeleteFailed = stringResource(R.string.replica_key_delete_failed)
-  val strKeyTypeCard = stringResource(R.string.replica_key_type_card)
-  val strKeyTypeWatch = stringResource(R.string.replica_key_type_watch)
-  val strKeyWritten = stringResource(R.string.replica_key_written)
-  val strKeyWriteFailed = stringResource(R.string.replica_key_write_failed)
-  val strNotLoggedInLocal = stringResource(R.string.replica_not_logged_in_local)
+  val store = entryPoint.replicaFeatureStore()
   var page by remember { mutableStateOf(ReplicaPage.NFC) }
+  var showAddDialog by remember(page) { mutableStateOf(false) }
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -142,20 +131,19 @@ fun OfficialReplicaScreen(
         },
         actionIcon = when (page) {
           ReplicaPage.NFC -> Lucide.plus
-          ReplicaPage.FENCE -> Lucide.locate
+          ReplicaPage.FENCE -> null
           ReplicaPage.SHARE -> Lucide.userPlus
           ReplicaPage.RIDE -> null
         },
         actionLabel = when (page) {
           ReplicaPage.NFC -> stringResource(R.string.replica_add_key)
-          ReplicaPage.FENCE -> stringResource(R.string.replica_use_last_location)
+          ReplicaPage.FENCE -> null
           ReplicaPage.SHARE -> stringResource(R.string.replica_add_member)
           ReplicaPage.RIDE -> null
         },
         onAction = when (page) {
-          ReplicaPage.NFC -> { { page = ReplicaPage.NFC } }
-          ReplicaPage.FENCE -> { {} }
-          ReplicaPage.SHARE -> { {} }
+          ReplicaPage.NFC, ReplicaPage.SHARE -> { { showAddDialog = true } }
+          ReplicaPage.FENCE -> null
           ReplicaPage.RIDE -> null
         },
         onBack = onBack,
@@ -205,7 +193,8 @@ fun OfficialReplicaScreen(
         when (page) {
           ReplicaPage.NFC -> NfcKeyTab(
             store = store,
-            bleNfc = bleNfc,
+            showAddDialog = showAddDialog,
+            onDismissAddDialog = { showAddDialog = false },
             snackbarHostState = snackbarHostState,
             scope = scope,
           )
@@ -217,6 +206,8 @@ fun OfficialReplicaScreen(
           )
           ReplicaPage.SHARE -> ShareBikeTab(
             store = store,
+            showAddDialog = showAddDialog,
+            onDismissAddDialog = { showAddDialog = false },
             snackbarHostState = snackbarHostState,
             scope = scope,
           )

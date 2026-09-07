@@ -14,6 +14,7 @@
 package com.tailg.plus.service
 
 import com.tailg.plus.data.ble.QgjCommandIds
+import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.data.ble.QgjResponse
 import com.tailg.plus.data.ble.TLINK_HID_OPEN_AFTER_BOND_PLAIN
 import com.tailg.plus.data.ble.buildQgjHidPayload
@@ -26,6 +27,7 @@ import com.tailg.plus.data.ble.defaultRssiFactor
 import com.tailg.plus.data.ble.platform.ConnectionManager
 import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.ble.platform.ProtocolType
+import com.tailg.plus.data.ble.platform.OfficialBleConnectionContext
 import com.tailg.plus.data.cloud.OfficialCloudService
 import io.mockk.Runs
 import io.mockk.coEvery
@@ -39,6 +41,7 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.async
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
@@ -462,6 +465,7 @@ class InductionModeServiceTest {
     coEvery { cloud.setKksHidEnabled(any()) } just Runs
     val bridge = mockk<InductionForegroundServiceBridge>(relaxed = true)
     every { bridge.supportsBackgroundRssi } returns true
+    every { bridge.isRunning } returns true
     coEvery { bridge.start(any()) } returns true
     val prefs = mockk<InductionPrefs>(relaxed = true)
     coEvery { prefs.loadBoolean(any(), any()) } returns false
@@ -490,6 +494,7 @@ class InductionModeServiceTest {
     coEvery { cloud.setKksHidEnabled(any()) } just Runs
     val bridge = mockk<InductionForegroundServiceBridge>(relaxed = true)
     every { bridge.supportsBackgroundRssi } returns true
+    every { bridge.isRunning } returns true
     coEvery { bridge.start(any()) } returns true
     val prefs = mockk<InductionPrefs>(relaxed = true)
     coEvery { prefs.loadBoolean(any(), any()) } returns false
@@ -513,6 +518,104 @@ class InductionModeServiceTest {
   }
 
   // --- distance -------------------------------------------------------------
+
+  @Test
+  fun rssiCannotSendToADeviceChangedDuringReadOrBetweenCommands() = runTest {
+    for (changeDuringRead in listOf(true, false)) {
+      val connection = mockk<OfficialBleConnectionContext>()
+      every { connection.targetMacCompact } returns "AABBCCDDEEFF"
+      val cm = mockk<ConnectionManager>(relaxed = true)
+      every { cm.isProtocolLoggedIn } returns true
+      every { cm.protocol } returns ProtocolType.KKS
+      every { cm.connectionContext } returns connection
+      every { cm.stateFlow } returns MutableStateFlow(ConnectionState.READY)
+      var samples = 0
+      coEvery { cm.readRemoteRssi() } answers {
+        if (++samples == 10 && changeDuringRead) every { connection.targetMacCompact } returns "112233445566"
+        -40
+      }
+      coEvery { cm.sendCommand(any()) } answers {
+        every { connection.targetMacCompact } returns "112233445566"
+        true
+      }
+      val prefs = mockk<InductionPrefs>(relaxed = true)
+      coEvery { prefs.loadBoolean("induction_enabled_k1", false) } returns true
+      val bridge = mockk<InductionForegroundServiceBridge>(relaxed = true)
+      coEvery { bridge.start(any()) } returns true
+      every { bridge.isRunning } returns true
+      val service = buildService(cm, prefs = prefs, bridge = bridge)
+      try {
+        service.bindVehicle(1, "k1", mapOf("mac" to "AABBCCDDEEFF"))
+        runCurrent()
+        advanceTimeBy(2200)
+        runCurrent()
+
+        coVerify(exactly = if (changeDuringRead) 0 else 1) { cm.sendCommand(CommandCode.unlock) }
+        coVerify(exactly = 0) { cm.sendCommand(CommandCode.powerOn) }
+      } finally {
+        service.dispose()
+      }
+    }
+  }
+
+  @Test
+  fun rssiWaitsForSavedManualModeBeforeStarting() = runTest {
+    val savedManual = CompletableDeferred<Boolean>()
+    val prefs = mockk<InductionPrefs>(relaxed = true)
+    coEvery { prefs.loadBoolean("manual_mode_enabled", false) } coAnswers { savedManual.await() }
+    coEvery { prefs.loadBoolean("induction_enabled_k1", false) } returns true
+    val cm = mockk<ConnectionManager>(relaxed = true)
+    every { cm.isProtocolLoggedIn } returns true
+    every { cm.protocol } returns ProtocolType.KKS
+    every { cm.stateFlow } returns MutableStateFlow(ConnectionState.READY)
+    val bridge = mockk<InductionForegroundServiceBridge>(relaxed = true)
+    coEvery { bridge.start(any()) } returns true
+    every { bridge.isRunning } returns true
+    val service = buildService(cm, prefs = prefs, bridge = bridge)
+    try {
+      service.bindVehicle(1, "k1", null)
+      runCurrent()
+      advanceTimeBy(3000)
+      runCurrent()
+      coVerify(exactly = 0) { cm.readRemoteRssi() }
+      savedManual.complete(true)
+      runCurrent()
+      coVerify(exactly = 0) { bridge.start(any()) }
+      coVerify(exactly = 0) { cm.sendCommand(any()) }
+    } finally {
+      service.dispose()
+    }
+  }
+
+  @Test
+  fun rssiStopsIfForegroundServiceDiesDuringRead() = runTest {
+    val prefs = mockk<InductionPrefs>(relaxed = true)
+    coEvery { prefs.loadBoolean("induction_enabled_k1", false) } returns true
+    val bridge = mockk<InductionForegroundServiceBridge>(relaxed = true)
+    coEvery { bridge.start(any()) } returns true
+    every { bridge.isRunning } returns true
+    val cm = mockk<ConnectionManager>(relaxed = true)
+    every { cm.isProtocolLoggedIn } returns true
+    every { cm.protocol } returns ProtocolType.KKS
+    every { cm.stateFlow } returns MutableStateFlow(ConnectionState.READY)
+    var reads = 0
+    coEvery { cm.readRemoteRssi() } answers {
+      if (++reads == 10) every { bridge.isRunning } returns false
+      -40
+    }
+    val service = buildService(cm, prefs = prefs, bridge = bridge)
+    try {
+      service.bindVehicle(1, "k1", null)
+      runCurrent()
+      advanceTimeBy(3000)
+      runCurrent()
+      assertEquals(10, reads)
+      coVerify(exactly = 0) { cm.sendCommand(any()) }
+      coVerify { bridge.stopNow() }
+    } finally {
+      service.dispose()
+    }
+  }
 
   @Test
   fun `setDistance clamps to max and persists`() = runTest {

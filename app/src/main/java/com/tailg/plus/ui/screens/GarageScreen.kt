@@ -39,6 +39,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -63,6 +64,7 @@ import com.tailg.plus.R
 import com.tailg.plus.data.cloud.OfficialCloudLoginValidator
 import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import com.tailg.plus.data.cloud.OfficialCloudService
+import com.tailg.plus.data.cloud.OfficialCloudSession
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.ui.components.AppPressable
@@ -103,8 +105,6 @@ fun GarageScreen(
   scannedCode: String? = null,
   onConsumeScan: () -> Unit = {},
 ) {
-  val scope = rememberCoroutineScope()
-  val snackbarHostState = remember { SnackbarHostState() }
   // Narrow cloud projection: this screen only reads the checked-in fields
   // (signedIn / vehicles / token / selectedVehicle / phone). Collecting the
   // whole `stateFlow` here made every unrelated cloud emission — batteryInfo
@@ -120,6 +120,7 @@ fun GarageScreen(
           signedIn = state.signedIn,
           vehicles = state.vehicles,
           token = state.token,
+          sessionGeneration = state.sessionGeneration,
           selectedVehicle = state.selectedVehicle,
           phone = state.phone,
         )
@@ -130,7 +131,31 @@ fun GarageScreen(
     initialValue = GarageCloudSlice.from(cloudService.currentState),
   )
 
+  // A token can be reused by a later login. Retire the old page's queries,
+  // dialogs and pending channel teardown before acting in the new session.
+  key(cloudService, cloudState.token, cloudState.sessionGeneration) {
+    GarageContent(
+      onBack, onNavigate, cloudService, cloudState, modifier,
+      mqttService, connectionManager, scannedCode, onConsumeScan,
+    )
+  }
+}
 
+@Composable
+private fun GarageContent(
+  onBack: () -> Unit,
+  onNavigate: (String) -> Unit,
+  cloudService: OfficialCloudService,
+  cloudState: GarageCloudSlice,
+  modifier: Modifier,
+  mqttService: com.tailg.plus.data.mqtt.OfficialMqttService?,
+  connectionManager: com.tailg.plus.data.ble.platform.ConnectionManager?,
+  scannedCode: String?,
+  onConsumeScan: () -> Unit,
+) {
+  val scope = rememberCoroutineScope()
+  val snackbarHostState = remember { SnackbarHostState() }
+  val session = OfficialCloudSession(cloudState.token, cloudState.sessionGeneration)
   var searchQuery by remember { mutableStateOf("") }
   var activeQuery by remember { mutableStateOf("") }
   var searchType by remember { mutableStateOf(GarageSearchType.FRAME) }
@@ -463,7 +488,9 @@ fun GarageScreen(
         scope.launch {
           busyVehicleKey = target.key
           try {
+            cloudService.ensureCurrentSession(session)
             cloudService.updateCarNickName(carId = target.carId, carNickName = trimmed)
+            cloudService.ensureCurrentSession(session)
             vehicles = vehicles.map { item ->
               if (item.key == target.key) item.copyWith(carNickName = trimmed) else item
             }
@@ -495,12 +522,15 @@ fun GarageScreen(
             scope.launch {
               busyVehicleKey = target.key
               try {
+                cloudService.ensureCurrentSession(session)
                 try {
                   mqttService?.disconnect()
                 } catch (e: Exception) {
                   if (e is kotlinx.coroutines.CancellationException) throw e
                   // Best-effort channel teardown before the switch.
                 }
+                currentCoroutineContext().ensureActive()
+                cloudService.ensureCurrentSession(session)
                 try {
                   connectionManager?.disconnect()
                 } catch (e: Exception) {
@@ -509,7 +539,9 @@ fun GarageScreen(
                 }
                 // Teardown may finish in NonCancellable; leaving the page still cancels the switch.
                 currentCoroutineContext().ensureActive()
+                cloudService.ensureCurrentSession(session)
                 cloudService.changeUsingVehicle(target)
+                cloudService.ensureCurrentSession(session)
                 AppSnack.success(snackbarHostState, strSwitched.format(target.displayName))
               } catch (e: Exception) {
                 if (e is kotlinx.coroutines.CancellationException) throw e
@@ -569,10 +601,12 @@ fun GarageScreen(
           scope.launch {
             busyVehicleKey = target.key
             try {
+              cloudService.ensureCurrentSession(session)
               cloudService.unbindVehicle(
                 carId = target.carId,
                 unbindType = if (target.shareCarFlag) 2 else 1,
               )
+              cloudService.ensureCurrentSession(session)
               AppSnack.success(snackbarHostState, strUnbound)
               loadGaragePage(
                 requestGeneration = requestGeneration,
@@ -637,7 +671,10 @@ private suspend fun loadGaragePage(
   onHasNext: (Boolean) -> Unit,
 ) {
   if (!cloudService.currentState.signedIn) return
+  val session = cloudService.currentState.sessionIdentity
   val generation = requestGeneration.incrementAndGet()
+  fun isCurrentRequest() = requestGeneration.get() == generation &&
+    cloudService.currentState.sessionIdentity == session
   if (refresh) onLoading(true) else onLoadingMore(true)
   onError(null)
   // Deriving the next page from vehicles.size/5 drifted from the server's
@@ -654,16 +691,16 @@ private suspend fun loadGaragePage(
       frame = if (searchType == GarageSearchType.FRAME) activeQuery else "",
       shareUserPhone = if (searchType == GarageSearchType.SHARE_PHONE) activeQuery else "",
     )
-    if (requestGeneration.get() != generation) return
+    if (!isCurrentRequest()) return
     onVehicles((if (refresh) result.vehicles else existingVehicles + result.vehicles).distinctBy { it.key })
     onPageIndex(result.pageIndex)
     onHasNext(result.hasNext)
     onError(null)
   } catch (e: Exception) {
     if (e is kotlinx.coroutines.CancellationException) throw e
-    if (requestGeneration.get() == generation) onError(OfficialCloudRedactor.errorMessage(e))
+    if (isCurrentRequest()) onError(OfficialCloudRedactor.errorMessage(e))
   } finally {
-    if (requestGeneration.get() == generation) {
+    if (isCurrentRequest()) {
       onLoading(false)
       onLoadingMore(false)
     }
@@ -1319,6 +1356,7 @@ private data class GarageCloudSlice(
   val signedIn: Boolean,
   val vehicles: List<OfficialVehicle>,
   val token: String,
+  val sessionGeneration: Long,
   val selectedVehicle: OfficialVehicle?,
   val phone: String,
 ) {
@@ -1327,6 +1365,7 @@ private data class GarageCloudSlice(
       signedIn = state.signedIn,
       vehicles = state.vehicles,
       token = state.token,
+      sessionGeneration = state.sessionGeneration,
       selectedVehicle = state.selectedVehicle,
       phone = state.phone,
     )

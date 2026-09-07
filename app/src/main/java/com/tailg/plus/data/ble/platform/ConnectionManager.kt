@@ -96,6 +96,7 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
+import java.util.concurrent.TimeoutException
 import kotlin.math.pow
 import kotlin.random.Random
 import kotlin.time.Duration
@@ -105,13 +106,17 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.channels.awaitClose
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -119,9 +124,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
@@ -150,6 +159,9 @@ class ConnectionManager(
   private val ownsScope = externalScope == null
   private val scope = externalScope ?: CoroutineScope(SupervisorJob() + Dispatchers.IO)
   private val lock = Any()
+  private val connectionMutex = Mutex()
+  private var connectJob: Job? = null
+  private var disconnectRequests = 0
 
   // Serialized GATT operation queue (Dart priority queue), extracted into
   // [GattOperationQueue] so ConnectionManager owns connection/protocol state
@@ -247,9 +259,10 @@ class ConnectionManager(
       for ((source, event) in gattEvents) {
         // All callback types belong to a GATT session, including reads, ACKs
         // and notifications already queued when a reconnect replaces _gatt.
-        if (source == null || source !== _gatt) continue
         try {
-          handleGattEvent(event)
+          synchronized(lock) {
+            if (source != null && source === _gatt) handleGattEvent(event)
+          }
         } catch (e: Exception) {
           log.ble("GATT 事件处理异常", detail = e.toString(), level = LogLevel.ERROR)
         }
@@ -517,6 +530,22 @@ class ConnectionManager(
   suspend fun connect(
     device: BluetoothDevice,
     context: OfficialBleConnectionContext? = null,
+  ) = coroutineScope {
+    val attempt = coroutineContext[Job] ?: error("Connection attempt requires a coroutine")
+    synchronized(lock) {
+      if (connectJob != null || disconnectRequests > 0) return@coroutineScope
+      connectJob = attempt
+    }
+    try {
+      connectionMutex.withLock { connectInternal(device, context) }
+    } finally {
+      synchronized(lock) { if (connectJob === attempt) connectJob = null }
+    }
+  }
+
+  private suspend fun connectInternal(
+    device: BluetoothDevice,
+    context: OfficialBleConnectionContext?,
   ) {
     if (_disposed) {
       throw IllegalStateException("ConnectionManager disposed")
@@ -586,23 +615,29 @@ class ConnectionManager(
   }
 
   /** Port of Dart `disconnect` — user-initiated teardown, no reconnect. */
-  suspend fun disconnect() {
-    _userDisconnected = true
-    _reconnecting = false
-    _reconnectCancelled = true
-    _reconnectAttempt = 0
-    cancelHeartbeat()
-    completePendingOperations(IllegalStateException("QGJ disconnected"))
-    completePendingGattOperations(IllegalStateException("Disconnected by user"))
-    clearRuntimeResources(disconnectDevice = false)
+  suspend fun disconnect() = withContext(NonCancellable) {
+    val pendingConnect = synchronized(lock) {
+      disconnectRequests++
+      _userDisconnected = true
+      _reconnectCancelled = true
+      connectJob?.also { it.cancel() }
+    }
     try {
-      closeGatt()
-    } catch (e: Exception) {
-      log.ble("用户断开设备失败", detail = e.toString(), level = LogLevel.DEBUG)
+      connectionMutex.withLock {
+        // The old attempt must finish its failure cleanup before another
+        // connection can install GATT/credential slots for a new vehicle.
+        pendingConnect?.join()
+        reconnectJob?.cancelAndJoin()
+        reconnectJob = null
+        _userDisconnected = true
+        _reconnecting = false
+        _reconnectCancelled = true
+        _reconnectAttempt = 0
+        clearRuntimeResources(disconnectDevice = true)
+        reset()
+      }
     } finally {
-      // Always clear the local session so switch-vehicle cannot keep A while selecting B.
-      resetCharacteristics()
-      reset()
+      synchronized(lock) { disconnectRequests-- }
     }
   }
 
@@ -748,12 +783,8 @@ class ConnectionManager(
     }
     val deferred = CompletableDeferred<TLinkInductionStatusResponse?>()
     _tlinkInductionStatusDeferred.getAndSet(deferred)
-    val written = writeStandardHex(TLINK_INDUCTION_CHECK_PLAIN)
-    if (!written) {
-      _tlinkInductionStatusDeferred.compareAndSet(deferred, null)
-      return null
-    }
     try {
+      if (!writeStandardHex(TLINK_INDUCTION_CHECK_PLAIN)) return null
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() }
     } finally {
       _tlinkInductionStatusDeferred.compareAndSet(deferred, null)
@@ -771,12 +802,8 @@ class ConnectionManager(
     }
     val deferred = CompletableDeferred<Boolean>()
     _tlinkInductionSetDeferred.getAndSet(deferred)
-    val written = writeStandardHex(TLINK_INDUCTION_OPEN_PLAIN)
-    if (!written) {
-      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
-      return false
-    }
     try {
+      if (!writeStandardHex(TLINK_INDUCTION_OPEN_PLAIN)) return false
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
       _tlinkInductionSetDeferred.compareAndSet(deferred, null)
@@ -794,12 +821,8 @@ class ConnectionManager(
     }
     val deferred = CompletableDeferred<Boolean>()
     _tlinkInductionSetDeferred.getAndSet(deferred)
-    val written = writeStandardHex(TLINK_INDUCTION_CLOSE_PLAIN)
-    if (!written) {
-      _tlinkInductionSetDeferred.compareAndSet(deferred, null)
-      return false
-    }
     try {
+      if (!writeStandardHex(TLINK_INDUCTION_CLOSE_PLAIN)) return false
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
       _tlinkInductionSetDeferred.compareAndSet(deferred, null)
@@ -813,12 +836,8 @@ class ConnectionManager(
     }
     val deferred = CompletableDeferred<Boolean>()
     _tlinkProximityDistanceDeferred.getAndSet(deferred)
-    val written = writeStandardHex(buildTLinkInductionDistancePlain(progress))
-    if (!written) {
-      _tlinkProximityDistanceDeferred.compareAndSet(deferred, null)
-      return false
-    }
     try {
+      if (!writeStandardHex(buildTLinkInductionDistancePlain(progress))) return false
       return withTimeoutOrNull(BleTimings.commandAckTimeout) { deferred.await() } ?: false
     } finally {
       _tlinkProximityDistanceDeferred.compareAndSet(deferred, null)
@@ -830,11 +849,7 @@ class ConnectionManager(
     val device = _device ?: return false
     return try {
       if (device.bondState == BluetoothDevice.BOND_BONDED) return true
-      if (!device.createBond()) {
-        log.ble("系统蓝牙配对失败", detail = "createBond() returned false", level = LogLevel.WARNING)
-        return false
-      }
-      val ok = withTimeoutOrNull(15.seconds) { awaitBondState(BluetoothDevice.BOND_BONDED) } == true
+      val ok = withTimeoutOrNull(15.seconds) { awaitBondState(device, BluetoothDevice.BOND_BONDED) } == true
       if (!quiet) {
         log.ble(
           if (ok) "系统蓝牙配对成功" else "系统蓝牙配对未完成",
@@ -843,6 +858,7 @@ class ConnectionManager(
       }
       ok
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       log.ble("系统蓝牙配对失败", detail = e.toString(), level = LogLevel.WARNING)
       false
     }
@@ -871,8 +887,10 @@ class ConnectionManager(
       if (state == ConnectionState.DISCONNECTED) return@runGattOperation null
       val deferred = CompletableDeferred<Int>()
       _rssiDeferred = deferred
+      var started = false
       try {
-        if (!gatt.readRemoteRssi()) return@runGattOperation null
+        started = gatt.readRemoteRssi()
+        if (!started) return@runGattOperation null
         withTimeoutOrNull(5.seconds) { deferred.await() }
       } catch (e: Exception) {
         if (e is kotlinx.coroutines.CancellationException) throw e
@@ -880,6 +898,7 @@ class ConnectionManager(
         null
       } finally {
         if (_rssiDeferred === deferred) _rssiDeferred = null
+        if (started && !deferred.isCompleted) retireUnansweredGatt(gatt)
       }
     }
   }
@@ -934,12 +953,18 @@ class ConnectionManager(
         delay(BleTimings.fccReadbackDelay)
         readCharacteristic(fcc1)
       }
-      _ridingMode.value = parseQgjRidingMode(response.map { it.toInt() }) ?: mode
-
-      addRidingMode(_ridingMode.value)
-      log.operation("模式已切换: ${_ridingMode.value.label}", level = LogLevel.INFO)
-      true
+      val confirmed = parseQgjRidingMode(response.map { it.toInt() })
+        ?: throw IllegalStateException("骑行模式回读无效，请重新读取")
+      addRidingMode(confirmed)
+      if (confirmed == mode) {
+        log.operation("模式已切换: ${confirmed.label}", level = LogLevel.INFO)
+        true
+      } else {
+        log.operation("模式切换未确认: ${confirmed.label}", level = LogLevel.WARNING)
+        false
+      }
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       log.operation("模式切换失败", detail = e.toString(), level = LogLevel.ERROR)
       false
     }
@@ -956,6 +981,8 @@ class ConnectionManager(
   suspend fun dispose() {
     if (_disposed) return
     _disposed = true
+
+    disconnect()
 
     completePendingGattOperations(IllegalStateException("ConnectionManager disposed"))
 
@@ -1193,9 +1220,10 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     writeDeferreds[characteristic.uuid] = deferred
+    var started = false
     try {
       // Use the modern API on API 33+; retain the older path for minSdk 26.
-      val started = if (Build.VERSION.SDK_INT >= 33) {
+      started = if (Build.VERSION.SDK_INT >= 33) {
         @Suppress("NewApi")
         gatt.writeCharacteristic(characteristic, value, writeType) == BluetoothStatusCodes.SUCCESS
       } else {
@@ -1211,6 +1239,7 @@ class ConnectionManager(
       deferred.await()
     } finally {
       writeDeferreds.remove(characteristic.uuid, deferred)
+      if (started && !deferred.isCompleted) retireUnansweredGatt(gatt)
     }
   }
 
@@ -1219,13 +1248,16 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<ByteArray>()
     readDeferreds[characteristic.uuid] = deferred
+    var started = false
     try {
-      if (!gatt.readCharacteristic(characteristic)) {
+      started = gatt.readCharacteristic(characteristic)
+      if (!started) {
         throw IllegalStateException("readCharacteristic failed: ${characteristic.uuid}")
       }
       return deferred.await()
     } finally {
       readDeferreds.remove(characteristic.uuid, deferred)
+      if (started && !deferred.isCompleted) retireUnansweredGatt(gatt)
     }
   }
 
@@ -1257,21 +1289,35 @@ class ConnectionManager(
     val gatt = _gatt ?: throw IllegalStateException("GATT is null")
     val deferred = CompletableDeferred<Unit>()
     descriptorWriteDeferreds[descriptor.uuid] = deferred
+    var started = false
     try {
       descriptor.value = value
-      if (!gatt.writeDescriptor(descriptor)) {
+      started = gatt.writeDescriptor(descriptor)
+      if (!started) {
         throw IllegalStateException("writeDescriptor failed: ${descriptor.uuid}")
       }
       deferred.await()
     } finally {
       descriptorWriteDeferreds.remove(descriptor.uuid, deferred)
+      if (started && !deferred.isCompleted) retireUnansweredGatt(gatt)
     }
   }
 
+  /**
+   * Android callbacks have no operation ID. Once a submitted operation is
+   * abandoned, a late reply cannot safely be matched to a later read/write
+   * on the same GATT; retire that connection before the queue advances.
+   */
+  private fun retireUnansweredGatt(gatt: BluetoothGatt): Unit = synchronized(lock) {
+    if (_gatt !== gatt || _disposed) return@synchronized
+    log.ble("GATT 操作未收到回调，释放连接", level = LogLevel.WARNING)
+    onDisconnected(cancelGattQueue = false)
+  }
+
   /** Disconnect + close the current [BluetoothGatt] (idempotent). */
-  private fun closeGatt() {
+  private fun closeGatt(): Unit = synchronized(lock) {
     val gatt = _gatt
-    if (gatt == null) return
+    if (gatt == null) return@synchronized
     _gatt = null
     try {
       gatt.disconnect()
@@ -1284,25 +1330,30 @@ class ConnectionManager(
   }
 
   /** Suspend until the system bond state reaches [target] (max 15 s at call sites). */
-  private suspend fun awaitBondState(target: Int): Boolean = suspendCancellableCoroutine { cont ->
+  private suspend fun awaitBondState(device: BluetoothDevice, target: Int): Boolean = suspendCancellableCoroutine { cont ->
     val registerContext = context
     val receiver = object : BroadcastReceiver() {
       override fun onReceive(context: Context?, intent: Intent?) {
         if (intent?.action != BluetoothDevice.ACTION_BOND_STATE_CHANGED) return
+        @Suppress("DEPRECATION")
+        val changedDevice = intent.getParcelableExtra<BluetoothDevice>(BluetoothDevice.EXTRA_DEVICE)
+        if (changedDevice?.address != device.address) return
         val state = intent.getIntExtra(BluetoothDevice.EXTRA_BOND_STATE, BluetoothDevice.BOND_NONE)
-        if (state == target && !cont.isCancelled) {
+        if ((state == target || state == BluetoothDevice.BOND_NONE) && cont.isActive) {
           // Unregister BEFORE resuming: invokeOnCancellation only runs on the
           // cancellation path, so the success path must clean up itself or
           // the receiver stays registered forever — and a later bond broadcast
           // would resume the already-completed continuation (ISE crash).
           runCatching { registerContext.unregisterReceiver(this) }
-          cont.resume(true)
+          cont.resume(state == target)
         }
       }
     }
     val filter = IntentFilter(BluetoothDevice.ACTION_BOND_STATE_CHANGED)
     if (Build.VERSION.SDK_INT >= 33) {
-      registerContext.registerReceiver(receiver, filter, Context.RECEIVER_NOT_EXPORTED)
+      // Bluetooth broadcasts can originate from a privileged Bluetooth UID,
+      // rather than the system UID. This protected action needs an exported receiver.
+      registerContext.registerReceiver(receiver, filter, Context.RECEIVER_EXPORTED)
     } else {
       registerContext.registerReceiver(receiver, filter)
     }
@@ -1310,6 +1361,19 @@ class ConnectionManager(
       try {
         registerContext.unregisterReceiver(receiver)
       } catch (_: Exception) {
+      }
+    }
+    // Register first: fast pairing must not complete before our listener exists.
+    if (cont.isActive) {
+      try {
+        val bonded = device.bondState == target
+        if (bonded || !device.createBond()) {
+          runCatching { registerContext.unregisterReceiver(receiver) }
+          if (cont.isActive) cont.resume(bonded)
+        }
+      } catch (e: Exception) {
+        runCatching { registerContext.unregisterReceiver(receiver) }
+        throw e
       }
     }
   }
@@ -1382,19 +1446,26 @@ class ConnectionManager(
    */
   private suspend fun connectGattOnce(device: BluetoothDevice, timeout: Duration) {
     closeGatt()
+    // Initial retries also create a new GATT; a previous failure must not
+    // suppress this attempt's disconnect callback or handshake watchdog.
+    synchronized(lock) { _disconnectHandled = false }
     val deferred = CompletableDeferred<Unit>()
     _connectDeferred = deferred
-    val gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-      ?: throw IllegalStateException("connectGatt returned null")
-    _gatt = gatt
     try {
-      withTimeout(timeout) { deferred.await() }
-    } catch (e: TimeoutCancellationException) {
-      closeGatt()
-      throw e
+      val gatt = device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+        ?: throw IllegalStateException("connectGatt returned null")
+      _gatt = gatt
+      if (withTimeoutOrNull(timeout) { deferred.await() } == null) {
+        closeGatt()
+        // A single connection timeout is retryable. Parent cancellation is
+        // still propagated by withTimeoutOrNull and never starts another try.
+        throw TimeoutException("BLE connect timed out")
+      }
     } catch (e: kotlinx.coroutines.CancellationException) {
       closeGatt()
       throw e
+    } finally {
+      if (_connectDeferred === deferred) _connectDeferred = null
     }
   }
 
@@ -1414,9 +1485,9 @@ class ConnectionManager(
   /** Port of Dart `_requestQgjMtu` — QGJ requires MTU 515 (Android only). */
   private suspend fun requestQgjMtu(device: BluetoothDevice) {
     if (_connectionContext?.stack != OfficialBleStack.QGJ) return
+    val deferred = CompletableDeferred<Int>()
     try {
       val gatt = _gatt ?: return
-      val deferred = CompletableDeferred<Int>()
       _mtuDeferred = deferred
       if (!gatt.requestMtu(BleTimings.qgjRequestedMtu)) {
         _mtuDeferred = null
@@ -1429,8 +1500,10 @@ class ConnectionManager(
       if (_mtuDeferred === deferred) _mtuDeferred = null
       log.ble("MTU 已请求", detail = mtu?.toString(), level = LogLevel.DEBUG)
     } catch (e: Exception) {
-      if (_mtuDeferred != null) _mtuDeferred = null
+      if (e is kotlinx.coroutines.CancellationException) throw e
       log.ble("MTU 请求失败", detail = e.toString(), level = LogLevel.DEBUG)
+    } finally {
+      if (_mtuDeferred === deferred) _mtuDeferred = null
     }
   }
 
@@ -1644,6 +1717,7 @@ class ConnectionManager(
           enableNotifyOrIndicate(c)
           subscribed++
         } catch (e: Exception) {
+          if (e is kotlinx.coroutines.CancellationException) throw e
           log.ble("订阅 $uuid 失败", detail = e.toString(), level = LogLevel.DEBUG)
         }
       }
@@ -1687,6 +1761,7 @@ class ConnectionManager(
       _gpsNotifyChar = _fe03Char
       log.ble("fe03 GPS 通知已订阅", level = LogLevel.INFO)
     } catch (e: Exception) {
+      if (e is kotlinx.coroutines.CancellationException) throw e
       log.ble("fe03 GPS 通知订阅失败", detail = e.toString(), level = LogLevel.DEBUG)
     }
   }
@@ -1710,6 +1785,7 @@ class ConnectionManager(
         try {
           enableNotifyOrIndicate(c)
         } catch (e: Exception) {
+          if (e is kotlinx.coroutines.CancellationException) throw e
           log.ble(
             "订阅 TLink 可选特征失败",
             detail = c.uuid.toString(),
@@ -1746,7 +1822,8 @@ class ConnectionManager(
     log.ble("← 收到数据", detail = bytesToSpacedHex(value.map { it.toInt() }))
     if (_protocol == ProtocolType.TLINK) {
       val response = parseTLinkResponse(_model.aesKey, value)
-      scope.launch { handleTLinkResponse(response) }
+      val source = _gatt ?: return
+      handleTLinkResponse(response, source)
       return
     }
     val response = parseResponse(_model.aesKey, value)
@@ -1755,7 +1832,7 @@ class ConnectionManager(
   }
 
   /** Port of Dart `_handleTLinkResponse` — token → login → ready state machine. */
-  private suspend fun handleTLinkResponse(response: TLinkResponse) {
+  private fun handleTLinkResponse(response: TLinkResponse, source: BluetoothGatt) {
     when (response) {
       is TLinkTokenResponse -> {
         val ctx = _connectionContext
@@ -1771,8 +1848,21 @@ class ConnectionManager(
           userId = ctx.userIdValue ?: 0,
           token = response.token,
         )
-        runGattOperation(priority = GattOperationPriority.HIGH) {
-          writeCharacteristic(write, loginFrame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+        // Protocol state and ACKs stay on the checked GATT event loop. Only
+        // the write suspends, and it remains bound to this source connection.
+        scope.launch {
+          try {
+            runGattOperation(priority = GattOperationPriority.HIGH) {
+              check(_gatt === source) { "TLink connection changed before login write" }
+              writeCharacteristic(write, loginFrame, BluetoothGattCharacteristic.WRITE_TYPE_DEFAULT)
+            }
+          } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            synchronized(lock) {
+              if (_gatt === source) rejectProtocolLogin("TLink 登录写入失败")
+            }
+          }
         }
       }
 
@@ -1833,7 +1923,7 @@ class ConnectionManager(
   }
 
   /** Port of Dart `_rejectProtocolLogin` — credential failure tears the link down. */
-  private suspend fun rejectProtocolLogin(reason: String) {
+  private fun rejectProtocolLogin(reason: String) {
     log.ble(reason, level = LogLevel.ERROR)
     clearProtocolLogin()
     _userDisconnected = true
@@ -2081,7 +2171,7 @@ class ConnectionManager(
   // =========================================================================
 
   /** Port of Dart `_setState` — arms the watchdog on CONNECTED, disarms otherwise. */
-  private fun setState(s: ConnectionState) = synchronized(lock) {
+  private fun setState(s: ConnectionState): Unit = synchronized(lock) {
     val prev = _state.value
     if (prev == s) return
     _state.value = s
@@ -2096,9 +2186,8 @@ class ConnectionManager(
   private fun markProtocolLoggedIn(credential: String) {
     _token = credential
     _protocolLoggedIn = true
-    // Any in-flight reconnect must not tear down a successful LOGIN.
-    _reconnectCancelled = true
-    _reconnecting = false
+    // The reconnect coroutine owns its lifecycle flags until it observes READY.
+    // A disconnect immediately after LOGIN must not start a competing loop.
     _disconnectHandled = false
     setState(ConnectionState.READY)
   }
@@ -2203,7 +2292,7 @@ class ConnectionManager(
   }
 
   /** Port of Dart `_clearRuntimeResources` — timers, subscriptions, pending ops. */
-  private suspend fun clearRuntimeResources(disconnectDevice: Boolean) {
+  private fun clearRuntimeResources(disconnectDevice: Boolean) {
     cancelHeartbeat()
     disarmReadyWatchdog()
     completePendingOperations(IllegalStateException("BLE runtime cleared"))
@@ -2241,8 +2330,8 @@ class ConnectionManager(
    * operation lambda inside [gattQueue] stays parked until the drain loop's
    * 30 s timeout — blocking the first GATT operation of the next connect.
    */
-  private fun completePendingGattOperations(error: Throwable) {
-    gattQueue.completePending(error)
+  private fun completePendingGattOperations(error: Throwable, cancelQueue: Boolean = true) {
+    if (cancelQueue) gattQueue.completePending(error)
 
     failDeferredMap(readDeferreds, error)
     failDeferredMap(writeDeferreds, error)
@@ -2298,27 +2387,39 @@ class ConnectionManager(
    * exponential backoff unless the disconnect happened during the initial
    * handshake (connect() still owns the session).
    */
-  private fun onDisconnected() {
+  private fun onDisconnected() = onDisconnected(cancelGattQueue = true)
+
+  private fun onDisconnected(cancelGattQueue: Boolean): Unit = synchronized(lock) {
     if (_disposed) return
     if (!markDisconnectHandled()) return
     log.ble("设备断开连接", level = LogLevel.WARNING)
     cancelHeartbeat()
     completePendingOperations(IllegalStateException("QGJ disconnected"))
-    completePendingGattOperations(IllegalStateException("BLE disconnected"))
+    // A primitive retiring its own unanswered GATT must finish its original
+    // timeout/cancellation result. Queued work rejects the retired GATT on entry.
+    completePendingGattOperations(IllegalStateException("BLE disconnected"), cancelQueue = cancelGattQueue)
 
     val wasHandshaking =
-      state == ConnectionState.CONNECTING || state == ConnectionState.CONNECTED
+      connectJob?.isActive == true || state == ConnectionState.CONNECTING || state == ConnectionState.CONNECTED
     val protocolIsQgj =
       _protocol == ProtocolType.QGJ || _lastKnownProtocol == ProtocolType.QGJ
 
+    closeGatt()
     resetCharacteristics()
-    if (!_userDisconnected && _device != null && !wasHandshaking && !protocolIsQgj) {
+    if (!_userDisconnected && _device != null && !protocolIsQgj &&
+      (!wasHandshaking || _reconnecting) && !(_reconnecting && _reconnectCancelled)
+    ) {
       setState(ConnectionState.RECONNECTING)
-      reconnectJob = scope.launch {
-        try {
-          attemptReconnect()
-        } catch (e: Exception) {
-          log.ble("Reconnect error: $e", level = LogLevel.ERROR)
+      if (!_reconnecting) {
+        _reconnectCancelled = false
+        reconnectJob = scope.launch {
+          try {
+            attemptReconnect()
+          } catch (e: kotlinx.coroutines.CancellationException) {
+            throw e
+          } catch (e: Exception) {
+            log.ble("Reconnect error: $e", level = LogLevel.ERROR)
+          }
         }
       }
     } else {
@@ -2338,9 +2439,11 @@ class ConnectionManager(
    * can re-enter [onDisconnected].
    */
   private suspend fun attemptReconnect() {
-    if (_reconnecting || _device == null) return
+    val reconnectDevice = _device ?: return
+    if (_reconnecting) return
     _reconnecting = true
     _reconnectAttempt = 0
+    var completedSuccessfully = false
 
     try {
       while (_reconnectAttempt < MAX_RECONNECT_ATTEMPTS &&
@@ -2362,11 +2465,19 @@ class ConnectionManager(
 
         delay(delayMs.toLong())
 
-        if (state != ConnectionState.RECONNECTING) break
-        if (_reconnectCancelled) break
+        val canAttempt = synchronized(lock) {
+          if (state != ConnectionState.RECONNECTING || _reconnectCancelled ||
+            _userDisconnected || _disposed || _device !== reconnectDevice
+          ) {
+            false
+          } else {
+            true
+          }
+        }
+        if (!canAttempt) break
 
         try {
-          connectGattOnce(_device!!, BleTimings.reconnectConnectTimeout)
+          connectGattOnce(reconnectDevice, BleTimings.reconnectConnectTimeout)
 
           if (state != ConnectionState.RECONNECTING || _reconnectCancelled) {
             try {
@@ -2378,22 +2489,47 @@ class ConnectionManager(
           }
 
           setState(ConnectionState.CONNECTED)
-          requestQgjMtu(_device!!)
+          ensureKksBond(reconnectDevice)
+          requestQgjMtu(reconnectDevice)
           delay(BleTimings.serviceSetupDelay)
-          if (state != ConnectionState.CONNECTED || _reconnectCancelled) break
+          currentCoroutineContext().ensureActive()
+          if (_reconnectCancelled) break
+          check(state == ConnectionState.CONNECTED) { "BLE disconnected during setup" }
           discoverAndSetup()
 
-          _reconnecting = false
-          _reconnectAttempt = 0
-          // P0-1: reset the guard so a second disconnect re-enters onDisconnected
-          // (original bug: the flag stayed set after a successful reconnect,
-          // freezing the app in reconnecting/ready).
-          _disconnectHandled = false
+          val handshakeState = withTimeoutOrNull(BleTimings.readyHandshakeTimeout) {
+            stateFlow.first { it != ConnectionState.CONNECTED }
+          }
+          val loggedIn = synchronized(lock) {
+            if (handshakeState == ConnectionState.READY && isProtocolLoggedIn &&
+              !_reconnectCancelled && !_userDisconnected && !_disposed
+            ) {
+              _reconnecting = false
+              _reconnectAttempt = 0
+              completedSuccessfully = true
+              true
+            } else false
+          }
+          if (!loggedIn) {
+            throw TimeoutException("BLE reconnect handshake did not reach LOGIN")
+          }
           log.ble("重连成功", level = LogLevel.INFO)
           return
-        } catch (e: kotlinx.coroutines.CancellationException) {
-          throw e
         } catch (e: Exception) {
+          // A local GATT timeout is retryable; cancellation of this reconnect
+          // by disconnect()/connect()/dispose() must still propagate.
+          currentCoroutineContext().ensureActive()
+          val canRetry = synchronized(lock) {
+            if (_reconnectCancelled || _userDisconnected || _disposed || _device !== reconnectDevice) {
+              false
+            } else {
+              clearRuntimeResources(disconnectDevice = true)
+              resetCharacteristics()
+              setState(ConnectionState.RECONNECTING)
+              true
+            }
+          }
+          if (!canRetry) break
           log.ble("重连失败", detail = e.toString(), level = LogLevel.DEBUG)
           recoverFailedConnect(e)
         }
@@ -2401,8 +2537,12 @@ class ConnectionManager(
     } finally {
       // Cancellation (connect()/dispose() cancelled this job) must also clear
       // the loop flags — the cancelled coroutine skips the tail below.
-      _reconnecting = false
-      _reconnectAttempt = 0
+      // Success releases ownership under the same lock as onDisconnected().
+      // A new disconnect can already have started the next loop by this point.
+      if (!completedSuccessfully) {
+        _reconnecting = false
+        _reconnectAttempt = 0
+      }
     }
 
     // Do NOT clobber a session that became ready/connected while sleeping.

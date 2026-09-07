@@ -27,6 +27,8 @@ import com.tailg.plus.ui.theme.AppColorsDark
 import com.tailg.plus.ui.theme.AppColorsLight
 import com.tailg.plus.ui.theme.AppRadii
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import com.tailg.plus.data.cloud.OfficialCloudRedactor
 import androidx.compose.ui.res.stringResource
 import com.tailg.plus.R
 import kotlinx.coroutines.launch
@@ -48,6 +50,17 @@ import kotlinx.coroutines.launch
  * `Lucide.check-circle` → `Icons.Filled.CheckCircle`; `Lucide.info` → `Icons.Filled.Info`.
  */
 object AppSnack {
+  /** Report a failed page action without turning a storage/network error into a crash. */
+  suspend fun runAction(hostState: SnackbarHostState, action: suspend () -> Unit): Boolean = try {
+    action()
+    true
+  } catch (e: CancellationException) {
+    throw e
+  } catch (e: Exception) {
+    error(hostState, OfficialCloudRedactor.errorMessage(e))
+    false
+  }
+
   // Dart _errorDuration = 3s, _infoDuration = 2s.
   private const val errorDurationMillis = 3_000L
   private const val infoDurationMillis = 2_000L

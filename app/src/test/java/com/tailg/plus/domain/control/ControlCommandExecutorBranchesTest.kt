@@ -6,13 +6,57 @@ package com.tailg.plus.domain.control
 
 import com.tailg.plus.data.model.CommandCode
 import com.tailg.plus.data.model.OfficialVehicle
+import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.withTimeoutOrNull
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ControlCommandExecutorBranchesTest {
+
+  @Test
+  fun `caller timeout stops preflight and transport branches without reporting a command result`() = runTest {
+    val executors = listOf(
+      OfficialControlChannel.BLE to ControlCommandExecutor(
+        beforeBleCommand = { awaitCancellation() },
+        sendBleCommand = { error("preflight must not complete") },
+        sendCloudCommand = { error("wrong transport") },
+      ),
+      OfficialControlChannel.BLE to ControlCommandExecutor(
+        sendBleCommand = { awaitCancellation() },
+        sendCloudCommand = { error("wrong transport") },
+      ),
+      OfficialControlChannel.OFFICIAL_CLOUD to ControlCommandExecutor(
+        sendCloudCommand = { awaitCancellation() },
+      ),
+    )
+    for ((channel, executor) in executors) {
+      var reportedResult = false
+      withTimeoutOrNull(100L) {
+        executor.send(CommandCode.LOCK, availability(channel, bleReady = true))
+        reportedResult = true
+      }
+      assertFalse("A cancelled caller must not report a command result", reportedResult)
+    }
+  }
+
+  @Test
+  fun `executor timeouts still produce transport failure results`() = runTest {
+    for (channel in listOf(OfficialControlChannel.BLE, OfficialControlChannel.OFFICIAL_CLOUD)) {
+      val executor = ControlCommandExecutor(
+        sendBleCommand = { awaitCancellation() },
+        sendCloudCommand = { awaitCancellation() },
+      )
+      val result = executor.send(CommandCode.LOCK, availability(channel, bleReady = true))
+      assertFalse(result.success)
+      assertEquals(
+        if (channel == OfficialControlChannel.BLE) ControlCommandTransport.BLE else ControlCommandTransport.OFFICIAL_CLOUD,
+        result.transport,
+      )
+    }
+  }
 
   private class FakeCloudState(
     override val signedIn: Boolean,

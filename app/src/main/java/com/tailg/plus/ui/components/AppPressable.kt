@@ -24,7 +24,11 @@ import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.disabled
+import androidx.compose.ui.semantics.onClick
+import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -86,16 +90,40 @@ fun AppPressable(
 
   val haptics = LocalHapticFeedback.current
 
-  // Dart `excludeSemantics: true` when a label is set; button/enabled/selected
-  // states ride on combinedClickable's own semantics (role + enabled).
+  val actionEnabled = enabled && (onClick != null || onLongPress != null)
+  val clickAction: () -> Unit = {
+    if (actionEnabled && onClick != null) {
+      if (haptic) haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+      onClick()
+    }
+  }
+  val longClickAction: (() -> Unit)? = onLongPress?.let { callback ->
+    {
+      if (actionEnabled) {
+        if (haptic) haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+        callback()
+      }
+    }
+  }
+
+  // Replacing child semantics also replaces click actions: expose the same
+  // actions and state explicitly so a labelled control remains accessible.
   val semanticsModifier = if (semanticsLabel != null) {
     Modifier.clearAndSetSemantics {
       contentDescription = semanticsLabel
+      if (semanticsButton) role = Role.Button
+      if (!(semanticsEnabled ?: actionEnabled)) disabled()
+      semanticsSelected?.let { selected = it }
+      if (onClick != null) onClick { clickAction(); actionEnabled }
+      if (longClickAction != null) onLongClick { longClickAction(); actionEnabled }
     }
   } else {
-    Modifier
+    Modifier.semantics {
+      if (semanticsButton) role = Role.Button
+      if (!(semanticsEnabled ?: actionEnabled)) disabled()
+      semanticsSelected?.let { selected = it }
+    }
   }
-  val roleModifier = if (semanticsButton) Modifier.semantics { this.role = Role.Button } else Modifier
 
   Box(
     modifier = modifier
@@ -119,25 +147,14 @@ fun AppPressable(
       .clip(shape)
       .background(bg)
       .then(if (borderWidth > 0.dp) Modifier.border(borderWidth, borderColor, shape) else Modifier)
-      .then(roleModifier)
-      .then(semanticsModifier)
       .combinedClickable(
         interactionSource = interactionSource,
         indication = null,
-        enabled = enabled,
-        onClick = {
-          if (haptic && onClick != null) {
-            haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove)
-          }
-          onClick?.invoke()
-        },
-        onLongClick = {
-          if (haptic) {
-            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-          }
-          onLongPress?.invoke()
-        },
-      ),
+        enabled = actionEnabled,
+        onClick = clickAction,
+        onLongClick = longClickAction,
+      )
+      .then(semanticsModifier),
   ) {
     if (builder != null) {
       builder(isActive)

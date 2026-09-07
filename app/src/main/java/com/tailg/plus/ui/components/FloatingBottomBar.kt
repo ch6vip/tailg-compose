@@ -67,9 +67,6 @@ import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.tailg.plus.R
-import com.tailg.plus.ui.theme.LocalUiMode
-import com.tailg.plus.ui.theme.UiMode
-import com.tailg.plus.ui.theme.VectorFontFamily
 import kotlin.math.roundToInt
 
 internal enum class BottomNavDestination(
@@ -132,7 +129,6 @@ internal fun FloatingBottomBar(
     val currentSelection by rememberUpdatedState(selectedIndex)
     val selectTab by rememberUpdatedState(onSelected)
     val colors = MaterialTheme.colorScheme
-    val vector = LocalUiMode.current == UiMode.VECTOR
     val dark = colors.surface.luminance() < 0.5f
     val haptics = LocalHapticFeedback.current
     val isRtl = LocalLayoutDirection.current == LayoutDirection.Rtl
@@ -223,7 +219,7 @@ internal fun FloatingBottomBar(
                     scaleY = 1f + 0.07f * pressProgress
                 }
                 .background(
-                    if (vector) colors.secondaryContainer else colors.primary.copy(alpha = if (dark) 0.2f else 0.12f),
+                    colors.primary.copy(alpha = if (dark) 0.2f else 0.12f),
                     CircleShape,
                 ),
         )
@@ -232,9 +228,7 @@ internal fun FloatingBottomBar(
                 val selected = selectedIndex == index
                 val highlighted = highlightedIndex == index
                 val contentColor by animateColorAsState(
-                    if (highlighted) {
-                        if (vector) colors.onSecondaryContainer else colors.primary
-                    } else colors.onSurfaceVariant,
+                    if (highlighted) colors.primary else colors.onSurfaceVariant,
                     label = "floatingTabColor",
                 )
                 Column(
@@ -267,7 +261,7 @@ internal fun FloatingBottomBar(
                             fontSize = 11.sp,
                             lineHeight = 14.sp,
                             fontWeight = if (highlighted) FontWeight.W600 else FontWeight.W500,
-                            fontFamily = if (vector) VectorFontFamily else FontFamily.Default,
+                            fontFamily = FontFamily.Default,
                             textAlign = TextAlign.Center,
                         ),
                         autoSize = TextAutoSize.StepBased(minFontSize = 9.sp, maxFontSize = 11.sp),

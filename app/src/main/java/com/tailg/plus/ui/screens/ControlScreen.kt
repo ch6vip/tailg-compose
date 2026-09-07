@@ -5,10 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
@@ -59,8 +57,6 @@ import com.tailg.plus.data.mqtt.OfficialMqttService
 import com.tailg.plus.data.mqtt.OfficialMqttStatusPayload
 import com.tailg.plus.data.mqtt.OfficialRemoteSendPath
 import com.tailg.plus.data.store.VehicleStore
-import com.tailg.plus.domain.control.ControlChannelAvailability
-import com.tailg.plus.domain.control.ControlChannelResolver
 import com.tailg.plus.domain.control.ControlCloudState
 import com.tailg.plus.domain.control.ControlCommandConfirmation
 import com.tailg.plus.domain.control.ControlCommandConfirmationContext
@@ -75,13 +71,9 @@ import com.tailg.plus.log.LogLevel
 import com.tailg.plus.ui.components.AppSnackbarHost
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.CyberRecentCommands
-import com.tailg.plus.ui.components.VectorControlGrid
-import com.tailg.plus.ui.components.VectorStatsRow
-import com.tailg.plus.ui.components.VectorVehicleHeader
 import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.NinebotStatsRow
 import com.tailg.plus.ui.components.NinebotVehicleHeader
-import com.tailg.plus.ui.components.OfficialBleChipState
 import com.tailg.plus.ui.components.VehicleControlHomeGate
 import com.tailg.plus.ui.components.VehicleControlHomeGateKind
 import com.tailg.plus.ui.components.VehicleSwitchSheet
@@ -90,8 +82,6 @@ import com.tailg.plus.ui.components.ninebotPageBackground
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalDistanceUnitPreference
-import com.tailg.plus.ui.theme.LocalUiMode
-import com.tailg.plus.ui.theme.UiMode
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -313,7 +303,7 @@ fun ControlScreen(
   }
 
   // Shared busy-free base for the per-command routes below — resolving it
-  // once avoids four identical ControlChannelResolver.resolve() passes per
+  // once avoids repeated ControlChannelResolver.resolve() passes per
   // recomposition (each keyed remember block used to re-run the same resolve).
   val baseAvailability = remember(controlCloudState, bleState, controlChannel, networkReady) {
     connectionManager.resolveControlAvailability(
@@ -341,25 +331,12 @@ fun ControlScreen(
     )
   }
 
-  val armAvailability = remember(baseAvailability, isArmed, cloudVehicle) {
-    val cmd = if (isArmed == true) CommandCode.UNLOCK else CommandCode.LOCK
-    ControlCommandRoute.resolve(
-      base = baseAvailability,
-      command = cmd,
-      vehicle = cloudVehicle,
-    )
-  }
-
   val seatAvailability = remember(baseAvailability, cloudVehicle) {
     ControlCommandRoute.resolve(
       base = baseAvailability,
       command = CommandCode.OPEN_SEAT,
       vehicle = cloudVehicle,
     )
-  }
-
-  val bleChipState = remember(cloudVehicle, bleState, busy) {
-    officialBleChipState(cloudVehicle, connectionManager, bleState, busy)
   }
 
   val distanceUnit = LocalDistanceUnitPreference.current
@@ -863,15 +840,11 @@ fun ControlScreen(
   val onArmToggle = remember { { latestSendArmToggle.value() } }
   val onSettings = remember { { latestOnNavigate.value(Routes.vehicleSettings("current")) } }
   val onSeat = remember { { latestSendCommand.value(CommandCode.OPEN_SEAT) } }
-  val onNfc = remember { { latestOnNavigate.value(Routes.OFFICIAL_REPLICA) } }
   val onInduction = remember {
     { latestOnNavigate.value(Routes.inductionSettings(cloudService.currentState.selectedVehicle?.key ?: "current")) }
   }
   val onMapTap = remember { { latestOnNavigate.value(Routes.location("current")) } }
   val onRideStatsTap = remember { { latestOnNavigate.value(Routes.rideStats("current")) } }
-
-  // Both skins use the same observed vehicle state and command callbacks.
-  val uiMode = LocalUiMode.current
 
   Scaffold(
     modifier = modifier.fillMaxSize(),
@@ -889,113 +862,58 @@ fun ControlScreen(
         Column(
           modifier = Modifier
             .fillMaxSize()
-            .then(
-              if (uiMode == UiMode.NINEBOT) {
-                Modifier.background(ninebotPageBackground())
-              } else {
-                Modifier
-              }
-            )
+            .background(ninebotPageBackground())
             .verticalScroll(scrollState),
         ) {
-          // Display data shared by both skins (identical args either way).
           val vehicleName = cloudVehicle?.displayName ?: vehicleStore.defaultVehicle?.displayName ?: stringResource(R.string.control_my_vehicle)
           val rangeText = rangeLabel(battery, distanceUnit)
           val carPhoto = cloudVehicle?.carPhoto ?: ""
           val address = locationTitle(location)
           val todayKm = todayRideLabel(cloudState, distanceUnit)
           val totalKm = totalMileageLabel(cloudState, distanceUnit)
-          if (uiMode == UiMode.NINEBOT) {
-            NinebotVehicleHeader(
-              vehicleName = vehicleName,
-              rangeText = rangeText,
-              carPhoto = carPhoto,
-              batteryPercent = percent,
-              batteryKnown = battery.percent != null,
-              powered = isPowerOn,
-              channelLabel = controlChannelStatus.localizedLabel(),
-              bluetoothConnected = selectedBleReady,
-              onTitleTap = onTitleTap,
-              onBatteryTap = onBatteryTap,
-              onBleChipTap = onBleChipTap,
-              onMessages = onMessages,
-              onChannelTap = onChannelTap,
-            )
-            Spacer(Modifier.height(4.dp))
-            NinebotControlSection(
-              vehicleKey = cloudVehicle?.key.orEmpty(),
-              shortcutStore = viewModel.shortcutStore,
-              log = log,
-              powered = isPowerOn,
-              busy = busy,
-              activeCommand = activeCommand?.toBleCommandCode(),
-              findAvailability = findAvailability,
-              powerAvailability = powerAvailability,
-              seatAvailability = seatAvailability,
-              onFind = onFind,
-              onPowerToggle = onPowerToggle,
-              onArmToggle = onArmToggle,
-              onSettings = onSettings,
-              onSeat = onSeat,
-              onBattery = onBatteryTap,
-              onInduction = onInduction,
-            )
-            Spacer(Modifier.height(20.dp))
-            NinebotStatsRow(
-              location = location,
-              address = address,
-              todayKm = todayKm,
-              totalKm = totalKm,
-              onMapTap = onMapTap,
-              onRideStatsTap = onRideStatsTap,
-            )
-          } else {
-            VectorVehicleHeader(
-              vehicleName = vehicleName,
-              rangeText = rangeText,
-              carPhoto = carPhoto,
-              batteryPercent = percent,
-              batteryKnown = battery.percent != null,
-              online = cloudVehicle?.online ?: false,
-              bluetoothConnected = selectedBleReady,
-              isLocked = isArmed,
-              powered = isPowerOn,
-              bleChip = bleChipState,
-              channelStatus = controlChannelStatus,
-              onTitleTap = onTitleTap,
-              onBatteryTap = onBatteryTap,
-              onBleChipTap = onBleChipTap,
-              onMessages = onMessages,
-              onChannelTap = onChannelTap,
-              controls = {
-                VectorControlGrid(
-                  powered = isPowerOn,
-                  armed = isArmed,
-                  busy = busy,
-                  activeCommand = activeCommand?.toBleCommandCode(),
-                  findAvailability = findAvailability,
-                  powerAvailability = powerAvailability,
-                  armAvailability = armAvailability,
-                  seatAvailability = seatAvailability,
-                  onFind = onFind,
-                  onPowerToggle = onPowerToggle,
-                  onArmToggle = onArmToggle,
-                  onSettings = onSettings,
-                  onSeat = onSeat,
-                  onNfc = onNfc,
-                )
-              },
-            )
-            Spacer(Modifier.height(32.dp))
-            VectorStatsRow(
-              location = location,
-              address = address,
-              todayKm = todayKm,
-              totalKm = totalKm,
-              onMapTap = onMapTap,
-              onRideStatsTap = onRideStatsTap,
-            )
-          }
+          NinebotVehicleHeader(
+            vehicleName = vehicleName,
+            rangeText = rangeText,
+            carPhoto = carPhoto,
+            batteryPercent = percent,
+            batteryKnown = battery.percent != null,
+            powered = isPowerOn,
+            channelLabel = controlChannelStatus.localizedLabel(),
+            bluetoothConnected = selectedBleReady,
+            onTitleTap = onTitleTap,
+            onBatteryTap = onBatteryTap,
+            onBleChipTap = onBleChipTap,
+            onMessages = onMessages,
+            onChannelTap = onChannelTap,
+          )
+          Spacer(Modifier.height(4.dp))
+          NinebotControlSection(
+            vehicleKey = cloudVehicle?.key.orEmpty(),
+            shortcutStore = viewModel.shortcutStore,
+            log = log,
+            powered = isPowerOn,
+            busy = busy,
+            activeCommand = activeCommand?.toBleCommandCode(),
+            findAvailability = findAvailability,
+            powerAvailability = powerAvailability,
+            seatAvailability = seatAvailability,
+            onFind = onFind,
+            onPowerToggle = onPowerToggle,
+            onArmToggle = onArmToggle,
+            onSettings = onSettings,
+            onSeat = onSeat,
+            onBattery = onBatteryTap,
+            onInduction = onInduction,
+          )
+          Spacer(Modifier.height(20.dp))
+          NinebotStatsRow(
+            location = location,
+            address = address,
+            todayKm = todayKm,
+            totalKm = totalKm,
+            onMapTap = onMapTap,
+            onRideStatsTap = onRideStatsTap,
+          )
           if (commandActivities.isNotEmpty()) {
             Spacer(Modifier.height(16.dp))
             CyberRecentCommands(commands = commandActivities)

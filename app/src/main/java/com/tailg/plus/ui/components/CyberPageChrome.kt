@@ -2,7 +2,6 @@ package com.tailg.plus.ui.components
 
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,7 +17,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.material3.OutlinedTextFieldDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextFieldColors
 import androidx.compose.runtime.Composable
@@ -40,8 +38,6 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.ui.theme.LocalCyberPalette
-import com.tailg.plus.ui.theme.LocalUiMode
-import com.tailg.plus.ui.theme.UiMode
 
 /**
  * Port of `lib/widgets/cyber_page_chrome.dart` — light-Cyber page chrome
@@ -51,12 +47,12 @@ import com.tailg.plus.ui.theme.UiMode
  * Dart `cyber*Style` consts → [TextStyle] vals; `AppShadows.cyberActionShadow`
  * / `cyberCardShadow` → [Modifier.shadow] with the same-named tokens.
  *
- * Icons: `Lucide.arrow-left` → `Icons.Filled.ArrowBack`.
+ * Header and action icons use Lucide.
  */
 
 val cyberPageTitleStyle: TextStyle
   @Composable @ReadOnlyComposable
-  get() = if (LocalUiMode.current == UiMode.VECTOR) MaterialTheme.typography.headlineMedium.copy(color = CyberHomeColors.ink) else TextStyle(
+  get() = TextStyle(
     fontSize = 24.sp,
     fontWeight = FontWeight.W700,
     color = LocalCyberPalette.current.ink,
@@ -64,7 +60,7 @@ val cyberPageTitleStyle: TextStyle
 
 val cyberSectionTitleStyle: TextStyle
   @Composable @ReadOnlyComposable
-  get() = if (LocalUiMode.current == UiMode.VECTOR) MaterialTheme.typography.labelLarge.copy(color = CyberHomeColors.inkMuted) else TextStyle(
+  get() = TextStyle(
     fontSize = 13.sp,
     fontWeight = FontWeight.W700,
     color = LocalCyberPalette.current.inkMuted,
@@ -72,7 +68,7 @@ val cyberSectionTitleStyle: TextStyle
 
 val cyberItemTitleStyle: TextStyle
   @Composable @ReadOnlyComposable
-  get() = if (LocalUiMode.current == UiMode.VECTOR) MaterialTheme.typography.titleMedium.copy(color = CyberHomeColors.ink) else TextStyle(
+  get() = TextStyle(
     fontSize = 15.sp,
     fontWeight = FontWeight.W700,
     color = LocalCyberPalette.current.ink,
@@ -80,7 +76,7 @@ val cyberItemTitleStyle: TextStyle
 
 val cyberBodyStyle: TextStyle
   @Composable @ReadOnlyComposable
-  get() = if (LocalUiMode.current == UiMode.VECTOR) MaterialTheme.typography.bodyMedium.copy(color = CyberHomeColors.inkMuted) else TextStyle(
+  get() = TextStyle(
     fontSize = 13.sp,
     lineHeight = 13.sp * 1.45f,
     color = LocalCyberPalette.current.inkMuted,
@@ -88,7 +84,7 @@ val cyberBodyStyle: TextStyle
 
 val cyberCaptionStyle: TextStyle
   @Composable @ReadOnlyComposable
-  get() = if (LocalUiMode.current == UiMode.VECTOR) MaterialTheme.typography.bodySmall.copy(color = CyberHomeColors.inkMuted) else TextStyle(
+  get() = TextStyle(
     fontSize = 12.sp,
     lineHeight = 12.sp * 1.4f,
     color = LocalCyberPalette.current.inkFaint,
@@ -185,11 +181,10 @@ fun CyberCard(
   onClick: (() -> Unit)? = null,
   content: @Composable () -> Unit,
 ) {
-  val vector = LocalUiMode.current == UiMode.VECTOR
-  val shape = if (vector) MaterialTheme.shapes.medium else RoundedCornerShape(AppRadii.sheet)
+  val shape = RoundedCornerShape(AppRadii.sheet)
   val base = modifier
     .shadow(
-      elevation = if (vector) 0.dp else 6.dp,
+      elevation = 6.dp,
       shape = shape,
       clip = false,
       ambientColor = Color.Transparent,
@@ -197,7 +192,6 @@ fun CyberCard(
     )
     .clip(shape)
     .background(CyberHomeColors.card)
-    .then(if (vector) Modifier.border(1.dp, CyberHomeColors.line, shape) else Modifier)
   Box(modifier = if (onClick != null) base.pressableClick(onClick) else base) {
     Box(modifier = Modifier.padding(contentPadding)) {
       content()

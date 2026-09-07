@@ -140,11 +140,8 @@
     <string name="settings_about_app">About Tailg Smart</string>
     <string name="settings_about_app_desc">Version info, user agreement and privacy policy</string>
     <string name="settings_appearance">Appearance</string>
-    <string name="settings_ui_mode">UI style</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_theme_desc">Dark mode, floating bottom bar and page scale</string>
-    <string name="theme_ui_mode_vector">VECTOR</string>
-    <string name="theme_ui_mode_ninebot">Ninebot</string>
     <string name="theme_mode_system">Follow system</string>
     <string name="theme_mode_light">Light</string>
     <string name="theme_mode_dark">Dark</string>

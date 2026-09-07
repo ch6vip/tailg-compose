@@ -4,7 +4,7 @@
 是 `tailg-ble-app`（Flutter 复刻线）的姊妹工程。
 
 - **包名**：`com.tailg.plus`
-- **设计系统**：VECTOR · 矢量（纸白 / 碳黑与酸橙色、大号仪表排版、半透明底栏），保留九号风格；所有界面图标使用官方 Lucide，支持浅色和深色主题
+- **设计系统**：九号风格与半透明底栏；所有界面图标使用官方 Lucide，支持浅色和深色主题
 - **通道**：本地 BLE（TLink / QGJ + AES）、远程 MQTT、云 HTTP —— 与官方及 Flutter 复刻线对齐
 - **验证**：本地 Android SDK 与 GitHub Actions 均可运行编译、单测和 Lint；本次审查结果见 [CODE_REVIEW.md](docs/CODE_REVIEW.md)
 
@@ -14,10 +14,10 @@
 app/src/main/java/com/tailg/plus/
 ├── TailgApplication.kt / MainActivity.kt
 ├── ui/
-│   ├── theme/        # VECTOR / 九号 → M3 颜色、排版与形状
+│   ├── theme/        # 九号 → M3 颜色、排版与形状
 │   ├── navigation/   # 路由图（TailgNavHost + Auth/Vehicle/Settings 子图）
 │   ├── screens/      # 页面（历史移植清单见 docs/UI_PORT_PLAN.md）
-│   └── components/   # 共享组件（VectorControlHome、CyberMapView、VoidNav…）
+│   └── components/   # 共享组件（NinebotControlHome、CyberMapView、VoidNav…）
 ├── data/
 │   ├── model/        # 数据模型
 │   ├── ble/          # BLE 协议（TLink/QGJ + AES）
@@ -73,7 +73,7 @@ CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然�
 
 | 文档 | 说明 |
 |------|------|
-| [docs/VECTOR_DESIGN.md](docs/VECTOR_DESIGN.md) | VECTOR 风格、Lucide 图标来源与界面验证方法 |
+| [docs/FLOATING_BOTTOM_BAR.md](docs/FLOATING_BOTTOM_BAR.md) | 半透明底栏、外观设置与交互验证 |
 | [docs/CODE_REVIEW.md](docs/CODE_REVIEW.md) | 本次全项目审查、已修复问题、验证结果与剩余限制 |
 | [docs/UI_REGRESSION.md](docs/UI_REGRESSION.md) | 登录、切车、控车确认及取消／乱序的 25 项 UI／集成回归测试与运行方法 |
 | [docs/CONVENTIONS.md](docs/CONVENTIONS.md) | 移植契约（Dart → Kotlin），移植期间所有子代理必须遵循 |

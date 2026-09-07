@@ -77,8 +77,6 @@ import com.tailg.plus.ui.components.cyberTextFieldColors
 import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
-import com.tailg.plus.ui.theme.LocalUiMode
-import com.tailg.plus.ui.theme.UiMode
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.util.SensitiveValueMasker
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -213,89 +211,62 @@ fun ProfileMineScreen(
         .verticalScroll(rememberScrollState())
         .padding(top = 6.dp, bottom = 16.dp + LocalBottomNavigationPadding.current),
     ) {
-      if (LocalUiMode.current == UiMode.VECTOR) {
-        VectorProfileContent(
-          nickname = nickname,
-          phoneLine = maskedPhone,
-          memberLabel = if (signedIn) stringResource(R.string.profile_logged_in) else stringResource(R.string.profile_guest),
-          signedIn = signedIn,
-          vehicleName = vehicleName,
-          vehicleOnline = vehicleOnline,
-          vehicleStatusLabel = vehicleOnlineLabel,
-          batteryLabel = batteryLabel,
-          unreadCount = if (signedIn) unreadCount else 0,
-          onAvatarTap = { if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true },
-          onEditTap = { if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true },
-          onVehicleTap = {
-            if (!signedIn) onNavigate(Routes.LOGIN)
-            else if (cloudState.vehicles.size > 1) showVehicleSwitch = true
-            else onNavigate(Routes.GARAGE)
-          },
-          onMessages = {
-            if (!signedIn) onNavigate(Routes.LOGIN)
-            else onNavigate(Routes.vehicleMessage(cloudState.selectedVehicle?.key?.takeIf { it.isNotBlank() } ?: "current"))
-          },
-          onAbout = { onNavigate(Routes.ABOUT_APP) },
-          onLogout = { showLogoutSheet = true },
-        )
-      } else {
-        Text(
-          text = stringResource(R.string.nav_mine),
-          modifier = Modifier.padding(start = 20.dp, top = 12.dp),
-          style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-        )
-        ProfileHeader(
-          avatarGlyph = avatarGlyph,
-          avatarUrl = avatarUrl,
-          nickname = nickname,
-          phoneLine = maskedPhone,
-          memberLabel = if (signedIn) stringResource(R.string.profile_logged_in) else stringResource(R.string.profile_guest),
-          onAvatarTap = {
-            if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true
-          },
-          onEditTap = {
-            if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true
-          },
-        )
-        VehicleCard(
-          name = vehicleName,
-          online = vehicleOnline,
-          statusLabel = vehicleOnlineLabel,
-          batteryLabel = batteryLabel,
-          onTap = {
-            if (!signedIn) {
-              onNavigate(Routes.LOGIN)
-            } else if (cloudState.vehicles.size > 1) {
-              showVehicleSwitch = true
-            } else {
-              onNavigate(Routes.GARAGE)
-            }
-          },
-        )
-        MineSectionLabel(stringResource(R.string.profile_section_account))
-        SupportCard(
-          messageBadge = if (signedIn && unreadCount > 0) unreadCount else null,
-          onMessages = {
-            val sel = cloudState.selectedVehicle
-            if (!signedIn) onNavigate(Routes.LOGIN)
-            else onNavigate(Routes.vehicleMessage(sel?.key?.takeIf { it.isNotBlank() } ?: "current"))
-          },
-          onAbout = { onNavigate(Routes.ABOUT_APP) },
-        )
-        AccountCard(
-          phoneValue = if (signedIn) maskedPhone else stringResource(R.string.profile_unbound),
-          showLogout = signedIn,
-          onLogoutTap = { showLogoutSheet = true },
-        )
-        Text(
-          text = "Tailg Cloud · VOID",
-          modifier = Modifier
-            .fillMaxWidth()
-            .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 6.dp),
-          textAlign = TextAlign.Center,
-          style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
-        )
-      }
+      Text(
+        text = stringResource(R.string.nav_mine),
+        modifier = Modifier.padding(start = 20.dp, top = 12.dp),
+        style = TextStyle(fontSize = 28.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+      )
+      ProfileHeader(
+        avatarGlyph = avatarGlyph,
+        avatarUrl = avatarUrl,
+        nickname = nickname,
+        phoneLine = maskedPhone,
+        memberLabel = if (signedIn) stringResource(R.string.profile_logged_in) else stringResource(R.string.profile_guest),
+        onAvatarTap = {
+          if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true
+        },
+        onEditTap = {
+          if (!signedIn) onNavigate(Routes.LOGIN) else showEditNickname = true
+        },
+      )
+      VehicleCard(
+        name = vehicleName,
+        online = vehicleOnline,
+        statusLabel = vehicleOnlineLabel,
+        batteryLabel = batteryLabel,
+        onTap = {
+          if (!signedIn) {
+            onNavigate(Routes.LOGIN)
+          } else if (cloudState.vehicles.size > 1) {
+            showVehicleSwitch = true
+          } else {
+            onNavigate(Routes.GARAGE)
+          }
+        },
+      )
+      MineSectionLabel(stringResource(R.string.profile_section_account))
+      SupportCard(
+        messageBadge = if (signedIn && unreadCount > 0) unreadCount else null,
+        onMessages = {
+          val sel = cloudState.selectedVehicle
+          if (!signedIn) onNavigate(Routes.LOGIN)
+          else onNavigate(Routes.vehicleMessage(sel?.key?.takeIf { it.isNotBlank() } ?: "current"))
+        },
+        onAbout = { onNavigate(Routes.ABOUT_APP) },
+      )
+      AccountCard(
+        phoneValue = if (signedIn) maskedPhone else stringResource(R.string.profile_unbound),
+        showLogout = signedIn,
+        onLogoutTap = { showLogoutSheet = true },
+      )
+      Text(
+        text = "Tailg Cloud · VOID",
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(start = 20.dp, top = 18.dp, end = 20.dp, bottom = 6.dp),
+        textAlign = TextAlign.Center,
+        style = TextStyle(fontSize = 11.sp, color = CyberHomeColors.inkFaint),
+      )
     }
   }
 

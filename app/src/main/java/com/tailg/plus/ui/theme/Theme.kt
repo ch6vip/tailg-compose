@@ -22,19 +22,15 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.di.rememberTailgEntryPoint
 
 /**
- * UI style — the selectable skins in 设置 → 界面风格. Both are static brand
- * schemes (light/dark follows the theme mode chosen in 主题设置):
- *  - [VECTOR]: 矢量 — editorial instruments on paper / carbon with a lime signal.
- *  - [NINEBOT]: 九号出行 — ink navy + electric blue on mist gray / near black.
+ * The supported UI style is 九号出行, with light/dark chosen in 主题设置.
  * Stored as an Int in [com.tailg.plus.data.preferences.AppPreferencesService];
- * Value 0 replaces the original skin without resetting saved preferences.
+ * retired or unknown style values fall back to the supported style.
  */
 enum class UiMode(val value: Int) {
-    VECTOR(0),
     NINEBOT(2);
 
     companion object {
-        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: VECTOR
+        fun fromValue(value: Int): UiMode = entries.firstOrNull { it.value == value } ?: NINEBOT
     }
 }
 
@@ -211,7 +207,6 @@ val NinebotDarkColorScheme = darkColorScheme(
 
 private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
     when (uiMode) {
-        UiMode.VECTOR -> if (isDark) VectorDarkColorScheme else VectorLightColorScheme
         UiMode.NINEBOT -> if (isDark) NinebotDarkColorScheme else NinebotLightColorScheme
     }
 
@@ -220,10 +215,10 @@ private fun uiModeColorScheme(uiMode: UiMode, isDark: Boolean): ColorScheme =
  * Screens that render a skin-specific layout (e.g. the 九号 control home)
  * branch on this instead of re-reading the preference store.
  */
-val LocalUiMode = staticCompositionLocalOf { UiMode.VECTOR }
+val LocalUiMode = staticCompositionLocalOf { UiMode.NINEBOT }
 
 /**
- * Root theme. Resolves the persisted UI style (VECTOR / 九号) and theme mode
+ * Root theme. Resolves the persisted UI style and theme mode
  * (system / light / dark), maps the resulting scheme onto the semantic
  * [CyberPalette] and provides it via [LocalCyberPalette]. Mirrors KernelSU's
  * expressive motion: animated colour transitions + global page scale.
@@ -234,7 +229,7 @@ fun TailgTheme(
 ) {
     val prefs = rememberTailgEntryPoint().appPreferences()
     val themeMode by prefs.themeMode.collectAsStateWithLifecycle(initialValue = ColorMode.SYSTEM.value)
-    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.VECTOR.value)
+    val uiModeValue by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.NINEBOT.value)
     val pageScale by prefs.pageScale.collectAsStateWithLifecycle(initialValue = 1.0f)
     LaunchedEffect(prefs) {
         try {
@@ -285,8 +280,8 @@ fun TailgTheme(
         MaterialExpressiveTheme(
             colorScheme = animatedScheme,
             motionScheme = MotionScheme.expressive(),
-            typography = if (uiMode == UiMode.VECTOR) VectorTypography else TailgTypography,
-            shapes = if (uiMode == UiMode.VECTOR) VectorShapes else TailgShapes,
+            typography = TailgTypography,
+            shapes = TailgShapes,
             content = content,
         )
     }

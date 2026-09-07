@@ -1,7 +1,6 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,29 +15,19 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MenuDefaults
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SelectableDropdownMenuItem
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.round
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
@@ -49,16 +38,10 @@ import com.tailg.plus.ui.components.CyberSectionLabel
 import com.tailg.plus.ui.components.LocalBottomNavigationPadding
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
-import com.tailg.plus.ui.components.VectorSettingsHeader
-import com.tailg.plus.ui.components.VectorSettingsSection
 import com.tailg.plus.ui.components.cyberCaptionStyle
 import com.tailg.plus.ui.components.cyberItemTitleStyle
-import com.tailg.plus.ui.components.material.OffsetAnchoredExpressiveMenu
-import com.tailg.plus.ui.components.material.trackPressPosition
 import com.tailg.plus.ui.navigation.Routes
 import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.UiMode
-import com.tailg.plus.ui.theme.LocalUiMode
 import com.tailg.plus.ui.theme.CyberHomeColors
 import kotlinx.coroutines.launch
 import androidx.compose.material3.SnackbarHostState
@@ -81,7 +64,6 @@ import com.tailg.plus.R
  * sub-page is folded into a separate [AdvancedDiagnosticsScreen] composable
  * (same file) so the route graph can wire it directly.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
   vehicleRouteId: String,
@@ -90,14 +72,11 @@ fun SettingsScreen(
   preferencesService: AppPreferencesService? = null,
   showBack: Boolean = true,
 ) {
-  val context = androidx.compose.ui.platform.LocalContext.current
   val prefs = preferencesService
     ?: com.tailg.plus.di.rememberTailgEntryPoint().appPreferences()
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
-  val uiMode by prefs.uiMode.collectAsStateWithLifecycle(initialValue = UiMode.VECTOR.value)
-  val currentUiMode = UiMode.fromValue(uiMode)
   val scope = androidx.compose.runtime.rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
 
@@ -112,12 +91,8 @@ fun SettingsScreen(
         .padding(padding)
         .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
     ) {
-      if (LocalUiMode.current == UiMode.VECTOR && !showBack) {
-        VectorSettingsHeader(onTheme = { onNavigate(Routes.THEME) })
-      } else {
-        CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
-      }
-      SettingsSection("01", stringResource(R.string.settings_account_vehicle))
+      CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
+      CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.garage,
@@ -126,7 +101,7 @@ fun SettingsScreen(
           onClick = { onNavigate(Routes.GARAGE) },
         ),
       )
-      SettingsSection("02", stringResource(R.string.settings_vehicle_usage))
+      CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.tune,
@@ -141,7 +116,7 @@ fun SettingsScreen(
           onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
         ),
       )
-      SettingsSection("03", stringResource(R.string.settings_general))
+      CyberSectionLabel(stringResource(R.string.settings_general))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.languages,
@@ -178,54 +153,16 @@ fun SettingsScreen(
           },
         ),
       )
-      SettingsSection("04", stringResource(R.string.settings_appearance))
-      // 界面风格 — KernelSU-style: the row opens an expressive dropdown menu
-      // anchored at the press position (SegmentedDropdownItem UX), not a sheet.
-      var showUiModeMenu by remember { mutableStateOf(false) }
-      var menuAnchorOffset by remember { mutableStateOf(IntOffset.Zero) }
-      val haptic = androidx.compose.ui.platform.LocalHapticFeedback.current
-      Box(modifier = Modifier.trackPressPosition { menuAnchorOffset = it.round() }) {
-        SettingsGroup(
-          settingItemModel(
-            icon = Lucide.spark,
-            title = stringResource(R.string.settings_ui_mode),
-            subtitle = uiModeLabel(currentUiMode),
-            onClick = { showUiModeMenu = true },
-          ),
-          settingItemModel(
-            icon = Lucide.tune,
-            title = stringResource(R.string.settings_theme),
-            subtitle = stringResource(R.string.settings_theme_desc),
-            onClick = { onNavigate(Routes.THEME) },
-          ),
-        )
-        OffsetAnchoredExpressiveMenu(
-          expanded = showUiModeMenu,
-          onDismissRequest = { showUiModeMenu = false },
-          anchorOffset = menuAnchorOffset,
-        ) {
-          UiMode.entries.forEachIndexed { index, mode ->
-            SelectableDropdownMenuItem(
-              text = { Text(uiModeLabel(mode)) },
-              selected = mode == currentUiMode,
-              onClick = {
-                haptic.performHapticFeedback(HapticFeedbackType.VirtualKey)
-                scope.launch { AppSnack.runAction(snackbarHostState) { prefs.setUiMode(mode.value) } }
-                showUiModeMenu = false
-              },
-              shapes = MenuDefaults.itemShape(index = index, count = UiMode.entries.size),
-              selectedLeadingIcon = {
-                Icon(
-                  Lucide.check,
-                  contentDescription = null,
-                  modifier = Modifier.size(MenuDefaults.LeadingIconSize),
-                )
-              },
-            )
-          }
-        }
-      }
-      SettingsSection("05", stringResource(R.string.settings_about))
+      CyberSectionLabel(stringResource(R.string.settings_appearance))
+      SettingsGroup(
+        settingItemModel(
+          icon = Lucide.tune,
+          title = stringResource(R.string.settings_theme),
+          subtitle = stringResource(R.string.settings_theme_desc),
+          onClick = { onNavigate(Routes.THEME) },
+        ),
+      )
+      CyberSectionLabel(stringResource(R.string.settings_about))
       SettingsGroup(
         settingItemModel(
           icon = Lucide.info,
@@ -236,19 +173,6 @@ fun SettingsScreen(
       )
     }
   }
-}
-
-/** Public names of the available UI styles. */
-@Composable
-internal fun uiModeLabel(mode: UiMode): String = when (mode) {
-  UiMode.VECTOR -> stringResource(R.string.theme_ui_mode_vector)
-  UiMode.NINEBOT -> stringResource(R.string.theme_ui_mode_ninebot)
-}
-
-@Composable
-private fun SettingsSection(index: String, title: String) {
-  if (LocalUiMode.current == UiMode.VECTOR) VectorSettingsSection(index, title)
-  else CyberSectionLabel(title)
 }
 
 /**
@@ -295,20 +219,6 @@ fun AdvancedDiagnosticsScreen(
 /** Dart `_group`: a [CyberCard] that stacks [items] with inset dividers between them. */
 @Composable
 internal fun SettingsGroup(vararg items: SettingItemModel) {
-  if (LocalUiMode.current == UiMode.VECTOR) {
-    Column(
-      Modifier.padding(horizontal = 20.dp).fillMaxWidth()
-        .clip(MaterialTheme.shapes.medium)
-        .background(MaterialTheme.colorScheme.surface)
-        .border(1.dp, MaterialTheme.colorScheme.outlineVariant, MaterialTheme.shapes.medium),
-    ) {
-      items.forEachIndexed { index, item ->
-        if (index > 0) HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant)
-        SettingItemRow(item)
-      }
-    }
-    return
-  }
   CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
     Column {
       items.forEachIndexed { index, item ->

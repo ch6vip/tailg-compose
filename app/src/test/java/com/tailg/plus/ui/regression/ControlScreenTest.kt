@@ -4,9 +4,12 @@ import android.content.Context
 import android.os.Looper
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.onNodeWithContentDescription
+import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
 import androidx.test.core.app.ApplicationProvider
 import com.tailg.plus.R
 import com.tailg.plus.data.ble.platform.ConnectionManager
@@ -119,27 +122,30 @@ class ControlScreenTest : ComposeRegressionTest() {
     }
 
     @Test
-    fun lockNeedsTheExpectedStatusAndUpdatesTheControlButton() {
-        compose.onNodeWithContentDescription(string(R.string.control_grid_arm)).performScrollTo().performClick()
+    fun powerSlideWaitsForExpectedAccAndUpdatesTheControlButton() {
+        compose.onNodeWithTag("slide-power-track").performScrollTo().assertIsDisplayed()
+            .performTouchInput { swipeRight() }
         advanceTime(600)
-        assertEquals(listOf(vehicle.key to "lock"), publications)
+        assertEquals(listOf(vehicle.key to "start"), publications)
         assertPending()
 
         compose.runOnIdle {
-            mqtt.handleStatusPayload("""{"imei":"860000000000001","defenceStatus":"0"}""")
+            mqtt.handleStatusPayload("""{"imei":"860000000000001","ACC":"0"}""")
         }
         compose.waitForIdle()
         assertPending()
+        assertEquals(false, environment.cloud.currentState.selectedVehicle?.isPowerOn)
 
         compose.runOnIdle {
-            mqtt.handleStatusPayload("""{"imei":"860000000000001","defenceStatus":"1"}""")
+            mqtt.handleStatusPayload("""{"imei":"860000000000001","ACC":"1"}""")
         }
         compose.waitForIdle()
 
-        assertEquals(true, environment.cloud.currentState.selectedVehicle?.isLocked)
+        assertEquals(true, environment.cloud.currentState.selectedVehicle?.isPowerOn)
         assertFalse(viewModel.uiState.value.busy)
         assertEquals(ControlCommandActivityStatus.SUCCEEDED, viewModel.commandLog.entries.single().status)
-        compose.onNodeWithContentDescription(string(R.string.control_grid_disarm)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(string(R.string.slide_power_slide_off)).assertIsDisplayed()
+        assertEquals(listOf(vehicle.key to "start"), publications)
     }
 
     @Test
@@ -198,7 +204,7 @@ class ControlScreenTest : ComposeRegressionTest() {
 
     @Test
     fun changingVehicleBeforeDelayedSendCannotRetargetTheCommand() {
-        compose.onNodeWithContentDescription(string(R.string.control_card_find)).performScrollTo().performClick()
+        compose.onNodeWithContentDescription(string(R.string.ninebot_tile_horn)).performScrollTo().performClick()
         compose.runOnIdle {
             environment.signIn(vehicle.copy(carId = "vehicle-b", imei = "860000000000002"))
         }
@@ -212,7 +218,7 @@ class ControlScreenTest : ComposeRegressionTest() {
 
     @Test
     fun changingAccountBeforeDelayedSendCancelsTheCommand() {
-        compose.onNodeWithContentDescription(string(R.string.control_card_find)).performScrollTo().performClick()
+        compose.onNodeWithContentDescription(string(R.string.ninebot_tile_horn)).performScrollTo().performClick()
         compose.runOnIdle {
             environment.cloud.setStateForTest(environment.cloud.currentState.copyWith(token = "new-session"))
         }
@@ -225,7 +231,7 @@ class ControlScreenTest : ComposeRegressionTest() {
     }
 
     private fun sendFind() {
-        compose.onNodeWithContentDescription(string(R.string.control_card_find)).performScrollTo().performClick()
+        compose.onNodeWithContentDescription(string(R.string.ninebot_tile_horn)).performScrollTo().performClick()
         advanceTime(600)
         assertEquals(listOf(vehicle.key to "search"), publications)
     }

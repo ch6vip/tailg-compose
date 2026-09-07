@@ -67,9 +67,9 @@ import com.tailg.plus.domain.control.ControlTopBarChannel
 import com.tailg.plus.domain.control.ControlTopBarChannelKind
 
 /**
- * VECTOR: an editorial instrument panel, composed around range, an illustrated
- * vehicle plate, and deliberate control keys. All displayed state comes from
- * the caller; entrance and press springs are the only state owned here.
+ * VECTOR puts vehicle identity and control keys before secondary readings and artwork.
+ * The required controls slot keeps production and previews in the same action-first order.
+ * All displayed vehicle state and command callbacks belong to the caller.
  */
 @Composable
 fun VectorVehicleHeader(
@@ -90,6 +90,7 @@ fun VectorVehicleHeader(
   onBleChipTap: () -> Unit,
   onMessages: () -> Unit,
   onChannelTap: () -> Unit,
+  controls: @Composable () -> Unit,
 ) {
   val colors = MaterialTheme.colorScheme
   val reducedMotion = MotionPolicy.reduceMotion()
@@ -108,150 +109,155 @@ fun VectorVehicleHeader(
     OfficialBleChipState.Connected -> stringResource(R.string.vehicle_header_connected)
     else -> stringResource(R.string.vehicle_header_connect)
   }
-  Column(
-    modifier = modifier
-      .fillMaxWidth()
-      .testTag("vectorHero")
-      .graphicsLayer {
-        alpha = entrance.value.coerceIn(0f, 1f)
-        translationY = (1f - entrance.value) * 16.dp.toPx()
-      }
-      .padding(horizontal = 20.dp),
-  ) {
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.SpaceBetween,
-    ) {
-      Text(
-        text = stringResource(R.string.vector_control_wordmark),
-        style = MaterialTheme.typography.labelLarge.copy(
-          fontWeight = FontWeight.Bold,
-          letterSpacing = 4.sp,
-        ),
-        color = colors.onSurface,
-      )
-      VectorStatusLabel(
-        icon = NinebotLucide.signal,
-        label = stringResource(if (online) R.string.vehicle_header_online else R.string.vehicle_header_offline),
-        color = if (online) colors.primary else colors.onSurfaceVariant,
-      )
-    }
-    Row(
-      modifier = Modifier.fillMaxWidth(),
-      verticalAlignment = Alignment.CenterVertically,
-      horizontalArrangement = Arrangement.spacedBy(8.dp),
-    ) {
-      VectorPressable(
-        onClick = onTitleTap,
-        semanticsLabel = stringResource(R.string.vehicle_header_switch),
-        modifier = Modifier.weight(1f).testTag("vectorVehicle"),
-      ) {
-        Row(
-          modifier = Modifier.heightIn(min = 56.dp).padding(end = 4.dp),
-          verticalAlignment = Alignment.CenterVertically,
-          horizontalArrangement = Arrangement.spacedBy(6.dp),
-        ) {
-          Text(
-            text = vehicleName,
-            modifier = Modifier.weight(1f),
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
-            color = colors.onSurface,
-          )
-          NinebotIcon(NinebotLucide.chevronDown, size = 17.dp, color = colors.onSurface)
-        }
-      }
-      if (bleChip != OfficialBleChipState.Hidden) {
-        VectorHeaderAction(
-          icon = when (bleChip) {
-            OfficialBleChipState.NoBle -> NinebotLucide.bluetoothOff
-            OfficialBleChipState.Connected -> NinebotLucide.bluetooth
-            else -> NinebotLucide.bluetoothSearching
-          },
-          label = bleLabel,
-          accented = bluetoothConnected,
-          busy = bleBusy,
-          modifier = Modifier.testTag("vectorBle"),
-          onClick = onBleChipTap,
-        )
-      }
-      VectorHeaderAction(
-        icon = NinebotLucide.messageSquare,
-        label = stringResource(R.string.vehicle_header_messages),
-        modifier = Modifier.testTag("vectorMessages"),
-        onClick = onMessages,
-      )
-    }
-    Spacer(Modifier.height(16.dp))
-    HorizontalDivider(color = colors.outlineVariant)
-    Spacer(Modifier.height(20.dp))
-    VectorRangeInstrument(
-      rangeText = rangeText,
-      batteryPercent = batteryPercent,
-      batteryKnown = batteryKnown,
-      onBatteryTap = onBatteryTap,
-    )
-    Spacer(Modifier.height(18.dp))
-    VectorVehiclePlate(carPhoto = carPhoto, batteryPercent = batteryPercent, batteryKnown = batteryKnown)
-    Spacer(Modifier.height(12.dp))
-    // Separate status lines let long channel diagnostics and larger system
-    // fonts grow vertically instead of squeezing the instrument display.
-    VectorPressable(
-      onClick = onChannelTap,
-      semanticsLabel = stringResource(R.string.vehicle_header_channel_format, channelLabel),
-      modifier = Modifier.fillMaxWidth().testTag("vectorChannel"),
-    ) {
+  // Commands belong immediately after vehicle identity and connection state.
+  // Keep artwork animation away from the primary controls and their hit targets.
+  Column(modifier = modifier.fillMaxWidth().testTag("vectorHero")) {
+    Column(Modifier.padding(horizontal = 20.dp)) {
       Row(
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        modifier = Modifier.fillMaxWidth().padding(top = 14.dp, bottom = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
       ) {
-        NinebotIcon(
-          icon = when (channelStatus.kind) {
-            ControlTopBarChannelKind.BLE_DIRECT,
-            ControlTopBarChannelKind.BLE_CONNECTING -> NinebotLucide.bluetooth
-            ControlTopBarChannelKind.UNAVAILABLE -> NinebotLucide.triangleAlert
-            else -> NinebotLucide.signal
-          },
-          size = 18.dp,
-          color = if (channelStatus.kind == ControlTopBarChannelKind.UNAVAILABLE) colors.error else colors.primary,
-        )
         Text(
-          text = channelLabel,
-          modifier = Modifier.weight(1f),
-          style = MaterialTheme.typography.labelLarge,
+          text = stringResource(R.string.vector_control_wordmark),
+          style = MaterialTheme.typography.labelLarge.copy(
+            fontWeight = FontWeight.Bold,
+            letterSpacing = 4.sp,
+          ),
           color = colors.onSurface,
         )
-        NinebotIcon(NinebotLucide.arrowUpRight, size = 18.dp, color = colors.onSurfaceVariant)
+        VectorStatusLabel(
+          icon = NinebotLucide.signal,
+          label = stringResource(if (online) R.string.vehicle_header_online else R.string.vehicle_header_offline),
+          color = if (online) colors.primary else colors.onSurfaceVariant,
+        )
+      }
+      Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+      ) {
+        VectorPressable(
+          onClick = onTitleTap,
+          semanticsLabel = stringResource(R.string.vehicle_header_switch),
+          modifier = Modifier.weight(1f).testTag("vectorVehicle"),
+        ) {
+          Row(
+            modifier = Modifier.heightIn(min = 56.dp).padding(end = 4.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp),
+          ) {
+            Text(
+              text = vehicleName,
+              modifier = Modifier.weight(1f),
+              maxLines = 2,
+              overflow = TextOverflow.Ellipsis,
+              style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+              color = colors.onSurface,
+            )
+            NinebotIcon(NinebotLucide.chevronDown, size = 17.dp, color = colors.onSurface)
+          }
+        }
+        if (bleChip != OfficialBleChipState.Hidden) {
+          VectorHeaderAction(
+            icon = when (bleChip) {
+              OfficialBleChipState.NoBle -> NinebotLucide.bluetoothOff
+              OfficialBleChipState.Connected -> NinebotLucide.bluetooth
+              else -> NinebotLucide.bluetoothSearching
+            },
+            label = bleLabel,
+            accented = bluetoothConnected,
+            busy = bleBusy,
+            modifier = Modifier.testTag("vectorBle"),
+            onClick = onBleChipTap,
+          )
+        }
+        VectorHeaderAction(
+          icon = NinebotLucide.messageSquare,
+          label = stringResource(R.string.vehicle_header_messages),
+          modifier = Modifier.testTag("vectorMessages"),
+          onClick = onMessages,
+        )
+      }
+      Spacer(Modifier.height(4.dp))
+      // Separate status lines let long channel diagnostics and larger system
+      // fonts grow vertically instead of squeezing the instrument display.
+      VectorPressable(
+        onClick = onChannelTap,
+        semanticsLabel = stringResource(R.string.vehicle_header_channel_format, channelLabel),
+        modifier = Modifier.fillMaxWidth().testTag("vectorChannel"),
+      ) {
+        Row(
+          modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+          verticalAlignment = Alignment.CenterVertically,
+          horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+          NinebotIcon(
+            icon = when (channelStatus.kind) {
+              ControlTopBarChannelKind.BLE_DIRECT,
+              ControlTopBarChannelKind.BLE_CONNECTING -> NinebotLucide.bluetooth
+              ControlTopBarChannelKind.UNAVAILABLE -> NinebotLucide.triangleAlert
+              else -> NinebotLucide.signal
+            },
+            size = 18.dp,
+            color = if (channelStatus.kind == ControlTopBarChannelKind.UNAVAILABLE) colors.error else colors.primary,
+          )
+          Text(
+            text = channelLabel,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelLarge,
+            color = colors.onSurface,
+          )
+          NinebotIcon(NinebotLucide.arrowUpRight, size = 18.dp, color = colors.onSurfaceVariant)
+        }
+      }
+      Row(
+        modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(18.dp),
+        verticalAlignment = Alignment.Top,
+      ) {
+        VectorStatusLabel(
+          icon = NinebotLucide.zap,
+          label = stringResource(when (powered) {
+            true -> R.string.vehicle_header_powered
+            false -> R.string.vehicle_header_unpowered
+            null -> R.string.vector_control_power_unknown
+          }),
+          color = colors.onSurfaceVariant,
+          modifier = Modifier.weight(1f),
+        )
+        VectorStatusLabel(
+          icon = if (isLocked == false) NinebotLucide.lockOpen else NinebotLucide.lock,
+          label = stringResource(when (isLocked) {
+            true -> R.string.vehicle_header_armed
+            false -> R.string.vehicle_header_disarmed
+            null -> R.string.vector_control_lock_unknown
+          }),
+          color = colors.onSurfaceVariant,
+          modifier = Modifier.weight(1f),
+        )
       }
     }
-    Row(
-      modifier = Modifier.fillMaxWidth().padding(bottom = 6.dp),
-      horizontalArrangement = Arrangement.spacedBy(18.dp),
-      verticalAlignment = Alignment.Top,
+    Spacer(Modifier.height(10.dp))
+    controls()
+    Spacer(Modifier.height(24.dp))
+    Column(
+      Modifier.padding(horizontal = 20.dp).graphicsLayer {
+        alpha = entrance.value.coerceIn(0f, 1f)
+        translationY = (1f - entrance.value) * 16.dp.toPx()
+      },
     ) {
-      VectorStatusLabel(
-        icon = NinebotLucide.zap,
-        label = stringResource(when (powered) {
-          true -> R.string.vehicle_header_powered
-          false -> R.string.vehicle_header_unpowered
-          null -> R.string.vector_control_power_unknown
-        }),
-        color = colors.onSurfaceVariant,
-        modifier = Modifier.weight(1f),
+      HorizontalDivider(color = colors.outlineVariant)
+      Spacer(Modifier.height(12.dp))
+      VectorRangeInstrument(
+        rangeText = rangeText,
+        batteryPercent = batteryPercent,
+        batteryKnown = batteryKnown,
+        onBatteryTap = onBatteryTap,
       )
-      VectorStatusLabel(
-        icon = if (isLocked == false) NinebotLucide.lockOpen else NinebotLucide.lock,
-        label = stringResource(when (isLocked) {
-          true -> R.string.vehicle_header_armed
-          false -> R.string.vehicle_header_disarmed
-          null -> R.string.vector_control_lock_unknown
-        }),
-        color = colors.onSurfaceVariant,
-        modifier = Modifier.weight(1f),
-      )
+      Spacer(Modifier.height(12.dp))
+      VectorVehiclePlate(carPhoto = carPhoto, batteryPercent = batteryPercent, batteryKnown = batteryKnown)
+      Spacer(Modifier.height(12.dp))
     }
   }
 }
@@ -302,12 +308,12 @@ private fun VectorRangeInstrument(
           text = value,
           modifier = Modifier.weight(1f).alignByBaseline().testTag("vectorRange"),
           maxLines = 1,
-          autoSize = TextAutoSize.StepBased(minFontSize = 32.sp, maxFontSize = 112.sp, stepSize = 2.sp),
+          autoSize = TextAutoSize.StepBased(minFontSize = 32.sp, maxFontSize = 64.sp, stepSize = 2.sp),
           style = MaterialTheme.typography.displayLarge.copy(
-            fontSize = 112.sp,
+            fontSize = 64.sp,
             lineHeight = TextUnit.Unspecified,
             fontWeight = FontWeight.Bold,
-            letterSpacing = (-5).sp,
+            letterSpacing = (-2).sp,
             color = colors.onSurface,
           ),
         )
@@ -366,7 +372,7 @@ private fun VectorVehiclePlate(carPhoto: String, batteryPercent: Int, batteryKno
   Box(
     modifier = Modifier
       .fillMaxWidth()
-      .height(180.dp)
+      .height(128.dp)
       .testTag("vectorArtwork")
       .clip(shape)
       .background(colors.secondaryContainer)

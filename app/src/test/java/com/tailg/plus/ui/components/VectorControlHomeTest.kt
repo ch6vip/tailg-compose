@@ -4,21 +4,29 @@ import android.app.Application
 import android.content.Context
 import android.graphics.Bitmap
 import android.provider.Settings
+import androidx.compose.foundation.ScrollState
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.union
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
@@ -37,6 +45,7 @@ import androidx.compose.ui.test.onRoot
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.performSemanticsAction
 import androidx.compose.ui.test.performTouchInput
+import androidx.compose.ui.test.swipeRight
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
@@ -76,7 +85,11 @@ class VectorControlHomeTest {
   private val context: Context get() = ApplicationProvider.getApplicationContext()
   private val state = mutableStateOf(PanelState())
   private val dark = mutableStateOf(false)
+  private val floating = mutableStateOf(true)
   private val events = mutableListOf<String>()
+  private lateinit var pageScroll: ScrollState
+  private var statusBarInsetPx = 0
+  private var navigationBarInsetPx = 0
 
   @Before
   fun disableSystemAnimations() {
@@ -200,16 +213,47 @@ class VectorControlHomeTest {
   }
 
   @Test
+  @Config(qualifiers = "zh-rCN-w360dp-h720dp-mdpi")
+  fun firstScreenStartsPowerWithoutScrollingOn360WithClassicBar() {
+    assertFirstScreenCanStartPower(floatingBar = false, fontScale = 1f, screenshot = "first-screen-360x720-classic-light")
+  }
+
+  @Test
+  @Config(qualifiers = "zh-rCN-w360dp-h720dp-mdpi")
+  fun firstScreenStartsPowerWithoutScrollingOn360WithFloatingBar() {
+    assertFirstScreenCanStartPower(floatingBar = true, fontScale = 1f, screenshot = "first-screen-360x720-floating-light")
+  }
+
+  @Test
+  @Config(qualifiers = "en-w320dp-h640dp-mdpi")
+  fun firstScreenStartsPowerWithoutScrollingOn320WithLargeTextAndClassicBar() {
+    dark.value = true
+    assertFirstScreenCanStartPower(floatingBar = false, fontScale = 1.5f, screenshot = "first-screen-320x640-classic-dark-large-text")
+  }
+
+  @Test
+  @Config(qualifiers = "en-w320dp-h640dp-mdpi")
+  fun firstScreenStartsPowerWithoutScrollingOn320WithLargeTextAndFloatingBar() {
+    dark.value = true
+    assertFirstScreenCanStartPower(floatingBar = true, fontScale = 1.5f, screenshot = "first-screen-320x640-floating-dark-large-text")
+  }
+
+  @Test
   fun lightAndDarkScreensRenderTheCompleteScrollingPageWithRealNavigationClearance() {
     render()
     for (darkTheme in listOf(false, true)) {
       compose.runOnIdle { dark.value = darkTheme }
       scrollBy(-10_000f)
       compose.onNodeWithTag("vectorVehicle").assertIsDisplayed()
-      compose.onNodeWithTag("vectorArtwork").assertIsDisplayed()
+      compose.onNodeWithTag("vectorPower").assertIsDisplayed()
+      compose.onNodeWithTag("slide-power-track").assertIsDisplayed()
       compose.onNodeWithTag("floating-bottom-bar").assertIsDisplayed()
       val mode = if (darkTheme) "dark" else "light"
       capture("vector-control-$mode-top")
+
+      expose("vectorArtwork")
+      compose.onNodeWithTag("vectorArtwork").assertIsDisplayed()
+      capture("vector-control-$mode-display")
 
       scrollBy(10_000f)
       val location = compose.onNodeWithTag("vectorLocation").assertIsDisplayed()
@@ -220,7 +264,7 @@ class VectorControlHomeTest {
     }
   }
 
-  private fun render(fontScale: Float = 1f) {
+  private fun render(fontScale: Float = 1f, reserveSystemBars: Boolean = false) {
     RuntimeEnvironment.setFontScale(fontScale)
     compose.setContent {
       val scheme = if (dark.value) VectorDarkColorScheme else VectorLightColorScheme
@@ -230,22 +274,42 @@ class VectorControlHomeTest {
         LocalCyberPalette provides scheme.toCyberPalette(),
       ) {
         MaterialTheme(colorScheme = scheme, typography = VectorTypography, shapes = VectorShapes) {
+          // Real device insets are sometimes zero in Robolectric. The first-
+          // screen cases reserve at least 24 dp above and 48 dp below, while
+          // union/consumption avoids counting actual system insets twice.
+          val statusInsets = if (reserveSystemBars) {
+            WindowInsets.statusBars.union(WindowInsets(top = 24.dp))
+          } else WindowInsets.statusBars
+          val navigationInsets = if (reserveSystemBars) {
+            WindowInsets.navigationBars.union(WindowInsets(bottom = 48.dp))
+          } else WindowInsets(0, 0, 0, 0)
+          val measuredStatusInset = statusInsets.getTop(LocalDensity.current)
+          val measuredNavigationInset = navigationInsets.getBottom(LocalDensity.current)
+          SideEffect {
+            statusBarInsetPx = measuredStatusInset
+            navigationBarInsetPx = measuredNavigationInset
+          }
           BottomNavigationScaffold(
             modifier = Modifier.fillMaxSize().testTag("vectorTestRoot"),
             bottomBar = {
-              TailgBottomNavigation(currentIndex = 1, floating = true, onSelected = { events += "tab:$it" })
+              Box(Modifier.windowInsetsPadding(navigationInsets)) {
+                TailgBottomNavigation(currentIndex = 1, floating = floating.value, onSelected = { events += "tab:$it" })
+              }
             },
           ) {
-            Scaffold(containerColor = scheme.background, contentWindowInsets = WindowInsets.statusBars) { padding ->
+            Scaffold(containerColor = scheme.background, contentWindowInsets = statusInsets) { padding ->
+              val scroll = rememberScrollState()
+              SideEffect { pageScroll = scroll }
               Column(
                 modifier = Modifier.fillMaxSize().padding(padding)
                   .background(scheme.background)
-                  .verticalScroll(rememberScrollState())
+                  .verticalScroll(scroll)
                   .testTag("vectorTestScroll"),
               ) {
                 val snapshot = state.value
+                val availability = availability(snapshot.available, snapshot.unavailableReason)
                 VectorVehicleHeader(
-                  vehicleName = "城市漫游",
+                  vehicleName = snapshot.vehicleName,
                   rangeText = snapshot.range,
                   carPhoto = "",
                   batteryPercent = snapshot.batteryPercent,
@@ -261,24 +325,27 @@ class VectorControlHomeTest {
                   onBleChipTap = { events += "ble" },
                   onMessages = { events += "messages" },
                   onChannelTap = { events += "channel" },
-                )
-                Spacer(Modifier.height(18.dp))
-                val availability = availability(snapshot.available, snapshot.unavailableReason)
-                VectorControlGrid(
-                  powered = snapshot.powered,
-                  armed = snapshot.armed,
-                  busy = snapshot.busy,
-                  activeCommand = snapshot.activeCommand,
-                  findAvailability = availability,
-                  powerAvailability = availability,
-                  armAvailability = availability,
-                  seatAvailability = availability,
-                  onFind = { events += "find" },
-                  onPowerToggle = { events += "power" },
-                  onArmToggle = { events += "arm" },
-                  onSettings = { events += "settings" },
-                  onSeat = { events += "seat" },
-                  onNfc = { events += "nfc" },
+                  controls = {
+                    VectorControlGrid(
+                      powered = snapshot.powered,
+                      armed = snapshot.armed,
+                      busy = snapshot.busy,
+                      activeCommand = snapshot.activeCommand,
+                      findAvailability = availability,
+                      powerAvailability = availability,
+                      armAvailability = availability,
+                      seatAvailability = availability,
+                      onFind = { events += "find" },
+                      onPowerToggle = {
+                        events += "power"
+                        state.value.powered?.let { current -> state.value = state.value.copy(powered = !current) }
+                      },
+                      onArmToggle = { events += "arm" },
+                      onSettings = { events += "settings" },
+                      onSeat = { events += "seat" },
+                      onNfc = { events += "nfc" },
+                    )
+                  },
                 )
                 Spacer(Modifier.height(32.dp))
                 VectorStatsRow(
@@ -308,11 +375,75 @@ class VectorControlHomeTest {
   private fun expose(tag: String) {
     compose.onNodeWithTag(tag).performScrollTo().assertIsDisplayed()
     val action = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
-    val bar = compose.onNodeWithTag("floating-bottom-bar").fetchSemanticsNode().boundsInRoot
+    val bar = compose.onNodeWithTag(barTag()).fetchSemanticsNode().boundsInRoot
     if (action.bottom > bar.top) scrollBy(action.bottom - bar.top + 12f)
     val visible = compose.onNodeWithTag(tag).fetchSemanticsNode().boundsInRoot
     assertTrue("$tag must be physically reachable above the floating bar", visible.bottom <= bar.top + 0.5f)
   }
+
+  private fun assertFirstScreenCanStartPower(floatingBar: Boolean, fontScale: Float, screenshot: String) {
+    floating.value = floatingBar
+    state.value = PanelState(
+      vehicleName = "台铃超能旗舰 S95 长续航城市通勤版",
+      range = "170 km",
+      batteryPercent = 100,
+      batteryKnown = true,
+      powered = false,
+    )
+    render(fontScale = fontScale, reserveSystemBars = true)
+    compose.runOnIdle {
+      assertEquals("The page must first open at its top", 0, pageScroll.value)
+      assertTrue("The fixture must remain a genuinely scrollable control page", pageScroll.maxValue > 0)
+      assertTrue("The status bar must have reserved space", statusBarInsetPx >= 24)
+      assertTrue("The system navigation area must have reserved space", navigationBarInsetPx >= 48)
+    }
+    assertFirstScreenPowerBounds(screenshot)
+    capture(screenshot)
+    compose.runOnIdle {
+      assertEquals("No scroll may be used to expose the start action", 0, pageScroll.value)
+      assertTrue(events.isEmpty())
+    }
+
+    // Exercise the real pointer gesture in the initial viewport. No expose(),
+    // performScrollTo(), semantic click, or manual scroll is used in this test.
+    compose.onNodeWithTag("slide-power-track").performTouchInput { swipeRight() }
+    compose.waitForIdle()
+    compose.runOnIdle {
+      assertEquals(listOf("power"), events)
+      assertEquals(true, state.value.powered)
+      assertEquals("Starting power must not scroll the page", 0, pageScroll.value)
+    }
+    compose.onNodeWithTag("vectorPower")
+      .assertContentDescriptionEquals(context.getString(R.string.slide_power_slide_off))
+    assertFirstScreenPowerBounds("$screenshot-after-start")
+  }
+
+  private fun assertFirstScreenPowerBounds(caseName: String) {
+    val root = actualBounds("vectorTestRoot")
+    val bar = actualBounds(barTag())
+    val safeTop = root.top + statusBarInsetPx
+    val safeBottom = minOf(bar.top, root.bottom - navigationBarInsetPx)
+    for (tag in listOf("vectorPower", "slide-power-track", "slide-power-thumb")) {
+      compose.onNodeWithTag(tag).assertIsDisplayed()
+      val bounds = actualBounds(tag)
+      val detail = "$caseName: $tag=$bounds, root=$root, bar=$bar, safeTop=$safeTop, safeBottom=$safeBottom, scroll=${pageScroll.value}"
+      assertTrue("Power must be wholly inside the horizontal viewport: $detail", bounds.left >= root.left - 0.5f && bounds.right <= root.right + 0.5f)
+      assertTrue("Power must clear the status bar without scrolling: $detail", bounds.top >= safeTop - 0.5f)
+      assertTrue("Power must clear the Tab and system navigation bars without scrolling: $detail", bounds.bottom <= safeBottom + 0.5f)
+      assertTrue("The complete physical target must be present: $detail", bounds.width >= 48f && bounds.height >= 48f)
+    }
+    val track = actualBounds("slide-power-track")
+    val thumb = actualBounds("slide-power-thumb")
+    assertTrue("The actual thumb must remain wholly in the track: thumb=$thumb, track=$track", thumb.left >= track.left - 0.5f && thumb.right <= track.right + 0.5f && thumb.top >= track.top - 0.5f && thumb.bottom <= track.bottom + 0.5f)
+  }
+
+  /** Use the full node size so ancestor clipping cannot turn a partial target into a passing bound. */
+  private fun actualBounds(tag: String): Rect {
+    val node = compose.onNodeWithTag(tag).fetchSemanticsNode()
+    return Rect(node.positionInRoot, Size(node.size.width.toFloat(), node.size.height.toFloat()))
+  }
+
+  private fun barTag() = if (floating.value) "floating-bottom-bar" else "classic-bottom-bar"
 
   private fun scrollBy(pixels: Float) {
     compose.onNodeWithTag("vectorTestScroll").performSemanticsAction(SemanticsActions.ScrollBy) { it(0f, pixels) }
@@ -340,6 +471,7 @@ class VectorControlHomeTest {
   )
 
   private data class PanelState(
+    val vehicleName: String = "城市漫游",
     val range: String = "86 km",
     val batteryPercent: Int = 78,
     val batteryKnown: Boolean = true,

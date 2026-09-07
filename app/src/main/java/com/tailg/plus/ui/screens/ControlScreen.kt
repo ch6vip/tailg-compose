@@ -967,23 +967,24 @@ fun ControlScreen(
               onBleChipTap = onBleChipTap,
               onMessages = onMessages,
               onChannelTap = onChannelTap,
-            )
-            Spacer(Modifier.height(18.dp))
-            VectorControlGrid(
-              powered = isPowerOn,
-              armed = isArmed,
-              busy = busy,
-              activeCommand = activeCommand?.toBleCommandCode(),
-              findAvailability = findAvailability,
-              powerAvailability = powerAvailability,
-              armAvailability = armAvailability,
-              seatAvailability = seatAvailability,
-              onFind = onFind,
-              onPowerToggle = onPowerToggle,
-              onArmToggle = onArmToggle,
-              onSettings = onSettings,
-              onSeat = onSeat,
-              onNfc = onNfc,
+              controls = {
+                VectorControlGrid(
+                  powered = isPowerOn,
+                  armed = isArmed,
+                  busy = busy,
+                  activeCommand = activeCommand?.toBleCommandCode(),
+                  findAvailability = findAvailability,
+                  powerAvailability = powerAvailability,
+                  armAvailability = armAvailability,
+                  seatAvailability = seatAvailability,
+                  onFind = onFind,
+                  onPowerToggle = onPowerToggle,
+                  onArmToggle = onArmToggle,
+                  onSettings = onSettings,
+                  onSeat = onSeat,
+                  onNfc = onNfc,
+                )
+              },
             )
             Spacer(Modifier.height(32.dp))
             VectorStatsRow(

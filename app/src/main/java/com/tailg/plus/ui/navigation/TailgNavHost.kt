@@ -109,6 +109,9 @@ private fun TailgNavHostContent(vm: MainViewModel) {
   val navController = rememberNavController()
   val context = androidx.compose.ui.platform.LocalContext.current
   val snackbarHostState = remember { SnackbarHostState() }
+  // Nav-host scope: outlives the LOGIN destination so the post-login success
+  // snackbar is not cancelled by the popUpTo that disposes LOGIN.
+  val snackbarScope = androidx.compose.runtime.rememberCoroutineScope()
   val cloudService = vm.cloudService
   val floatingBottomBar by vm.appPreferences.floatingBottomBar.collectAsStateWithLifecycle()
   // Narrow cloud projection — the nav scaffold only needs signed-in status and
@@ -216,6 +219,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
         navController = navController,
         cloudService = cloudService,
         snackbarHostState = snackbarHostState,
+        snackbarScope = snackbarScope,
       )
 
       // ---- Vehicle graph ----

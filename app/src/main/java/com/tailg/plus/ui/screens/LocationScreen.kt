@@ -232,6 +232,7 @@ fun LocationScreen(
         cloudService.refreshFenceData(silent = silent)
         cloudService.refreshTravelHistory(silent = silent)
         if (!silent) {
+          localError = null
           val hasLocation = resolveVehicleLocation(cloudState = cloudService.currentState, localVehicle = localVehicle) != null
           AppSnack.info(snackbarHostState, if (hasLocation) strDataSynced else strSyncedNoCoords)
         }
@@ -312,6 +313,9 @@ fun LocationScreen(
     val label = android.net.Uri.encode(loc.address.ifEmpty { strLocationTitle })
     val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng($label)")
     val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
+    // LocalContext may be a localized (non-Activity) context; startActivity from
+    // one requires NEW_TASK or it throws AndroidRuntimeException (not caught below).
+    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
       ctx.startActivity(intent)
     } catch (e: android.content.ActivityNotFoundException) {

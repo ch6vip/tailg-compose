@@ -604,6 +604,9 @@ class ConnectionManager(
       requestQgjMtu(device)
       delay(BleTimings.serviceSetupDelay)
       discoverAndSetup()
+      // Arm only now: the 8 s budget covers the protocol LOGIN handshake, not
+      // MTU negotiation + service discovery (which have their own timeouts).
+      armReadyWatchdog()
     } catch (e: Exception) {
       log.ble("连接失败", detail = e.toString(), level = LogLevel.ERROR)
       clearRuntimeResources(disconnectDevice = true)
@@ -833,6 +836,10 @@ class ConnectionManager(
   suspend fun setTlinkInductionDistance(progress: Int): Boolean {
     if (!isProtocolLoggedIn || _protocol != ProtocolType.TLINK) {
       return false
+    }
+    val previous = _tlinkProximityDistanceDeferred.getAndSet(null)
+    if (previous != null && !previous.isCompleted) {
+      previous.complete(false)
     }
     val deferred = CompletableDeferred<Boolean>()
     _tlinkProximityDistanceDeferred.getAndSet(deferred)
@@ -2142,11 +2149,14 @@ class ConnectionManager(
 
   /**
    * Port of Dart `_armReadyWatchdog` — if the LOGIN handshake has not reached
-   * READY within [BleTimings.readyHandshakeTimeout] of GATT connect, tear the
-   * link down and let [onDisconnected] trigger the reconnect.
+   * READY within [BleTimings.readyHandshakeTimeout] of GATT *setup* completing
+   * (armed after [discoverAndSetup]), tear the link down and let [onDisconnected]
+   * trigger the reconnect.
    */
   private fun armReadyWatchdog() {
     disarmReadyWatchdog()
+    // Only meaningful while still waiting for LOGIN (not already READY).
+    if (state != ConnectionState.CONNECTED) return
     watchdogJob = scope.launch {
       delay(BleTimings.readyHandshakeTimeout)
       if (_disposed) return@launch
@@ -2170,14 +2180,19 @@ class ConnectionManager(
   // State publication & teardown helpers
   // =========================================================================
 
-  /** Port of Dart `_setState` — arms the watchdog on CONNECTED, disarms otherwise. */
+  /**
+   * Port of Dart `_setState`. The ready watchdog is NOT armed here: the Kotlin
+   * port added a 15 s discovery budget ([BleTimings.discoveryTimeout]) on top of
+   * the 8 s handshake budget ([BleTimings.readyHandshakeTimeout]), so arming at
+   * CONNECTED would tear down a valid but slow discovery. Callers arm it
+   * explicitly after [discoverAndSetup] (see [connect]); leaving CONNECTED still
+   * disarms it.
+   */
   private fun setState(s: ConnectionState): Unit = synchronized(lock) {
     val prev = _state.value
     if (prev == s) return
     _state.value = s
-    if (s == ConnectionState.CONNECTED) {
-      armReadyWatchdog()
-    } else {
+    if (s != ConnectionState.CONNECTED) {
       disarmReadyWatchdog()
     }
   }

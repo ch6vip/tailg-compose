@@ -55,6 +55,11 @@ class TailgApplication : Application() {
     cloudService.registerAfterLogout("ble_disconnect") {
       connectionManager.disconnect()
     }
+    // Drop cached vehicle photos / map tiles on logout so user-scoped images do
+    // not survive an account switch (BitmapMemoryCache is a process singleton).
+    cloudService.registerAfterLogout("bitmap_cache") {
+      BitmapMemoryCache.evictAll()
+    }
     // Network-restored trigger for the MQTT session (WiFi↔cellular handover,
     // airplane-mode off). Pairs with the connectionLost backoff loop.
     mqttService.monitorNetwork(networkAvailability)

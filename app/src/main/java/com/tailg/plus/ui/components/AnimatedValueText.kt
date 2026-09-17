@@ -86,7 +86,10 @@ fun AnimatedValueText(
     // out and the NEW text sliding in (AnimatedContent keeps both composed
     // during the transition); the string is still built once per content
     // instance, not per parent recomposition.
-    val contentText = remember(targetKey) { text }
+    // targetKey omits style/unitStyle, so include them here: a style-only change
+    // (theme switch / size change) with an unchanged value+unit must still
+    // rebuild the unit span instead of keeping the stale style.
+    val contentText = remember(targetKey, style, unitStyle) { text }
     Text(
       text = contentText,
       style = style,

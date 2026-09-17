@@ -135,7 +135,10 @@ internal fun TravelTab(
       records.isEmpty() -> item {
         EmptyCard(icon = Lucide.route, title = stringResource(R.string.location_travel_no_data), subtitle = stringResource(R.string.location_travel_no_data_hint))
       }
-      else -> itemsIndexed(dateGroups, key = { index, day -> day.travelDate.ifEmpty { "day-$index" } }, contentType = { _, _ -> "travel-day" }) { _, day ->
+      // Index-suffixed key: a duplicate non-empty travelDate (pagination overlap
+      // or a server duplicate) would otherwise crash LazyColumn with a
+      // "Key was already used" error.
+      else -> itemsIndexed(dateGroups, key = { index, day -> "${day.travelDate}#$index" }, contentType = { _, _ -> "travel-day" }) { _, day ->
         Spacer(Modifier.height(10.dp))
         TravelDayCard(
           day = day,

@@ -151,16 +151,26 @@ internal class OfficialCloudOperationLogic(
 
     suspend fun logout(expectedSession: OfficialCloudSession? = null, expectedAttempt: Long? = null, error: String? = null) {
         withContext(NonCancellable) {
-            service.withSessionWrite {
-                if (expectedSession != null && !service.isCurrentSession(expectedSession)) return@withSessionWrite
-                if (expectedAttempt != null && service.loginGeneration != expectedAttempt) return@withSessionWrite
-                service.loginGeneration++
-                // Invalidate in-memory state before the first disk suspension.
-                service.replaceSession()
-                service.updateState { it.copyWith(error = error) }
-                try {
+            var shouldRunEffects = false
+            try {
+                service.withSessionWrite {
+                    if (expectedSession != null && !service.isCurrentSession(expectedSession)) return@withSessionWrite
+                    if (expectedAttempt != null && service.loginGeneration != expectedAttempt) return@withSessionWrite
+                    shouldRunEffects = true
+                    service.loginGeneration++
+                    // Invalidate in-memory state before the first disk suspension.
+                    service.replaceSession()
+                    service.updateState { it.copyWith(error = error) }
                     service.storage.clearCredentialsAndSelection()
-                } finally {
+                    service.log.operation("官方云已退出登录")
+                }
+            } finally {
+                // Run the channel-teardown effects AFTER the session-write lock is
+                // released: mqttService.disconnect() acquires lifecycleMutex, which
+                // an in-flight connect can hold for the full connect+subscribe
+                // budget (~15 s), so running them inside withSessionWrite stalled
+                // every subsequent session write (e.g. a re-login).
+                if (shouldRunEffects) {
                     for (effect in service.afterLogoutSideEffects.toList()) {
                         try {
                             effect()
@@ -173,7 +183,6 @@ internal class OfficialCloudOperationLogic(
                         }
                     }
                 }
-                service.log.operation("官方云已退出登录")
             }
         }
     }

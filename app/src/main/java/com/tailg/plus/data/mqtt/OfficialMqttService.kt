@@ -218,6 +218,9 @@ class OfficialMqttService(
     @Volatile private var _connectedIdentity: ConnectionIdentity? = null
     @Volatile private var _connectedTransportSecurity: MqttTransportSecurity? = null
     @Volatile private var _pendingCommandApiName: String? = null
+    // Monotonic counter bumped on each command publish; stamps idle-channel
+    // status frames so a pre-command frame cannot falsely ACK a command.
+    @Volatile private var _commandGeneration: Long = 0
     @Volatile private var _pendingCommandError: String? = null
     @Volatile private var _acknowledgedCommandApiName: String? = null
     @Volatile private var _latestStatusPayload: OfficialMqttStatusPayload? = null
@@ -689,6 +692,15 @@ class OfficialMqttService(
         // The catch block always throws, so the connect succeeded here.
         val client = checkNotNull(newClient) { "MQTT client lost after connect" }
 
+        // Publish the connected client BEFORE subscribing: with a clean session
+        // the broker delivers retained status frames right after each SUBACK,
+        // i.e. while the subscribe loop is still running. Assigning _client only
+        // after the loop (the previous behavior) dropped those frames. The whole
+        // connect flow holds lifecycleMutex, so no concurrent ensureConnected can
+        // observe this half-ready state.
+        _client = client
+        _connectedIdentity = identity
+
         // Subscribe failures must not leak the connected client or leave the
         // link state parked at CONNECTING (a SUBACK miss used to strand the
         // socket AND the state machine).
@@ -704,6 +716,11 @@ class OfficialMqttService(
         } catch (e: Throwable) {
             _linkState.value = OfficialMqttLinkState.DISCONNECTED
             teardownClient(client)
+            // Undo the early publish so a torn-down client is never treated as live.
+            if (_client === client) {
+                _client = null
+                _connectedIdentity = null
+            }
             if (e is CancellationException) throw e
             log.operation(
                 "官方 MQTT 订阅失败",
@@ -746,7 +763,11 @@ class OfficialMqttService(
      * frame of a broker burst while only the newest acc/defence state matters —
      * a CONFLATED channel keeps exactly one pending payload and one consumer.
      */
-    private data class StatusMessage(val client: MqttAsyncClient, val raw: String)
+    private data class StatusMessage(
+        val client: MqttAsyncClient,
+        val raw: String,
+        val generation: Long,
+    )
     private val statusPayloads = Channel<StatusMessage>(Channel.CONFLATED)
 
     @Volatile private var statusConsumerStarted = false
@@ -760,9 +781,12 @@ class OfficialMqttService(
      */
     private fun enqueueStatusPayload(client: MqttAsyncClient, raw: String) {
         if (_disposed || _client !== client) return
+        // Snapshot the generation BEFORE the pending check so a frame that
+        // arrived before a command is never treated as that command's ACK.
+        val generation = _commandGeneration
         if (_pendingCommandApiName != null) {
             try {
-                handleStatusPayload(raw, client)
+                handleStatusPayload(raw, client, generation)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {
@@ -774,7 +798,7 @@ class OfficialMqttService(
             }
         } else {
             ensureStatusConsumer()
-            statusPayloads.trySend(StatusMessage(client, raw))
+            statusPayloads.trySend(StatusMessage(client, raw, generation))
         }
     }
 
@@ -784,10 +808,12 @@ class OfficialMqttService(
             if (statusConsumerStarted) return
             statusConsumerStarted = true
             scope.launch {
-                for ((client, raw) in statusPayloads) {
+                for ((client, raw, generation) in statusPayloads) {
                     if (_disposed || _client !== client) continue
+                    // Drop frames queued before the current pending command.
+                    if (generation != _commandGeneration) continue
                     try {
-                        handleStatusPayload(raw, client)
+                        handleStatusPayload(raw, client, generation)
                     } catch (e: CancellationException) {
                         throw e
                     } catch (e: Throwable) {
@@ -808,9 +834,9 @@ class OfficialMqttService(
      * (Dart `handleStatusPayload`). Exposed for unit tests; used by the live
      * updates listener. Thread-safe: Paho callback thread and test callers.
      */
-    fun handleStatusPayload(raw: String) = handleStatusPayload(raw, sourceClient = null)
+    fun handleStatusPayload(raw: String) = handleStatusPayload(raw, sourceClient = null, generation = _commandGeneration)
 
-    private fun handleStatusPayload(raw: String, sourceClient: MqttAsyncClient?) {
+    private fun handleStatusPayload(raw: String, sourceClient: MqttAsyncClient?, generation: Long = _commandGeneration) {
         if (_disposed || (sourceClient != null && _client !== sourceClient)) return
         val identity = _connectedIdentity
         if (identity != null && !isCurrentConnection(identity, _boundCloud ?: defaultCloud)) return
@@ -842,12 +868,17 @@ class OfficialMqttService(
                     cloud.currentState.selectedVehicle?.key != state.selectedVehicle?.key)) return
             _latestStatusPayload = payload
             val pending = _pendingCommandApiName
+            // Only a frame that arrived at/after the pending command's generation
+            // may confirm it; an older frame must not be mistaken for its ACK.
+            // Read together with `pending` under `lock` (setPending bumps the
+            // generation under the same lock), so the pair is consistent.
+            val respondsToPending = pending != null && generation == _commandGeneration
             val controlError = payload.controlErrorMessage(pending)
-            if (pending != null && controlError != null) {
+            if (respondsToPending && controlError != null) {
                 _pendingCommandError = controlError
                 failMessage = "官方 MQTT 指令失败: $pending"
                 failDetail = controlError
-            } else if (pending != null && payload.confirmsCommand(pending)) {
+            } else if (respondsToPending && payload.confirmsCommand(pending)) {
                 _pendingCommandApiName = null
                 _pendingCommandError = null
                 _acknowledgedCommandApiName = pending
@@ -919,6 +950,10 @@ class OfficialMqttService(
             _pendingCommandApiName = apiName
             _pendingCommandError = error
             _acknowledgedCommandApiName = null
+            // Bump the generation so any status frame already queued in the
+            // conflated idle channel is recognized as pre-command and cannot be
+            // mistaken for this command's ACK.
+            _commandGeneration++
         }
     }
 

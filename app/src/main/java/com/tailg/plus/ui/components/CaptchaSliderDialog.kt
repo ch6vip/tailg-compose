@@ -79,7 +79,10 @@ fun CaptchaSliderDialog(
         javaScriptEnabled = true
         domStorageEnabled = true
         cacheMode = WebSettings.LOAD_DEFAULT
-        mixedContentMode = WebSettings.MIXED_CONTENT_ALWAYS_ALLOW
+        // The captcha page is HTTPS and exposes a JS bridge; never allow plain
+        // HTTP subresources to reach it. COMPATIBILITY_MODE still blocks
+        // blockable mixed content (scripts) while not breaking image loading.
+        mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
       }
       registerCaptchaBridge(this, bridge)
       webViewClient = WebViewClient()

@@ -63,8 +63,6 @@ class OfficialCloudRetryPolicy(
         /** Mutations may already have executed when their response is lost. */
         val NO_RETRY = OfficialCloudRetryPolicy(maxRetries = 0)
 
-        /** Retry transport failures only (timeouts / socket errors). */
-        val TRANSPORT_ONLY = OfficialCloudRetryPolicy()
 
         /** Also retry HTTP 5xx responses and decode failures. */
         val READ_REQUEST = OfficialCloudRetryPolicy(retryServerErrors = true)

@@ -244,7 +244,17 @@ class InductionModeService(
     _connJob = scope.launch {
       // StateFlow replays the current value to each new collector; the Dart
       // broadcast stream only emitted on actual changes, hence drop(1).
-      cm.stateFlow.drop(1).collect { onConnectionChanged() }
+      cm.stateFlow.drop(1).collect {
+        try {
+          onConnectionChanged()
+        } catch (e: CancellationException) {
+          // A vehicle switch cancels the in-flight operation's coroutineScope,
+          // which surfaces here as CancellationException. That must NOT kill this
+          // long-lived collector (it is never recreated while _connJob != null);
+          // only rethrow when the collector itself is being cancelled.
+          if (!currentCoroutineContext().isActive) throw e
+        }
+      }
     }
   }
 
@@ -389,7 +399,16 @@ class InductionModeService(
     }
 
     if (enabled && clearManualMode && _manual.enabled) {
-      _manual.setEnabled(false)
+      try {
+        _manual.setEnabled(false)
+      } catch (e: CancellationException) {
+        throw e
+      } catch (e: Exception) {
+        // A persistence failure must not escape as an uncaught coroutine error;
+        // surface it through the snapshot like the rest of setEnabled.
+        publishCurrent(_snapshot.copyWith(lastError = OfficialCloudRedactor.errorMessage(e)))
+        return false
+      }
     }
     if (enabled && _manual.enabled) {
       publishCurrent(_snapshot.copyWith(lastError = "已开启手动模式，无法开关感应解锁"))

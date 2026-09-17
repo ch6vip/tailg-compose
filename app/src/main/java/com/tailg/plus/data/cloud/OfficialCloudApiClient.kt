@@ -154,7 +154,8 @@ class OfficialCloudApiClient(
                 }
                 if (response.code !in 200..299) {
                     val message = OfficialCloudRedactor.text(
-                        decoded["msg"]?.toString() ?: "官方接口返回 ${response.code}",
+                        decoded["msg"]?.toString()?.takeIf { it.isNotBlank() }
+                            ?: "官方接口返回 ${response.code}",
                     )
                     if (retryPolicy.shouldRetryStatusCode(response.code) &&
                         retryPolicy.canRetryAttempt(attempt)

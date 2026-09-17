@@ -244,6 +244,9 @@ internal fun ElectricFenceTab(
               } else {
                 val geoUri = android.net.Uri.parse("geo:$lat,$lng?q=$lat,$lng")
                 val intent = android.content.Intent(android.content.Intent.ACTION_VIEW, geoUri)
+                // LocalContext may be a localized (non-Activity) context; NEW_TASK
+                // avoids AndroidRuntimeException from startActivity outside an Activity.
+                intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
                 try {
                   context.startActivity(intent)
                 } catch (e: android.content.ActivityNotFoundException) {

@@ -230,6 +230,9 @@ fun AboutAppScreen(
       android.content.Intent.ACTION_VIEW,
       android.net.Uri.parse("https://github.com/ch6vip/tailg-compose"),
     )
+    // LocalContext may be a localized (non-Activity) context; NEW_TASK avoids
+    // AndroidRuntimeException from startActivity outside an Activity.
+    intent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
     try {
       ctx.startActivity(intent)
     } catch (e: android.content.ActivityNotFoundException) {

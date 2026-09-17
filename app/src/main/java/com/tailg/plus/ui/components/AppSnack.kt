@@ -11,13 +11,11 @@ import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.SnackbarVisuals
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -163,14 +161,19 @@ object AppSnack {
     actionLabel: String? = null,
     onAction: (() -> Unit)? = null,
   ) {
-    // M3 showSnackbar has no per-call style; hand the visual over to the host.
-    AppSnackVisualState.current = AppSnackVisualState(background = background, foreground = foreground, icon = icon)
+    // M3 has no per-call style, so carry the visual with the message rather than
+    // a process-global (two hosts showing snackbars at once must not swap skins).
     hostState.currentSnackbarData?.dismiss()
     val result = hostState.showSnackbar(
-      message = message,
-      actionLabel = actionLabel,
-      withDismissAction = false,
-      duration = if (durationMillis >= 3_000L) SnackbarDuration.Long else SnackbarDuration.Short,
+      AppSnackVisuals(
+        message = message,
+        actionLabel = actionLabel,
+        withDismissAction = false,
+        duration = if (durationMillis >= 3_000L) SnackbarDuration.Long else SnackbarDuration.Short,
+        background = background,
+        foreground = foreground,
+        icon = icon,
+      ),
     )
     if (result == SnackbarResult.ActionPerformed) {
       onAction?.invoke()
@@ -178,16 +181,20 @@ object AppSnack {
   }
 }
 
-/** Snapshot of the last [AppSnack.show] visual, consumed by [AppSnackbarHost]. */
-internal data class AppSnackVisualState(
+/**
+ * VOID snackbar visuals carried with the message, so the host renders the
+ * correct skin for THIS snackbar instead of a shared process-global (two hosts
+ * can be composed at once during a navigation transition).
+ */
+internal data class AppSnackVisuals(
+  override val message: String,
+  override val actionLabel: String?,
+  override val withDismissAction: Boolean,
+  override val duration: SnackbarDuration,
   val background: Color = AppColorsDark.surfaceContainerHigh,
   val foreground: Color = AppColorsDark.textPrimary,
   val icon: ImageVector? = Lucide.info,
-) {
-  companion object {
-    var current by mutableStateOf(AppSnackVisualState())
-  }
-}
+) : SnackbarVisuals
 
 /**
  * Snackbar host that renders the VOID snackbar (Dart `SnackBarBehavior.floating`
@@ -196,11 +203,18 @@ internal data class AppSnackVisualState(
  */
 @Composable
 fun AppSnackbarHost(hostState: SnackbarHostState, modifier: Modifier = Modifier) {
-  val visual = AppSnackVisualState.current
+  // Fallback for any snackbar not shown through AppSnack (raw SnackbarHostState).
+  val fallback = AppSnackVisuals(
+    message = "",
+    actionLabel = null,
+    withDismissAction = false,
+    duration = SnackbarDuration.Short,
+  )
   SnackbarHost(
     hostState = hostState,
     modifier = modifier.padding(bottom = LocalBottomNavigationPadding.current).padding(16.dp),
   ) { data ->
+    val visual = data.visuals as? AppSnackVisuals ?: fallback
     Surface(
       shape = RoundedCornerShape(AppRadii.sm),
       color = visual.background,

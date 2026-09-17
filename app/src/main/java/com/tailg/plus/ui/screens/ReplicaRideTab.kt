@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
@@ -23,6 +22,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -76,7 +77,14 @@ internal fun RideRecordTab(
   val location = vehicle?.lastLocation
   val cloudVehicle = if (rideSlice.signedIn) rideSlice.selectedVehicle else null
   val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: stringResource(R.string.replica_unbound)
-  val logs = remember(log) {
+  // LogService is an app-lifetime singleton whose snapshot list is not
+  // observable; subscribe to its change flow so the "recent actions" list
+  // refreshes instead of freezing at first composition.
+  var logGeneration by remember { mutableIntStateOf(0) }
+  LaunchedEffect(log) {
+    log.changes.collect { logGeneration++ }
+  }
+  val logs = remember(log, logGeneration) {
     log.byCategory(LogCategory.OPERATION).takeLast(12).reversed()
   }
 

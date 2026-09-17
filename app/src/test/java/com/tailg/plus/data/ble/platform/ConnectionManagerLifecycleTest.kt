@@ -163,6 +163,10 @@ class ConnectionManagerLifecycleTest {
         field("_gatt").set(manager, gatt)
         ConnectionManager::class.java.getDeclaredMethod("setState", ConnectionState::class.java)
             .apply { isAccessible = true }.invoke(manager, ConnectionState.CONNECTED)
+        // The watchdog is armed explicitly after service discovery (not by
+        // setState), so trigger it the way connect() does.
+        ConnectionManager::class.java.getDeclaredMethod("armReadyWatchdog")
+            .apply { isAccessible = true }.invoke(manager)
 
         testScheduler.runCurrent()
         advanceTimeBy(BleTimings.readyHandshakeTimeout.inWholeMilliseconds)
@@ -171,6 +175,26 @@ class ConnectionManagerLifecycleTest {
         assertEquals(ConnectionState.DISCONNECTED, manager.state)
         verify(exactly = 1) { gatt.disconnect() }
         verify(exactly = 1) { gatt.close() }
+    }
+
+    @Test
+    fun setStateConnectedDoesNotArmTheWatchdog() = runTest {
+        val gatt = mockk<BluetoothGatt>(relaxed = true)
+        val manager = ConnectionManager(context, externalScope = backgroundScope)
+        field("_gatt").set(manager, gatt)
+        ConnectionManager::class.java.getDeclaredMethod("setState", ConnectionState::class.java)
+            .apply { isAccessible = true }.invoke(manager, ConnectionState.CONNECTED)
+
+        testScheduler.runCurrent()
+        advanceTimeBy(BleTimings.readyHandshakeTimeout.inWholeMilliseconds + 1_000)
+        testScheduler.runCurrent()
+
+        // The watchdog is armed only AFTER service discovery, so a bare CONNECTED
+        // state must not be torn down by the 8 s handshake timer (which would kill
+        // a valid, slow discovery of up to discoveryTimeout = 15 s).
+        assertEquals(ConnectionState.CONNECTED, manager.state)
+        verify(exactly = 0) { gatt.disconnect() }
+        verify(exactly = 0) { gatt.close() }
     }
 
     @Test

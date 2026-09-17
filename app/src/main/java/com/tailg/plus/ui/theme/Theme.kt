@@ -9,6 +9,7 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.staticCompositionLocalOf
@@ -253,6 +254,11 @@ fun TailgTheme(
         .amoledBackground(colorMode.isAmoled)
     val animatedScheme = scheme.animateAsState()
     val palette = animatedScheme.toCyberPalette()
+    // Typography colors must follow the resolved scheme, not a fixed light
+    // palette, or MaterialTheme.typography roles render dark ink on dark
+    // surfaces (see Type.kt). Keyed on the target scheme so the type styles are
+    // rebuilt only on a theme switch, not on every animated color frame.
+    val typography = remember(scheme) { tailgTypography(scheme.toCyberPalette()) }
 
     // Keep the system bars legible as the theme flips between light and dark:
     // dark page → light status/nav icons, and a nav bar tinted to the page bg.
@@ -280,7 +286,7 @@ fun TailgTheme(
         MaterialExpressiveTheme(
             colorScheme = animatedScheme,
             motionScheme = MotionScheme.expressive(),
-            typography = TailgTypography,
+            typography = typography,
             shapes = TailgShapes,
             content = content,
         )

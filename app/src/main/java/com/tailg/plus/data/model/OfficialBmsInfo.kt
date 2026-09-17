@@ -65,6 +65,11 @@ data class OfficialBmsDetail(
     val batteryVersion: String = "",
     val batteryChargeNum: String = "",
     val batteryDischargeNum: String = "",
+    // Distinct hardware/software versions. `batteryVersion` above is the legacy
+    // fallback field; keeping hw/sw separate stops the two UI rows from showing
+    // the same value when the payload carries both swVer and hwVer.
+    val hwVer: String = "",
+    val swVer: String = "",
 ) {
     val hasData: Boolean
         get() = soc.isNotEmpty() || soh.isNotEmpty() || currentBatteryVoltage.isNotEmpty() ||
@@ -97,6 +102,8 @@ data class OfficialBmsDetail(
             ),
             batteryChargeNum = parsePersistedString(json["batteryChargeNum"]),
             batteryDischargeNum = parsePersistedString(json["batteryDischargeNum"]),
+            hwVer = parsePersistedString(json["hwVer"]),
+            swVer = parsePersistedString(json["swVer"]),
         )
     }
 }

@@ -1,12 +1,12 @@
 package com.tailg.plus.ui.navigation
 
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.navigation.NavController
 import androidx.navigation.NavGraphBuilder
 import androidx.navigation.compose.composable
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.screens.LoginScreen
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /**
@@ -14,15 +14,18 @@ import kotlinx.coroutines.launch
  *
  * @param cloudService the cloud service for authentication
  * @param snackbarHostState the snackbar host state from the parent Scaffold
- * @param onSignedIn callback after successful login, receives the navigation route
+ * @param snackbarScope a scope that outlives this destination (the nav-host
+ *   scope). The success snackbar must NOT be launched on the LOGIN composable's
+ *   own `rememberCoroutineScope`: the same callback pops LOGIN, which cancels
+ *   that scope and dismisses the snackbar before it is seen.
  */
 fun NavGraphBuilder.authNavGraph(
     navController: NavController,
     cloudService: OfficialCloudService,
     snackbarHostState: androidx.compose.material3.SnackbarHostState,
+    snackbarScope: CoroutineScope,
 ) {
     composable(Routes.LOGIN) {
-        val scope = rememberCoroutineScope()
         LoginScreen(
             cloudService = cloudService,
             onSignedIn = { successMessage ->
@@ -31,7 +34,7 @@ fun NavGraphBuilder.authNavGraph(
                     popUpTo(Routes.LOGIN) { inclusive = true }
                 }
                 if (successMessage != null) {
-                    scope.launch { AppSnack.success(snackbarHostState, message = successMessage) }
+                    snackbarScope.launch { AppSnack.success(snackbarHostState, message = successMessage) }
                 }
             },
         )

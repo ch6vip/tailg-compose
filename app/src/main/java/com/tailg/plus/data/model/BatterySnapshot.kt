@@ -278,6 +278,8 @@ data class BmsSnapshot(
             val current = detail?.batteryCurrent
             val type = detail?.batteryType
             val version = detail?.batteryVersion
+            val hwVersion = detail?.hwVer?.takeIf { it.isNotEmpty() } ?: version
+            val swVersion = detail?.swVer?.takeIf { it.isNotEmpty() } ?: version
             val chargeStatus = if (detail == null) {
                 null
             } else {
@@ -296,8 +298,8 @@ data class BmsSnapshot(
                 batteryTemperature = snapshot.temperature?.let { formatFixed(it, 1) }
                     ?: detail?.batteryTemperature,
                 batteryType = if (type?.isEmpty() == true) null else type,
-                hwVer = if (version?.isEmpty() == true) null else version,
-                swVer = if (version?.isEmpty() == true) null else version,
+                hwVer = if (hwVersion?.isEmpty() == true) null else hwVersion,
+                swVer = if (swVersion?.isEmpty() == true) null else swVersion,
                 remainingMileage = snapshot.remainingMileage,
                 totalMileage = snapshot.totalMileage,
                 consumePowerPercent = snapshot.consumePowerPercent,

@@ -2,7 +2,6 @@ package com.tailg.plus.ui.screens
 
 import com.tailg.plus.data.ble.BikeState
 import com.tailg.plus.data.ble.platform.ConnectionManager
-import com.tailg.plus.data.ble.platform.ConnectionState
 import com.tailg.plus.data.cloud.OfficialCloudState
 import com.tailg.plus.data.model.BatterySnapshot
 import com.tailg.plus.data.model.CommandCode
@@ -15,7 +14,6 @@ import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.domain.control.ControlChannelResolver
 import com.tailg.plus.domain.control.OfficialControlChannel
 import com.tailg.plus.data.ble.platform.ProtocolType
-import com.tailg.plus.ui.components.OfficialBleChipState
 import com.tailg.plus.util.formatDistanceKilometers
 import com.tailg.plus.util.formatDistanceKilometersText
 
@@ -58,23 +56,6 @@ internal fun currentLockState(
   if (bleBikeState != null) return bleBikeState.isLocked
   val defence = cloudVehicle?.defenceStatus
   return defence?.let { it == 1 }
-}
-
-internal fun officialBleChipState(
-  vehicle: OfficialVehicle?,
-  connectionManager: ConnectionManager,
-  bleState: ConnectionState,
-  busy: Boolean,
-): OfficialBleChipState {
-  if (vehicle == null) return OfficialBleChipState.Hidden
-  if (connectionManager.isProtocolLoggedIn) return OfficialBleChipState.Connected
-  if (bleState == ConnectionState.CONNECTING ||
-    bleState == ConnectionState.CONNECTED ||
-    bleState == ConnectionState.RECONNECTING
-  ) {
-    return OfficialBleChipState.Connecting
-  }
-  return OfficialBleChipState.ClickToConnect
 }
 
 internal fun rangeLabel(

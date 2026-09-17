@@ -101,14 +101,6 @@ fun parsePersistedStringOr(value: Any?, fallback: String): String {
     return if (parsed.isEmpty()) fallback else parsed
 }
 
-fun parsePersistedStringList(value: Any?): List<String> {
-    val strings = mutableListOf<String>()
-    for (item in persistedListItems(value)) {
-        if (item is String) strings.add(item)
-    }
-    return strings
-}
-
 fun parsePersistedMap(value: Any?): Map<String, Any?>? {
     if (value !is Map<*, *>) return null
     val parsed = linkedMapOf<String, Any?>()

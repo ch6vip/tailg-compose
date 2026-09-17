@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -45,7 +44,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -534,44 +532,6 @@ private fun StatusChip(label: String, color: androidx.compose.ui.graphics.Color)
       style = androidx.compose.ui.text.TextStyle(fontSize = 11.sp, fontWeight = FontWeight.W600, color = color),
     )
   }
-}
-
-@Composable
-private fun DetailLine(
-  label: String,
-  value: String,
-  trailing: @Composable (() -> Unit)? = null,
-  onTap: (() -> Unit)? = null,
-) {
-  val text = value.trim()
-  val display = if (text.isEmpty()) stringResource(R.string.cloud_not_returned) else text
-  val row = Row(
-    modifier = Modifier
-      .padding(vertical = 7.dp)
-      .then(if (onTap != null) Modifier.clickable { onTap() } else Modifier),
-    verticalAlignment = Alignment.Top,
-  ) {
-    Text(
-      text = label,
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-      style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
-      modifier = Modifier.widthIn(min = 72.dp, max = 120.dp),
-    )
-    Text(
-      text = display,
-      textAlign = TextAlign.End,
-      maxLines = 2,
-      overflow = TextOverflow.Ellipsis,
-      style = androidx.compose.ui.text.TextStyle(fontSize = 13.sp, fontWeight = FontWeight.W600, color = CyberHomeColors.ink),
-      modifier = Modifier.weight(1f),
-    )
-    if (trailing != null) {
-      Spacer(Modifier.width(8.dp))
-      trailing()
-    }
-  }
-  row
 }
 
 /**

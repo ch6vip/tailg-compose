@@ -74,46 +74,6 @@ import kotlinx.coroutines.withContext
  * Icons: `Lucide.map-pin` → `Icons.Filled.LocationOn`; `Lucide.map` →
  * `Icons.Filled.Map`; `Lucide.chart` → `Icons.Filled.BarChart`.
  */
-@Composable
-fun CyberMapStatsRow(
-  location: ResolvedVehicleLocation?,
-  address: String,
-  todayKm: String,
-  totalKm: String,
-  modifier: Modifier = Modifier,
-  onMapTap: () -> Unit,
-  onRideStatsTap: () -> Unit,
-) {
-  // Side-by-side layout on every width: the mini map and the ride card split
-  // the row evenly, with a 12dp gutter between them. Both cards are 1:1
-  // squares (aspectRatio(1f)) sized by the available width.
-  Row(
-    modifier = modifier.padding(horizontal = 20.dp).fillMaxWidth(),
-    verticalAlignment = Alignment.Top,
-  ) {
-    Box(modifier = Modifier.weight(1f)) {
-      MiniMap(
-        location = location,
-        address = address,
-        onMapTap = onMapTap,
-      )
-    }
-    Spacer(Modifier.width(12.dp))
-    Box(modifier = Modifier.weight(1f)) {
-      AppPressable(
-        onClick = onRideStatsTap,
-        shape = RoundedCornerShape(AppRadii.sheet),
-        semanticsLabel = stringResource(R.string.map_stats_view_ride),
-        shadowElevation = 0.dp,
-      ) {
-        RideCard(
-          todayKm = todayKm,
-          totalKm = totalKm,
-        )
-      }
-    }
-  }
-}
 
 /** Raw "lat, lng" text (the location resolver's fallback) is not user-readable. */
 private val RawCoordinates = Regex("^-?\\d+(\\.\\d+)?\\s*,\\s*-?\\d+(\\.\\d+)?$")

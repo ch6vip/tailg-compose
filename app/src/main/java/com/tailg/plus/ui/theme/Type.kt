@@ -78,9 +78,3 @@ fun tailgTypography(palette: CyberPalette): Typography = Typography(
         color = palette.inkMuted,
     ),
 )
-
-/**
- * Light-mode default, for `@Preview`s and tests that compose a
- * `MaterialTheme` without going through [TailgTheme].
- */
-val TailgTypography: Typography = tailgTypography(LightCyberPalette)

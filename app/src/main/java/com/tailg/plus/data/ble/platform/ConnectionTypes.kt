@@ -84,13 +84,6 @@ internal class AtomicDeferred<T>(
     if (d != null && !d.isCompleted) d.completeExceptionally(error)
   }
 
-  /** Complete with [value] only if the held reference matches [expected]. */
-  fun completeIfSame(expected: CompletableDeferred<T>?, value: T) {
-    if (expected == null) return
-    ref.compareAndSet(expected, null)
-    if (!expected.isCompleted) expected.complete(value)
-  }
-
   /** Atomically clear only if the current value is [expected]. */
   fun compareAndSet(expected: CompletableDeferred<T>?, new: CompletableDeferred<T>?): Boolean =
     ref.compareAndSet(expected, new)

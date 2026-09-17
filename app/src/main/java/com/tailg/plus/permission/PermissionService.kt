@@ -2,12 +2,9 @@ package com.tailg.plus.permission
 
 import android.Manifest
 import android.content.Context
-import android.content.Intent
 import android.content.pm.PackageManager
 import android.location.LocationManager
-import android.net.Uri
 import android.os.Build
-import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.ActivityResultRegistry
@@ -149,15 +146,6 @@ class AppPermissionService(private val context: Context) {
             if (permanently) "通知权限被永久拒绝，请到系统设置开启后重试" else "后台感应需要通知权限",
             openSettingsRecommended = permanently,
         )
-    }
-
-    /** Opens system app settings so the user can re-grant BLE/location. */
-    fun openSystemSettings() {
-        val intent = Intent(
-            Settings.ACTION_APPLICATION_DETAILS_SETTINGS,
-            Uri.fromParts("package", context.packageName, null),
-        ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        context.startActivity(intent)
     }
 
     private fun isGranted(permission: String): Boolean =

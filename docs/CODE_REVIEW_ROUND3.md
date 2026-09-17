@@ -59,9 +59,6 @@
 - **`setRssiEnabled(false)` 与开启路径不对称**（`_cloud == null` 时返回 ok=true）：
   生产环境 `_cloud` 恒由 Hilt 注入，仅测试/误配可达，无生产影响；改动会改变
   “云端缺失时能否本地关闭感应”的语义，故保留并记录。
-- **`BleScanner` 与 `ConnectionManager.scanDevices` 为死代码**（无调用点）：
-  属 P4 可维护性项，删除涉及多处 KDoc 链接与未用 import 清理，风险/收益不划算，
-  本轮保留并在此登记。
 - **`ensureKksBond` 不等待配对完成**（Dart 原版 await）：无真机无法验证配对时序，
   且 `createBond()` 可能需用户交互；改动可能给每次 KKS 连接引入最长数秒延迟，
   故保留，待真机联调。
@@ -76,7 +73,7 @@
 | 检查 | 结果 |
 | --- | --- |
 | `:app:testDebugUnitTest` | 79 个测试类、465 项测试，0 失败、0 错误、0 跳过（基线 461 项，本轮新增 4 项） |
-| `:app:lintDebug` | 0 Error / Fatal，284 Warning，3 Hint（`abortOnError=true` 未触发） |
+| `:app:lintDebug` | 0 Error / Fatal，291 Warning，3 Hint（`abortOnError=true` 未触发；含死代码清理后新孤立的部分字符串资源） |
 | `:app:assembleDebug` | 成功，`app-debug.apk` 约 49.37 MB |
 
 本轮新增/调整的回归测试：
@@ -101,3 +98,29 @@
   MQTT 网络恢复、相机、地图宿主切换、权限撤销等系统行为仍需真机验证。
 - 官方 MQTT TLS 兼容信任与 BLE AES/ECB 属既有兼容约束，未改动（见前两轮记录）。
 - 本次结论针对检查范围与可复现场景，不代表项目不存在其他缺陷。
+
+## 死代码清理（本轮追加）
+
+在“保留项”之外，另做了一次全项目未引用声明扫描（统计每个 `fun` / 顶层 `val` / `var`
+在 `app/src` 的引用次数，排除框架回调 `override` 与 Hilt `@Provides`），删除确认无引用的代码：
+
+| 删除对象 | 说明 |
+| --- | --- |
+| `data/ble/platform/BleScanner.kt` + `ConnectionManager.scanDevices` / `bleScanner` 字段 | 两套并行扫描实现，均无调用点；真实扫描在 `ScanScreen` |
+| `ui/components/CyberControlGrid.kt`、`ControlLottieAnimation.kt`、`CyberVehicleHeader.kt` | 整体无引用的组件文件（含 `OfficialBleChipState`、`CyberHeaderExpandedHeight`） |
+| `ui/components/CyberMapStats.kt` 的 `CyberMapStatsRow` | 该文件其余声明仍在使用 |
+| `ui/screens/OfficialCloudServiceFactory.kt` 的 `rememberOfficialCloudService` | 同文件 `VehicleStoreCloudAdapter` 仍在用 |
+| `ConnectionTypes.completeIfSame`、`MessageReadStore.replaceState`、`CachedTileProvider.requestHeaders`、`PermissionService.openSystemSettings`、`AppPressable.roundedPressableShape`、`PersistenceValue.parsePersistedStringList`、`ControlScreenHelpers.officialBleChipState`、`OfficialCloudScreen.DetailLine`、`Type.TailgTypography` | 无引用的函数/属性 |
+
+保留（有意不删）：`ui/components/material/SegmentedList.kt`（KernelSU 组件库移植，整体未被引用但
+属成套组件）、`Color.DarkCyberPalette` 与 `Theme.CyberLightColorScheme`（主题 token 回退）、
+`Routes.firmwareOta` / `qgjSettings`（见下）。删除后 `compileDebugKotlin`、465 项单测与
+`lintDebug`（0 error）均通过。
+
+## 功能观察（未改）
+
+- **OTA 与 QGJ 设置页面已注册但无导航入口**：`VehicleNavGraph` 注册了
+  `Routes.FIRMWARE_OTA` / `Routes.QGJ_SETTINGS` 两个目的地，但构建器
+  `Routes.firmwareOta(...)` / `Routes.qgjSettings(...)` 无任何调用点，因此两页不可达。
+  OTA 属有意禁用（生产固件下载未启用）；`QgjSettingsScreen` 本身是带 TODO 的 stub。
+  需要时再补入口或删除目的地。

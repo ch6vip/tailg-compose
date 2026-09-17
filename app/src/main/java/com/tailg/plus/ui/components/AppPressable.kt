@@ -163,9 +163,3 @@ fun AppPressable(
     }
   }
 }
-
-/**
- * Convenience shape helper — Dart call sites frequently pass
- * `BorderRadius.circular(x)` into [AppPressable].
- */
-fun roundedPressableShape(radius: Dp): Shape = RoundedCornerShape(radius)

@@ -37,7 +37,4 @@ class TemplateCachedTileProvider(
       .replace("{x}", x.toString())
       .replace("{y}", y.toString())
       .replace("{z}", zoom.toString())
-
-  /** Extra HTTP headers (Dart `TileProvider.headers`). */
-  fun requestHeaders(): Map<String, String> = headers
 }

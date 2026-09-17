@@ -59,10 +59,6 @@ class MessageReadStore(private val dataStore: DataStore<Preferences>) {
 
     suspend fun persist() = update { it }
 
-    suspend fun replaceState(readIds: Set<String>, hiddenIds: Set<String>) = update {
-        MessageReadState(readIds.toSet(), hiddenIds.toSet())
-    }
-
     suspend fun markRead(ids: Iterable<String>) = update { it.copy(readIds = it.readIds + ids) }
 
     suspend fun hideAndRead(ids: Iterable<String>) {

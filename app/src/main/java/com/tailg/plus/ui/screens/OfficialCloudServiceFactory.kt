@@ -30,16 +30,3 @@ internal class VehicleStoreCloudAdapter(private val store: VehicleStore) : Offic
   )
 }
 
-/**
- * Resolves the process-wide cloud service from the Hilt graph.
- *
- * Prefer receiving [com.tailg.plus.data.cloud.OfficialCloudService] as a
- * constructor/parameter from [com.tailg.plus.ui.navigation.TailgNavHost].
- * This helper exists only for leaf composables that still need a local resolve
- * without building a second service graph.
- */
-@androidx.compose.runtime.Composable
-fun rememberOfficialCloudService(): com.tailg.plus.data.cloud.OfficialCloudService {
-  val entry = rememberTailgEntryPoint()
-  return androidx.compose.runtime.remember(entry) { entry.cloudService() }
-}

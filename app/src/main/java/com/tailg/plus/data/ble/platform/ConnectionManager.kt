@@ -16,8 +16,8 @@
  * The manager never checks or requests Bluetooth permissions — the calling
  * layer (UI / service) must hold `BLUETOOTH_SCAN`, `BLUETOOTH_CONNECT`
  * (+ legacy `BLUETOOTH`/`BLUETOOTH_ADMIN`) and `ACCESS_FINE_LOCATION`
- * (for scan results on Android < 12) before invoking [scanDevices],
- * [connect] or [createBond].
+ * (for scan results on Android < 12) before invoking [connect] or
+ * [createBond].
  *
  * ## Connection-state → official LoginStatus mapping
  *
@@ -32,20 +32,14 @@ package com.tailg.plus.data.ble.platform
 
 import android.annotation.SuppressLint
 
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGatt
 import android.bluetooth.BluetoothGattCallback
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
-import android.bluetooth.BluetoothManager
 import android.bluetooth.BluetoothProfile
 import android.bluetooth.BluetoothStatusCodes
-import android.bluetooth.le.ScanCallback
-import android.bluetooth.le.ScanFilter
-import android.bluetooth.le.ScanResult
-import android.bluetooth.le.ScanSettings
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
@@ -112,7 +106,6 @@ import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.delay
@@ -123,7 +116,6 @@ import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -138,7 +130,7 @@ import kotlin.coroutines.resume
 /**
  * Android native port of Dart `ConnectionManager`.
  *
- * See [scanDevices] for scanning, [connect]/[disconnect] for lifecycle,
+ * See [connect]/[disconnect] for lifecycle,
  * [isProtocolLoggedIn] for the official-LOGIN latch, and the class KDoc for
  * threading / permission contracts.
  */
@@ -167,16 +159,6 @@ class ConnectionManager(
   // [GattOperationQueue] so ConnectionManager owns connection/protocol state
   // only. Lives on [scope] so queue drains share the manager lifecycle.
   private val gattQueue = GattOperationQueue(scope)
-
-  private val bluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-  private val bluetoothAdapter: BluetoothAdapter? get() = bluetoothManager?.adapter
-
-  // Delegated components (extracted from this file to reduce complexity).
-  val bleScanner = BleScanner(context, log)
-
-  init {
-    bleScanner.init(bluetoothAdapter)
-  }
 
   /** Underlying BLE device for the current connection. */
   @Volatile private var _device: BluetoothDevice? = null
@@ -384,66 +366,6 @@ class ConnectionManager(
   fun setQgjCredentials(password: Int?, userId: Int?) {
     _qgjLoginPassword = password ?: 0
     _qgjUserId = userId ?: 0
-  }
-
-  // =========================================================================
-  // Public API — scanning
-  // =========================================================================
-
-  /**
-   * Scan for BLE peripherals (Dart `BluetoothScanner.startScan` in the
-   * auto-connect service). Emits discovered [BluetoothDevice]s; scanning stops
-   * automatically after [scanTimeout] (flow completes normally) or when the
-   * collector cancels. Caller must hold `BLUETOOTH_SCAN` (+
-   * `ACCESS_FINE_LOCATION` on Android < 12).
-   */
-  fun scanDevices(
-    scanTimeout: Duration = BleTimings.manualScanTimeout,
-    filter: ScanFilter? = null,
-  ): kotlinx.coroutines.flow.Flow<BluetoothDevice> = callbackFlow {
-    val scanner = try {
-      bluetoothAdapter?.bluetoothLeScanner
-    } catch (e: SecurityException) {
-      close(e)
-      return@callbackFlow
-    }
-    if (scanner == null) {
-      close()
-      return@callbackFlow
-    }
-    val settings = ScanSettings.Builder()
-      .setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY)
-      .build()
-    val callback = object : ScanCallback() {
-      override fun onScanResult(callbackType: Int, result: ScanResult) {
-        trySend(result.device)
-      }
-
-      override fun onScanFailed(errorCode: Int) {
-        close(IllegalStateException("BLE scan failed: $errorCode"))
-      }
-    }
-    try {
-      scanner.startScan(filter?.let { listOf(it) }, settings, callback)
-    } catch (e: SecurityException) {
-      close(e)
-      return@callbackFlow
-    }
-    val autoStop = scope.launch {
-      delay(scanTimeout)
-      try {
-        scanner.stopScan(callback)
-      } catch (_: SecurityException) {
-      }
-      close()
-    }
-    awaitClose {
-      autoStop.cancel()
-      try {
-        scanner.stopScan(callback)
-      } catch (_: SecurityException) {
-      }
-    }
   }
 
   // =========================================================================

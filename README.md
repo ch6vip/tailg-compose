@@ -52,11 +52,14 @@ Windows 将 `./gradlew` 替换为 `.\gradlew.bat`。
 未提供签名配置时，Release 构建生成 unsigned APK。
 
 官方 C18 TLS broker（`www.tailgdd.com:6668`）使用私有 CA 自签证书（实测
-CN=`c18_ex_base_pro.tailgdd.com` 且链不可验证），系统级校验必然失败——
-官方 App 的 MqttUtil 正是为此安装了信任路径。本客户端对固定官方主机以及
-**官方云下发的车辆 `mqHost` / `mqPort`** 默认采用兼容信任策略，跳过证书链校验，
-并记录警告；该兼容策略在 Release 中同样存在，具有中间人攻击风险。
-其他主机使用系统信任库。如确需在 Debug 构建中连接任意自签名测试 Broker，可显式启用：
+CN=`c18_ex_base_pro.tailgdd.com`，RSA-2048，有效期至 2053，链不可验证），
+系统级校验必然失败——官方 App 的 MqttUtil 为此安装了纯 trust-all 的 `miTM`
+TrustManager。本客户端改为**严格证书固定（pin）**：对固定官方主机以及**官方云下发的
+车辆 `mqHost` / `mqPort`**，只接受公钥与内置官方证书一致的服务端证书
+（见 `data/mqtt/OfficialMqttPinning.kt`），**既无 trust-all 也不回退系统信任链**——
+Paho 不校验主机名，任何「平台可信」回退都会让攻击者用任意公网证书绕过 pin。
+证书不匹配时拒绝连接，调用方回退到 HTTP 控车。其他主机使用系统信任库。
+如确需在 Debug 构建中连接任意自签名测试 Broker，可显式启用：
 
 ```bash
 ./gradlew assembleDebug -PallowInsecureMqttTls=true

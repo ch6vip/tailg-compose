@@ -623,10 +623,11 @@ class OfficialMqttService(
                 this.password = mqPass.toCharArray()
                 if (parsed.security == MqttTransportSecurity.TLS) {
                     // Hosts served down by the official cloud (mqHost/mqPort on
-                    // the vehicle row) are official private-CA endpoints too;
-                    // trusting them is what keeps C18/QGJ remote control from
-                    // silently degrading to the HTTP fallback. Never trust a
-                    // host that came from anywhere else.
+                    // the vehicle row) are official private-CA endpoints too, so
+                    // they use the same pinned trust: system-trusted OR the
+                    // pinned official key. A host serving a different, untrusted
+                    // certificate is rejected and remote control falls back to
+                    // HTTP. Never trust a host that came from anywhere else.
                     val servedByCloud = vehicle.mqHost.trim().isNotEmpty() &&
                         vehicle.mqPort.trim().isNotEmpty()
                     val socketFactoryOverride = tlsSocketFactoryFor(
@@ -1083,34 +1084,33 @@ class OfficialMqttService(
     }
 
     // --- ssl ---------------------------------------------------------------
-
     /**
      * Official TLS broker hosts whose certificates are private-CA self-signed
-     * (observed: CN=c18_ex_base_pro.tailgdd.com served on www.tailgdd.com:6668
-     * with an untrusted chain). System validation always fails against them,
-     * which is why the official MqttUtil installs a trust-all path. We align
-     * with official behavior but scope it to these hosts only — any other
-     * endpoint keeps strict default validation.
+     * (captured: CN=c18_ex_base_pro.tailgdd.com served on www.tailgdd.com:6668
+     * with an untrusted chain). System validation always fails against them, so
+     * the official MqttUtil installs a trust-all path. We instead pin the
+     * official certificate's public key (see [OfficialMqttPinning]) — there is
+     * no trust-all path in Release.
      */
     private val OFFICIAL_TLS_HOSTS = setOf("www.tailgdd.com")
 
     /**
-     * [SSLSocketFactory] override for a TLS broker host: official alignment
+     * [SSLSocketFactory] override for a TLS broker host: certificate pinning
      * for the hardcoded official hosts **and** for hosts the official cloud
-     * actually serves down in `mqHost`/`mqPort` (those are the same private-CA
-     * infrastructure, so system validation fails on them too and the vehicle
-     * would otherwise be stuck on the HTTP fallback forever). The Debug
-     * `ALLOW_INSECURE_MQTT_TLS` hatch remains the only way for arbitrary hosts.
+     * serves down in `mqHost`/`mqPort` (the same private-CA infrastructure, so
+     * system validation fails on them too). A host presenting an unpinned,
+     * untrusted certificate is rejected and the caller degrades to the HTTP
+     * command path. The Debug `ALLOW_INSECURE_MQTT_TLS` hatch remains the only
+     * way to accept an arbitrary certificate.
      */
     private fun tlsSocketFactoryFor(host: String, trustOfficialMqHost: Boolean): SSLSocketFactory? = when {
         host.lowercase() in OFFICIAL_TLS_HOSTS || (trustOfficialMqHost && host.isNotBlank()) -> {
             log.operation(
                 "官方 MQTT TLS 信任策略",
-                detail = "host=$host 按官方 MqttUtil 行为跳过系统证书校验" +
-                    "(官方端点为私有 CA 自签证书)",
-                level = LogLevel.WARNING,
+                detail = "host=$host 严格证书固定（仅接受内置官方证书公钥，无系统信任链回退）",
+                level = LogLevel.INFO,
             )
-            trustAllSslContext.socketFactory
+            OfficialMqttPinning.sslSocketFactory()
         }
         com.tailg.plus.BuildConfig.DEBUG && com.tailg.plus.BuildConfig.ALLOW_INSECURE_MQTT_TLS ->
             trustAllSslContext.socketFactory
@@ -1118,8 +1118,8 @@ class OfficialMqttService(
     }
 
     /**
-     * Trust-all SSL context backing [tlsSocketFactoryFor]. Debug opt-in only
-     * (`-PallowInsecureMqttTls=true`) for non-official hosts.
+     * Trust-all SSL context, Debug opt-in only (`-PallowInsecureMqttTls=true`)
+     * for arbitrary non-official hosts. Never used for official hosts.
      */
     private val trustAllSslContext: SSLContext by lazy {
         val trustAll = object : X509TrustManager {

@@ -96,7 +96,7 @@
 
 - 本轮为静态审查 + JVM/Robolectric 回归，未做真机联调；BLE 配对/断连重连、
   MQTT 网络恢复、相机、地图宿主切换、权限撤销等系统行为仍需真机验证。
-- 官方 MQTT TLS 兼容信任与 BLE AES/ECB 属既有兼容约束，未改动（见前两轮记录）。
+- BLE AES/ECB 属既有兼容约束，未改动（见前两轮记录）；官方 MQTT TLS 已由兼容信任改为证书固定（见下）。
 - 本次结论针对检查范围与可复现场景，不代表项目不存在其他缺陷。
 
 ## 死代码清理（本轮追加）
@@ -124,3 +124,24 @@
   `Routes.firmwareOta(...)` / `Routes.qgjSettings(...)` 无任何调用点，因此两页不可达。
   OTA 属有意禁用（生产固件下载未启用）；`QgjSettingsScreen` 本身是带 TODO 的 stub。
   需要时再补入口或删除目的地。
+
+## MQTT 证书固定（本轮追加）
+
+原实现对官方主机（硬编码 `www.tailgdd.com` 与云下发 `mqHost`）采用 trust-all，Release 同样生效，
+存在中间人风险。本轮改为**严格证书固定**：
+
+- 抓取官方 C18 broker（`www.tailgdd.com:6668`）证书：`CN=c18_ex_base_pro.tailgdd.com`，
+  RSA-2048，自签，有效期 2023-09-11 → 2053-09-03，DER SHA-256
+  `7ed944d07afebf76c0f72a8779da2800737f51777681b2c0589b7f4b2ee16438`。
+- 新增 `data/mqtt/OfficialMqttPinning.kt`：内置该证书，`PinnedTrustManager` **只接受**
+  公钥（SPKI）与内置证书一致的服务器证书，其余一律拒绝。**无 trust-all，也不回退系统信任链**
+  —— Paho 的 `ssl://` 不校验主机名，任何「平台可信」回退都会让攻击者用任意公网证书绕过 pin
+  （该缺陷在实现初稿中被对抗式复核发现并已修正）。
+- `OfficialMqttService.tlsSocketFactoryFor`：官方主机（硬编码或云下发）改用该 pinning 工厂；
+  Debug `ALLOW_INSECURE_MQTT_TLS` 开关仍可对任意非官方主机启用 trust-all（Release 恒为 false）。
+- 证书不匹配时拒绝连接，调用方回退 HTTP 控车。
+
+交叉验证结论：修复后 pin 不可绕过（唯一接受路径是持有官方私钥），安全上可发布。
+已知取舍（非安全）：若某个云下发 `mqHost` 使用**不同**的官方私钥，其 MQTT 会被拒绝并回退 HTTP，
+需把该证书 DER 加入内置集合。测试：`OfficialMqttPinningTest`（7 项，含 DER 指纹、拒绝任意非固定证书、
+空链与客户端证书 fail-closed）。

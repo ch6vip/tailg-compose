@@ -38,7 +38,11 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
+import androidx.compose.ui.platform.LocalInspectionMode
 import androidx.compose.ui.platform.testTag
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.disabled
@@ -180,8 +184,13 @@ fun NinebotVehicleHeader(
     bluetoothConnected: Boolean = false,
 ) {
     val r = rememberReplica()
+    // Rebuild the stage brush only when the palette flips, not on every
+    // recomposition: a fresh Brush.verticalGradient per BLE heartbeat / cloud
+    // refresh re-creates the shader every draw pass and churns the render
+    // thread (the "Record View#draw()" frames in the home-screen trace).
+    val stageGradient = remember(r) { Brush.verticalGradient(listOf(r.stageTop, r.stageBottom)) }
     Column(modifier = modifier.fillMaxWidth()) {
-        Column(modifier = Modifier.background(Brush.verticalGradient(listOf(r.stageTop, r.stageBottom)))) {
+        Column(modifier = Modifier.background(stageGradient)) {
             Column(modifier = Modifier.padding(start = 20.dp, end = 20.dp, top = 14.dp)) {
                 // Row 1 — name + signal / BLE chip / message bubble.
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -370,11 +379,14 @@ fun NinebotVehicleHeader(
                         .align(Alignment.TopCenter)
                         .offset(y = 8.dp),
                 )
+                // Idle float only while the screen is actually visible: an
+                // infinite transition keeps the frame clock (and the GPU layer)
+                // busy even in the background, which is pure battery drain.
                 val loops = MotionPolicy.loopsEnabled()
-                // Only spin the frame clock when the float is actually enabled: an
-                // always-on infinite transition invalidates the layer every frame
-                // even when the value is pinned at rest.
-                val floatY = if (loops) {
+                val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+                val floatActive = loops && !LocalInspectionMode.current &&
+                    lifecycle.isAtLeast(Lifecycle.State.RESUMED)
+                val floatY = if (floatActive) {
                     val float = rememberInfiniteTransition(label = "nbFloat")
                     val v by float.animateFloat(
                         initialValue = 0f,

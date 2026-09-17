@@ -20,6 +20,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.compose.currentStateAsState
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
@@ -40,7 +43,11 @@ fun AppSkeleton(
   baseColor: Color = CyberHomeColors.control,
   highlightColor: Color = CyberHomeColors.controlStrong,
 ) {
-  val loopsEnabled = MotionPolicy.loopsEnabled()
+  // Pulse only while animations are enabled AND the host is actually visible:
+  // a backgrounded screen must not keep the frame clock alive for a placeholder.
+  val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
+  val loopsEnabled = MotionPolicy.loopsEnabled() &&
+    lifecycle.isAtLeast(Lifecycle.State.RESUMED)
   // Static skeleton when animations are disabled: skip the infinite
   // transition entirely so no per-frame work is scheduled for loading bars
   // that only exist for a moment.

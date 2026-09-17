@@ -79,12 +79,23 @@ fun AppPressable(
     animationSpec = AppMotion.tween(AppMotion.micro),
     label = "appPressableScale",
   )
-  val bg by animateColorAsState(
-    targetValue = if (isActive) pressedBackground ?: background.copy(alpha = background.alpha * 0.7f)
-    else background,
-    animationSpec = AppMotion.tween(AppMotion.micro),
-    label = "appPressableBackground",
-  )
+  // A fully transparent background with no pressed override animates between
+  // two identical transparent values, so the tint is invisible either way.
+  // Skipping the Animatable entirely keeps the ~15 transparent-background
+  // pressables on the control home from each holding a frame subscription.
+  // The branch keys on the (stable) background parameters, never on `pressed`,
+  // so the composition structure does not flip mid-press.
+  val hasVisibleBackground = pressedBackground != null || background.alpha > 0f
+  val bg = if (hasVisibleBackground) {
+    animateColorAsState(
+      targetValue = if (isActive) pressedBackground ?: background.copy(alpha = background.alpha * 0.7f)
+      else background,
+      animationSpec = AppMotion.tween(AppMotion.micro),
+      label = "appPressableBackground",
+    ).value
+  } else {
+    Color.Transparent
+  }
   val elevation = if (isActive) pressedShadowElevation ?: shadowElevation else shadowElevation
   val spot = if (isActive) pressedShadowColor ?: shadowColor else shadowColor
 

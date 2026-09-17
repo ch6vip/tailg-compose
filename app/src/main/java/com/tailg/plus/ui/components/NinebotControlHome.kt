@@ -35,6 +35,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
@@ -370,19 +371,33 @@ fun NinebotVehicleHeader(
                         .offset(y = 8.dp),
                 )
                 val loops = MotionPolicy.loopsEnabled()
-                val float = rememberInfiniteTransition(label = "nbFloat")
-                val floatY by float.animateFloat(
-                    initialValue = 0f,
-                    targetValue = if (loops) -5f else 0f,
-                    animationSpec = infiniteRepeatable(
-                        animation = tween(durationMillis = 3000, easing = AppMotion.pulseCurve),
-                        repeatMode = RepeatMode.Reverse,
-                    ),
-                    label = "nbFloatY",
-                )
+                // Only spin the frame clock when the float is actually enabled: an
+                // always-on infinite transition invalidates the layer every frame
+                // even when the value is pinned at rest.
+                val floatY = if (loops) {
+                    val float = rememberInfiniteTransition(label = "nbFloat")
+                    val v by float.animateFloat(
+                        initialValue = 0f,
+                        targetValue = -5f,
+                        animationSpec = infiniteRepeatable(
+                            animation = tween(durationMillis = 3000, easing = AppMotion.pulseCurve),
+                            repeatMode = RepeatMode.Reverse,
+                        ),
+                        label = "nbFloatY",
+                    )
+                    v
+                } else {
+                    0f
+                }
                 // Subtle alive cue: the photo rides a touch higher when powered.
                 val poweredLift = if (powered == true) -3f else 0f
-                Box(modifier = Modifier.align(Alignment.Center).offset(y = (floatY + poweredLift).dp)) {
+                // graphicsLayer (draw-only) instead of Modifier.offset (layout): a
+                // per-frame offset would remeasure the whole stage subtree.
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.Center)
+                        .graphicsLayer { translationY = (floatY + poweredLift).dp.toPx() },
+                ) {
                     VehicleStage(
                         batteryLevel = batteryPercent / 100f,
                         height = 200.dp,

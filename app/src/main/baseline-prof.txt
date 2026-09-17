@@ -39,3 +39,19 @@ Lcom/tailg/plus/ui/components/VoidNav;
 Lcom/tailg/plus/ui/components/AppChrome;
 Lcom/tailg/plus/ui/components/AppPressable;
 Lcom/tailg/plus/ui/components/LucideIcon;
+
+# ── Control home first-interaction path ──────────────────────────────────
+# The 九号 control home is the heaviest screen; entering it JIT-compiled the
+# grid on first tap (observed: "Skipped 34 frames" + a 5.5 MB compile of
+# NinebotControlGrid). AOT-compile the whole subtree so the first entry is warm.
+Lcom/tailg/plus/ui/components/NinebotControlHomeKt;
+Lcom/tailg/plus/ui/components/ComposableSingletons$NinebotControlHomeKt;
+Lcom/tailg/plus/ui/components/VehicleStageKt;
+Lcom/tailg/plus/ui/components/VehicleStageTransformKt;
+Lcom/tailg/plus/ui/components/SlidePowerButtonKt;
+Lcom/tailg/plus/ui/components/AnimatedValueTextKt;
+Lcom/tailg/plus/ui/components/CyberMapStatsKt;
+Lcom/tailg/plus/ui/components/NinebotShortcutEditorKt;
+Lcom/tailg/plus/ui/screens/NinebotControlSectionKt;
+Lcom/tailg/plus/ui/screens/NinebotBatteryVisualKt;
+Lcom/tailg/plus/ui/screens/ControlScreenHelpersKt;

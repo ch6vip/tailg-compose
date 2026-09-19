@@ -48,6 +48,9 @@ import com.tailg.plus.ui.components.CyberPageHeader
 import com.tailg.plus.ui.components.CyberSectionLabel
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
+import com.tailg.plus.ui.components.NinebotLucide
+import com.tailg.plus.ui.components.SettingsGroup
+import com.tailg.plus.ui.components.settingItemModel
 import com.tailg.plus.ui.components.cyberBodyStyle
 import com.tailg.plus.ui.components.cyberButtonShape
 import com.tailg.plus.ui.components.cyberCaptionStyle
@@ -291,13 +294,13 @@ fun AboutAppScreen(
         CyberSectionLabel(stringResource(R.string.settings_advanced))
         SettingsGroup(
           settingItemModel(
-            icon = Lucide.shieldCheck,
+            icon = NinebotLucide.shieldCheck,
             title = stringResource(R.string.settings_diagnostics),
             subtitle = stringResource(R.string.settings_diagnostics_desc),
             onClick = { onNavigate(Routes.diagnostic(vehicleRouteId)) },
           ),
           settingItemModel(
-            icon = Lucide.key,
+            icon = NinebotLucide.keyRound,
             title = stringResource(R.string.settings_official_token),
             subtitle = stringResource(R.string.settings_official_token_desc),
             onClick = { onNavigate(Routes.CLOUD_TOKEN) },

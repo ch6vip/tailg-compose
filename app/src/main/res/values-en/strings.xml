@@ -197,6 +197,13 @@
     <string name="token_vm_paste_first">Please paste a Token first</string>
     <string name="token_vm_login_success">Token sign-in successful, vehicles synced</string>
     <string name="settings_general">General</string>
+    <string name="settings_hub_subtitle">Vehicle, battery and app preferences</string>
+    <string name="settings_core_section">Vehicle &amp; battery</string>
+    <string name="settings_preferences_section">App preferences</string>
+    <string name="settings_vehicle_settings_short">Sound, sensitivity and ride features</string>
+    <string name="settings_battery_bms_short">Charge, voltage and BMS data</string>
+    <string name="prefs_unit_metric_hint">km / m</string>
+    <string name="prefs_unit_imperial_hint">mi / ft</string>
     <string name="vehicle_header_messages">Vehicle messages</string>
     <string name="channel_strip_auto">Auto</string>
     <string name="channel_strip_ble_only">BLE only</string>

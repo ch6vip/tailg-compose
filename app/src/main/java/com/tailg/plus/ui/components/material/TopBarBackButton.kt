@@ -7,6 +7,7 @@ import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.tailg.plus.ui.components.Lucide
 
@@ -15,7 +16,7 @@ import com.tailg.plus.ui.components.Lucide
 fun TopBarBackButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    contentDescription: String? = null,
+    contentDescription: String? = stringResource(com.tailg.plus.R.string.common_back),
 ) {
     IconButton(
         modifier = modifier.padding(horizontal = 10.dp),

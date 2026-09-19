@@ -1,68 +1,67 @@
 package com.tailg.plus.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.tailg.plus.R
 import com.tailg.plus.data.preferences.AppLanguagePreference
 import com.tailg.plus.data.preferences.AppPreferencesService
 import com.tailg.plus.data.preferences.DistanceUnitPreference
-import com.tailg.plus.ui.components.CyberCard
-import com.tailg.plus.ui.components.CyberPageHeader
-import com.tailg.plus.ui.components.CyberSectionLabel
-import com.tailg.plus.ui.components.LocalBottomNavigationPadding
-import com.tailg.plus.ui.components.LucideIcon
-import com.tailg.plus.ui.components.Lucide
-import com.tailg.plus.ui.components.cyberCaptionStyle
-import com.tailg.plus.ui.components.cyberItemTitleStyle
-import com.tailg.plus.ui.navigation.Routes
-import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.CyberHomeColors
-import kotlinx.coroutines.launch
-import androidx.compose.material3.SnackbarHostState
+import com.tailg.plus.di.rememberTailgEntryPoint
+import com.tailg.plus.ui.components.AppPressable
 import com.tailg.plus.ui.components.AppSnack
 import com.tailg.plus.ui.components.AppSnackbarHost
-import androidx.compose.ui.res.stringResource
-import com.tailg.plus.R
+import com.tailg.plus.ui.components.LocalBottomNavigationPadding
+import com.tailg.plus.ui.components.NinebotIcon
+import com.tailg.plus.ui.components.NinebotLucide
+import com.tailg.plus.ui.components.SettingFeatureTile
+import com.tailg.plus.ui.components.SettingTileEmphasis
+import com.tailg.plus.ui.components.SettingsGroup
+import com.tailg.plus.ui.components.SettingsSectionLabel
+import com.tailg.plus.ui.components.material.ExpressiveSwitch
+import com.tailg.plus.ui.components.ninebotPageBackground
+import com.tailg.plus.ui.components.ninebotSettingsCardColor
+import com.tailg.plus.ui.components.settingItemModel
+import com.tailg.plus.ui.navigation.Routes
+import com.tailg.plus.ui.theme.AppTouchTargets
+import com.tailg.plus.ui.theme.CyberHomeColors
+import kotlinx.coroutines.launch
 
 /**
- * Port of `lib/pages/settings_page.dart` → `SettingsScreen.kt`.
+ * Settings hub in the 九号 visual language. Vehicle and BMS sit as a two-up
+ * core pair; language, units, appearance and about remain ordinary grouped rows.
  *
- * The Dart page is a `StatefulWidget` whose only state is the
- * `AppPreferencesService` (already initialized in `main()`). Here the service
- * is constructed once per composition via `remember` and its `StateFlow`s are
- * observed with `collectAsStateWithLifecycle`, replacing the Dart
- * `StreamBuilder`s.
- *
- * Navigation: the Dart page pushes routes inline; Compose call sites pass an
- * [onNavigate] lambda that receives a [Routes] key. The advanced-diagnostics
- * sub-page is folded into a separate [AdvancedDiagnosticsScreen] composable
- * (same file) so the route graph can wire it directly.
+ * Note: 设置页核心/普通分层与 SettingTile — 见 .agents/notes/implemented/feature/2026-09-20-settings-hierarchy.md
  */
 @Composable
 fun SettingsScreen(
@@ -72,114 +71,126 @@ fun SettingsScreen(
   preferencesService: AppPreferencesService? = null,
   showBack: Boolean = true,
 ) {
-  val prefs = preferencesService
-    ?: com.tailg.plus.di.rememberTailgEntryPoint().appPreferences()
+  val prefs = preferencesService ?: rememberTailgEntryPoint().appPreferences()
   val language by prefs.language.collectAsStateWithLifecycle(AppLanguagePreference.System)
   val distanceUnit by prefs.distanceUnit.collectAsStateWithLifecycle(DistanceUnitPreference.Metric)
   val respectTextScale by prefs.respectSystemTextScale.collectAsStateWithLifecycle(true)
-  val scope = androidx.compose.runtime.rememberCoroutineScope()
+  val scope = rememberCoroutineScope()
   val snackbarHostState = remember { SnackbarHostState() }
+  val unitHint = stringResource(
+    if (distanceUnit == DistanceUnitPreference.Metric) R.string.prefs_unit_metric_hint else R.string.prefs_unit_imperial_hint,
+  )
 
   Scaffold(
-    containerColor = CyberHomeColors.pageBg,
+    containerColor = ninebotPageBackground(),
     snackbarHost = { AppSnackbarHost(snackbarHostState) },
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { padding ->
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .verticalScroll(rememberScrollState())
         .padding(padding)
-        .padding(bottom = 32.dp + LocalBottomNavigationPadding.current),
+        .windowInsetsPadding(WindowInsets.statusBars)
+        .verticalScroll(rememberScrollState())
+        .padding(bottom = 12.dp + LocalBottomNavigationPadding.current),
     ) {
-      CyberPageHeader(title = stringResource(R.string.settings_title), showBack = showBack, onBack = onBack)
-      CyberSectionLabel(stringResource(R.string.settings_account_vehicle))
+      NinebotSettingsHeader(
+        title = stringResource(R.string.settings_title),
+        subtitle = stringResource(R.string.settings_hub_subtitle),
+        showBack = showBack,
+        onBack = onBack,
+      )
+
+      SettingsSectionLabel(stringResource(R.string.settings_core_section))
+      Row(
+        modifier = Modifier
+          .fillMaxWidth()
+          .padding(horizontal = 20.dp),
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+      ) {
+        SettingFeatureTile(
+          icon = NinebotLucide.slidersHorizontal,
+          title = stringResource(R.string.settings_vehicle_settings),
+          subtitle = stringResource(R.string.settings_vehicle_settings_short),
+          onClick = { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
+          modifier = Modifier.weight(1f),
+        )
+        SettingFeatureTile(
+          icon = NinebotLucide.batteryCharging,
+          title = stringResource(R.string.settings_battery_bms),
+          subtitle = stringResource(R.string.settings_battery_bms_short),
+          onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
+          modifier = Modifier.weight(1f),
+        )
+      }
+
+      SettingsSectionLabel(stringResource(R.string.settings_account_vehicle))
       SettingsGroup(
         settingItemModel(
-          icon = Lucide.garage,
+          icon = NinebotLucide.warehouse,
           title = stringResource(R.string.settings_my_vehicle),
           subtitle = stringResource(R.string.settings_account_vehicle_desc),
+          emphasis = SettingTileEmphasis.Core,
           onClick = { onNavigate(Routes.GARAGE) },
         ),
+        modifier = Modifier.padding(horizontal = 20.dp),
       )
-      CyberSectionLabel(stringResource(R.string.settings_vehicle_usage))
+
+      SettingsSectionLabel(stringResource(R.string.settings_preferences_section))
       SettingsGroup(
         settingItemModel(
-          icon = Lucide.tune,
-          title = stringResource(R.string.settings_vehicle_settings),
-          subtitle = stringResource(R.string.settings_vehicle_settings_desc),
-          onClick = { onNavigate(Routes.vehicleSettings(vehicleRouteId)) },
-        ),
-        settingItemModel(
-          icon = Lucide.battery,
-          title = stringResource(R.string.settings_battery_bms),
-          subtitle = stringResource(R.string.settings_battery_bms_desc),
-          onClick = { onNavigate(Routes.batteryDetails(vehicleRouteId)) },
-        ),
-      )
-      CyberSectionLabel(stringResource(R.string.settings_general))
-      SettingsGroup(
-        settingItemModel(
-          icon = Lucide.languages,
+          icon = NinebotLucide.languages,
           title = stringResource(R.string.settings_language_setting),
           subtitle = language.localizedLabel(),
           onClick = { onNavigate(Routes.LANGUAGE_SETTINGS) },
         ),
         settingItemModel(
-          icon = Lucide.ruler,
+          icon = NinebotLucide.ruler,
           title = stringResource(R.string.settings_unit_setting),
-          subtitle = "${distanceUnit.localizedLabel()} · ${distanceUnit.hint}",
+          subtitle = "${distanceUnit.localizedLabel()} · $unitHint",
           onClick = { onNavigate(Routes.UNIT_SETTINGS) },
         ),
         settingItemModel(
-          icon = Lucide.type,
+          icon = NinebotLucide.type,
           title = stringResource(R.string.settings_follow_system_font),
-          subtitle = if (respectTextScale) stringResource(R.string.settings_follow_system_font_desc) else stringResource(R.string.settings_ignore_system_font),
+          subtitle = stringResource(
+            if (respectTextScale) R.string.settings_follow_system_font_desc else R.string.settings_ignore_system_font,
+          ),
+          showChevron = false,
           trailing = {
-            Switch(
+            ExpressiveSwitch(
               checked = respectTextScale,
               onCheckedChange = { value ->
-                // Fire-and-forget; the StateFlow will reflect the new value.
                 scope.launch {
                   AppSnack.runAction(snackbarHostState) { prefs.setRespectSystemTextScale(value) }
                 }
               },
-              colors = SwitchDefaults.colors(
-                checkedThumbColor = CyberHomeColors.white,
-                checkedTrackColor = CyberHomeColors.primary,
-                uncheckedThumbColor = CyberHomeColors.white,
-                uncheckedTrackColor = CyberHomeColors.controlStrong,
-              ),
             )
           },
         ),
-      )
-      CyberSectionLabel(stringResource(R.string.settings_appearance))
-      SettingsGroup(
         settingItemModel(
-          icon = Lucide.tune,
+          icon = NinebotLucide.sparkles,
           title = stringResource(R.string.settings_theme),
           subtitle = stringResource(R.string.settings_theme_desc),
           onClick = { onNavigate(Routes.THEME) },
         ),
+        modifier = Modifier.padding(horizontal = 20.dp),
       )
-      CyberSectionLabel(stringResource(R.string.settings_about))
+
+      SettingsSectionLabel(stringResource(R.string.settings_about))
       SettingsGroup(
         settingItemModel(
-          icon = Lucide.info,
+          icon = NinebotLucide.badgeInfo,
           title = stringResource(R.string.settings_about_app),
           subtitle = stringResource(R.string.settings_about_app_desc),
           onClick = { onNavigate(Routes.ABOUT_APP) },
         ),
+        modifier = Modifier.padding(horizontal = 20.dp),
       )
     }
   }
 }
 
-/**
- * Port of the Dart `_AdvancedDiagnosticsPage` (private widget in
- * `settings_page.dart`). Kept as a separate composable so the route graph can
- * register it under [Routes.DIAGNOSTIC] without a nested navigator.
- */
 @Composable
 fun AdvancedDiagnosticsScreen(
   vehicleRouteId: String,
@@ -187,111 +198,93 @@ fun AdvancedDiagnosticsScreen(
   onNavigate: (String) -> Unit,
 ) {
   Scaffold(
-    containerColor = CyberHomeColors.pageBg,
+    containerColor = ninebotPageBackground(),
+    contentWindowInsets = WindowInsets(0, 0, 0, 0),
   ) { padding ->
     Column(
       modifier = Modifier
         .fillMaxSize()
-        .verticalScroll(rememberScrollState())
         .padding(padding)
-        .padding(bottom = 32.dp),
+        .windowInsetsPadding(WindowInsets.statusBars)
+        .verticalScroll(rememberScrollState())
+        .padding(bottom = 24.dp),
     ) {
-      CyberPageHeader(title = stringResource(R.string.settings_diagnostics), onBack = onBack)
+      NinebotSettingsHeader(
+        title = stringResource(R.string.settings_diagnostics),
+        showBack = true,
+        onBack = onBack,
+      )
       Spacer(Modifier.height(4.dp))
       SettingsGroup(
         settingItemModel(
-          icon = Lucide.stethoscope,
+          icon = NinebotLucide.stethoscope,
           title = stringResource(R.string.settings_fault_diagnostics),
           subtitle = stringResource(R.string.settings_fault_diagnostics_desc),
           onClick = { onNavigate(Routes.faultDiagnostic(vehicleRouteId)) },
         ),
         settingItemModel(
-          icon = Lucide.fileText,
+          icon = NinebotLucide.fileText,
           title = stringResource(R.string.settings_logs),
           subtitle = stringResource(R.string.settings_logs_desc),
           onClick = { onNavigate(Routes.LOG) },
         ),
+        modifier = Modifier.padding(horizontal = 20.dp),
       )
     }
   }
 }
 
-/** Dart `_group`: a [CyberCard] that stacks [items] with inset dividers between them. */
 @Composable
-internal fun SettingsGroup(vararg items: SettingItemModel) {
-  CyberCard(contentPadding = androidx.compose.foundation.layout.PaddingValues(0.dp)) {
-    Column {
-      items.forEachIndexed { index, item ->
-        if (index > 0) {
-          HorizontalDivider(
-            thickness = 1.dp,
-            color = CyberHomeColors.line,
-            modifier = Modifier.padding(start = 66.dp),
-          )
-        }
-        SettingItemRow(item)
-      }
-    }
-  }
-}
-
-/** Plain data describing one settings row (keeps the call sites declarative). */
-internal data class SettingItemModel(
-  val icon: androidx.compose.ui.graphics.vector.ImageVector,
-  val title: String,
-  val subtitle: String? = null,
-  val trailing: @Composable (() -> Unit)? = null,
-  val onClick: (() -> Unit)? = null,
-  val showChevron: Boolean = true,
-)
-
-internal fun settingItemModel(
-  icon: androidx.compose.ui.graphics.vector.ImageVector,
+private fun NinebotSettingsHeader(
   title: String,
   subtitle: String? = null,
-  trailing: @Composable (() -> Unit)? = null,
-  onClick: (() -> Unit)? = null,
-  showChevron: Boolean = true,
-): SettingItemModel = SettingItemModel(icon, title, subtitle, trailing, onClick, showChevron)
-
-/** Dart `_settingItem`: icon tile + title/subtitle + trailing or chevron. */
-@Composable
-private fun SettingItemRow(item: SettingItemModel) {
+  showBack: Boolean,
+  onBack: () -> Unit,
+) {
   Row(
-    modifier = Modifier
-      .fillMaxWidth()
-      .clickable(
-        enabled = item.onClick != null,
-        role = Role.Button,
-      ) { item.onClick?.invoke() }
-      .padding(horizontal = 16.dp, vertical = 14.dp),
+    modifier = Modifier.padding(start = 12.dp, top = 10.dp, end = 20.dp, bottom = 4.dp),
     verticalAlignment = Alignment.CenterVertically,
   ) {
-    Box(
-      modifier = Modifier
-        .size(38.dp)
-        .clip(RoundedCornerShape(AppRadii.tile))
-        .background(CyberHomeColors.primarySoft),
-      contentAlignment = Alignment.Center,
-    ) {
-      LucideIcon(icon = item.icon, size = 20.dp, color = CyberHomeColors.primary)
-    }
-    Spacer(Modifier.width(12.dp))
-    Column(modifier = Modifier.weight(1f)) {
-      Text(text = item.title, style = cyberItemTitleStyle)
-      if (item.subtitle != null) {
-        Spacer(Modifier.height(2.dp))
-        Text(text = item.subtitle, style = cyberCaptionStyle)
+    if (showBack) {
+      AppPressable(
+        onClick = onBack,
+        shape = CircleShape,
+        semanticsLabel = stringResource(R.string.common_back),
+      ) {
+        Box(
+          modifier = Modifier
+            .size(AppTouchTargets.min)
+            .clip(CircleShape)
+            .background(ninebotSettingsCardColor()),
+          contentAlignment = Alignment.Center,
+        ) {
+          NinebotIcon(
+            icon = NinebotLucide.arrowLeft,
+            size = 20.dp,
+            color = CyberHomeColors.ink,
+          )
+        }
       }
     }
-    if (item.trailing != null) {
-      item.trailing()
-    } else if (item.showChevron) {
-      LucideIcon(
-        icon = Lucide.chevronRight,
-        size = 18.dp,
-        color = CyberHomeColors.inkFaint,
+    Column(modifier = Modifier.padding(start = 8.dp)) {
+      Text(
+        text = title,
+        fontSize = 24.sp,
+        fontWeight = FontWeight.W700,
+        color = CyberHomeColors.ink,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
       )
+      if (!subtitle.isNullOrBlank()) {
+        Spacer(Modifier.height(2.dp))
+        Text(
+          text = subtitle,
+          fontSize = 13.sp,
+          color = CyberHomeColors.inkMuted,
+          maxLines = 1,
+          overflow = TextOverflow.Ellipsis,
+        )
+      }
     }
   }
 }

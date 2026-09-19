@@ -1033,6 +1033,13 @@
     <string name="ride_stats_total_trips">骑行次数</string>
     <string name="ride_stats_trip_unit">次</string>
     <string name="settings_general">通用</string>
+    <string name="settings_hub_subtitle">车辆、电池与应用偏好</string>
+    <string name="settings_core_section">车辆与电池</string>
+    <string name="settings_preferences_section">应用偏好</string>
+    <string name="settings_vehicle_settings_short">声音、灵敏度、骑行功能</string>
+    <string name="settings_battery_bms_short">电量、电压与 BMS 数据</string>
+    <string name="prefs_unit_metric_hint">km / m</string>
+    <string name="prefs_unit_imperial_hint">mi / ft</string>
     <string name="vehicle_settings_title">车辆设置</string>
     <string name="vehicle_settings_unbind">解绑车辆</string>
 </resources>

@@ -34,30 +34,20 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.material3.MaterialTheme
 import com.tailg.plus.R
 import com.tailg.plus.ui.theme.AppRadii
-import com.tailg.plus.ui.theme.CyberHomeColors
-import androidx.compose.ui.text.font.FontFamily
 
 /**
- * Port of `lib/widgets/void_nav.dart` — four-entry floating nav
- * (服务 / 控车 / 我的 / 设置) styled after the light Cyber cockpit.
- *
- * Token mapping:
- * - `CyberHomeColors.navSurface/navSelected/white/ink/inkSecondary` → the
- *   same-named [CyberHomeColors] tokens; `AppRadii.pill` → [AppRadii.pill].
- * - `AppShadows.cyberNavShadow` → [Modifier.shadow] with
- *   [CyberHomeColors.actionShadow] spot (no dedicated nav-shadow token).
- * - A translucent [CyberHomeColors.navSurface] lets the page show through
- *   without blurring the icons or labels.
- *
- * The original appearance uses the same Lucide vectors as the optional
- * KernelSU-inspired floating bar.
+ * Classic pill navigation for the four bottom destinations.
+ * Colors come from [MaterialTheme.colorScheme] so light and dark stay in lockstep
+ * with the floating bar.
  */
 object VoidOrbitalNav {
   const val barHeightDp = 64
@@ -75,35 +65,34 @@ fun VoidOrbitalNav(
   val haptics = LocalHapticFeedback.current
   val shape = RoundedCornerShape(AppRadii.pill)
 
+  val colors = MaterialTheme.colorScheme
   Box(
     modifier = modifier
       .fillMaxWidth()
       .windowInsetsPadding(WindowInsets.safeDrawing.only(WindowInsetsSides.Horizontal + WindowInsetsSides.Bottom))
-      .padding(start = 24.dp, end = 24.dp, bottom = 8.dp),
+      .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
   ) {
     Box(
       modifier = Modifier
         .fillMaxWidth()
         .shadow(
-          elevation = 12.dp,
+          elevation = 10.dp,
           shape = shape,
           clip = false,
           ambientColor = Color.Transparent,
-          spotColor = CyberHomeColors.actionShadow, // AppShadows.cyberNavShadow
+          spotColor = colors.scrim.copy(alpha = 0.18f),
         ),
     ) {
-      // Only the background is translucent; tab content stays fully opaque.
       Box(
         modifier = Modifier
           .matchParentSize()
           .clip(shape)
-          .background(CyberHomeColors.navSurface.copy(alpha = BottomNavigationContainerAlpha)),
+          .background(colors.surfaceContainer.copy(alpha = BottomNavigationContainerAlpha)),
       )
-      // Keep the fine outline outside the clipped background.
       Box(
         modifier = Modifier
           .matchParentSize()
-          .border(1.dp, CyberHomeColors.white, shape),
+          .border(1.dp, colors.outlineVariant.copy(alpha = 0.55f), shape),
       )
       // Content layer: crisp icons + labels, clipped to the pill.
       Row(
@@ -165,13 +154,14 @@ private fun RowScope.NavItem(
   onTap: () -> Unit,
   modifier: Modifier = Modifier,
 ) {
+  val colors = MaterialTheme.colorScheme
   val color by animateColorAsState(
-    targetValue = if (selected) CyberHomeColors.ink else CyberHomeColors.inkSecondary,
+    targetValue = if (selected) colors.primary else colors.onSurfaceVariant,
     animationSpec = tween(AppMotion.standard),
     label = "navColor",
   )
   val pillColor by animateColorAsState(
-    targetValue = if (selected) CyberHomeColors.navSelected else Color.Transparent,
+    targetValue = if (selected) colors.primary.copy(alpha = 0.14f) else Color.Transparent,
     animationSpec = tween(AppMotion.standard, easing = AppMotion.pressCurve),
     label = "navPill",
   )

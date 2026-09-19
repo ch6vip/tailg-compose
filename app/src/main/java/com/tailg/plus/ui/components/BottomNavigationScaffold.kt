@@ -4,13 +4,13 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.compositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import com.tailg.plus.ui.theme.CyberHomeColors
 
 /** Clearance for scrollable content and overlays above the app's bottom navigation. */
 internal val LocalBottomNavigationPadding = compositionLocalOf { 0.dp }
@@ -31,7 +31,7 @@ internal fun BottomNavigationScaffold(
 ) {
     Scaffold(
         modifier = modifier,
-        containerColor = CyberHomeColors.pageBg,
+        containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = WindowInsets(0, 0, 0, 0),
         bottomBar = bottomBar,
         snackbarHost = snackbarHost,

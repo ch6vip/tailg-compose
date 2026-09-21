@@ -387,24 +387,46 @@ class OfficialCloudService(
         while (true) {
             if (!isCurrentSession(session)) return
             val existing = inFlightRefreshes[cacheKey]
-            if (silent && existing != null) {
-                existing.await()
-                return
+            if (existing != null) {
+                try {
+                    existing.await()
+                    if (silent) return
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (silent) throw e
+                }
+                continue
             }
             val placeholder = CompletableDeferred<Unit>()
             val raced = inFlightRefreshes.putIfAbsent(cacheKey, placeholder)
             if (raced != null) {
-                raced.await()
-                if (silent) return
-                // Non-silent callers need their own fresh run: after the
-                // in-flight one finishes, loop and try to claim the slot again.
+                try {
+                    raced.await()
+                    if (silent) return
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    if (silent) throw e
+                }
                 continue
             }
             try {
                 coroutineScope { run() }
+                placeholder.complete(Unit)
+            } catch (e: CancellationException) {
+                // Do not cancel waiters: their jobs are independent of this
+                // caller's lifetime. A CancellationException on the deferred
+                // would still cancel them, so wrap it.
+                placeholder.completeExceptionally(
+                    OfficialCloudApiException("官方刷新已取消"),
+                )
+                throw e
+            } catch (e: Exception) {
+                placeholder.completeExceptionally(e)
+                throw e
             } finally {
                 inFlightRefreshes.remove(cacheKey, placeholder)
-                placeholder.complete(Unit)
             }
             return
         }

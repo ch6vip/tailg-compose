@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -17,6 +18,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.animation.EnterTransition
+import androidx.compose.animation.ExitTransition
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -207,12 +210,35 @@ private fun TailgNavHostContent(vm: MainViewModel) {
       }
     },
   ) {
+    // 页面切换为瞬切（零转场），对齐官方 3.5.9。
+    //
+    // 官方是传统多 Activity 架构（HomeActivity / SettingActivity /
+    // PersonalizedOptionActivity …），自有代码里 overridePendingTransition 与
+    // setCustomAnimations 均为 0 处，base/BaseActivity.java 全文 83 行无转场代码，
+    // manifest 也未给任何 activity 声明 @anim 动画 —— 即页面切换没有任何自定义
+    // 动画，靠平台默认。
+    //
+    // DefaultNavTransitions 的默认值（fadeIn/fadeOut 各 700ms，pop 复用同一动画），
+    // 那 700ms 的淡入淡出既不是官方的、也不是 Dart 线的，是重写时白拿的框架默认。
+    //
+    // 设备是 Android 16 / API 36，targetSdk 也是 36：系统预测性返回默认开启。
+    // 不覆盖 predictivePop* 时，Navigation-Compose 默认是 fadeIn(spring) +
+    // scaleOut(0.7) —— 手势返回时当前页缩到 70%、上一页从后面露出来，
+    // 正是「单位设置叠在设置页上、右侧带系统返回弧」的观感。官方
+    // 3.5.9 没有预测性返回转场，所以这两条也关掉。
+    // sizeTransform 的默认值本为 null，无需额外覆盖。
     NavHost(
       navController = navController,
       startDestination = startDestination,
       modifier = Modifier
         .fillMaxSize()
         .background(CyberHomeColors.pageBg),
+      enterTransition = { EnterTransition.None },
+      exitTransition = { ExitTransition.None },
+      popEnterTransition = { EnterTransition.None },
+      popExitTransition = { ExitTransition.None },
+      predictivePopEnterTransition = { EnterTransition.None },
+      predictivePopExitTransition = { ExitTransition.None },
     ) {
       // ---- Auth graph ----
       authNavGraph(
@@ -255,6 +281,7 @@ private fun TailgNavHostContent(vm: MainViewModel) {
  * signed-in status and the selected vehicle key unchanged is dropped before
  * the scaffold / bottom bar / NavHost recompose.
  */
+@Immutable
 private data class NavCloudSlice(
   val signedIn: Boolean,
   val selectedVehicleKey: String?,

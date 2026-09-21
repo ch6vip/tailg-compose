@@ -87,6 +87,8 @@ private val vehicleImageClient by lazy {
     .connectTimeout(5, TimeUnit.SECONDS)
     .readTimeout(5, TimeUnit.SECONDS)
     .callTimeout(7, TimeUnit.SECONDS)
+    .followRedirects(false)
+    .followSslRedirects(false)
     .build()
 }
 
@@ -125,7 +127,8 @@ private suspend fun loadVehicleImage(url: String): Bitmap? {
       runCatching {
         val request = Request.Builder().url(url).get().build()
         vehicleImageClient.newCall(request).execute().use { response ->
-          // okhttp 5: Response.body is non-null.
+          val finalUrl = response.request.url.toString()
+          if (!isRemoteVehicleImageUrl(finalUrl)) return@use null
           val body = response.body
           val declared = body.contentLength()
           if (!response.isSuccessful ||
@@ -133,7 +136,6 @@ private suspend fun loadVehicleImage(url: String): Bitmap? {
           ) {
             return@use null
           }
-          // Enforce the cap during streaming too: chunked responses have no declared size.
           val bytes = body.byteStream().use { it.readBytesLimited(MAX_VEHICLE_IMAGE_BYTES.toInt()) }
           if (bytes.isEmpty() || bytes.size > MAX_VEHICLE_IMAGE_BYTES) return@use null
           decodeVehicleImageSampled(bytes)

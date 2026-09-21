@@ -68,6 +68,11 @@ internal fun NinebotBatteryVisual(percent: Int?, palette: BatteryPalette, motion
   val animate = !reduceMotion && !LocalInspectionMode.current && motionActive &&
     lifecycle.isAtLeast(Lifecycle.State.RESUMED) && percent != null
   var drag by remember { mutableFloatStateOf(0f) }
+  // Draw-scratch for the box faces, allocated once per visual: every frame
+  // reuses these instead of building lists, paths and comparators per draw.
+  val boxDepths = remember { FloatArray(6) }
+  val boxOrder = remember { IntArray(6) }
+  val boxPath = remember { Path() }
   val rotation = animateFloatAsState(
     targetValue = drag,
     animationSpec = if (reduceMotion) snap() else spring(dampingRatio = 0.68f, stiffness = 260f),
@@ -108,7 +113,7 @@ internal fun NinebotBatteryVisual(percent: Int?, palette: BatteryPalette, motion
           )
         },
     ) {
-      drawBatterySculpture(charge.value, percent, rotation.value, breath.value, palette)
+      drawBatterySculpture(charge.value, percent, rotation.value, breath.value, palette, boxDepths, boxOrder, boxPath)
     }
     Row(Modifier.align(Alignment.BottomCenter).padding(bottom = 8.dp), verticalAlignment = Alignment.CenterVertically) {
       NinebotIcon(NinebotLucide.moveHorizontal, size = 12.dp, color = palette.muted)
@@ -141,7 +146,22 @@ private class BatteryProjection(private val center: Offset, private val scale: F
     )
   }
 
-  fun at(x: Float, y: Float, z: Float): Offset = project(BatteryPoint(x, y, z)).position
+  fun at(x: Float, y: Float, z: Float): Offset = project(x, y, z).position
+
+  /** Allocation-free variant of `project(BatteryPoint(...))` for hot draw loops. */
+  fun project(x: Float, y: Float, z: Float): ProjectedBatteryPoint {
+    val rx = x * cosY + z * sinY
+    val rz = -x * sinY + z * cosY
+    val ry = y * cosX - rz * sinX
+    val depth = y * sinX + rz * cosX
+    val perspective = 500f / (500f - depth)
+    return ProjectedBatteryPoint(
+      center + Offset(rx * cosZ - ry * sinZ, rx * sinZ + ry * cosZ) * (scale * perspective),
+      depth,
+    )
+  }
+
+  fun at(point: BatteryPoint): Offset = project(point).position
 
   fun path(points: List<BatteryPoint>): Path = Path().apply {
     points.forEachIndexed { index, point ->
@@ -160,7 +180,16 @@ private class BatteryProjection(private val center: Offset, private val scale: F
   ))
 }
 
-private fun DrawScope.drawBatterySculpture(charge: Float, percent: Int?, drag: Float, breath: Float, p: BatteryPalette) {
+private fun DrawScope.drawBatterySculpture(
+  charge: Float,
+  percent: Int?,
+  drag: Float,
+  breath: Float,
+  p: BatteryPalette,
+  boxDepths: FloatArray,
+  boxOrder: IntArray,
+  boxPath: Path,
+) {
   val scale = min(size.width / 148f, size.height / 242f)
   val center = Offset(size.width * 0.52f, size.height * 0.46f - (breath - 0.5f) * 4f * scale)
   val projection = BatteryProjection(center, scale, -22f + drag)
@@ -184,11 +213,11 @@ private fun DrawScope.drawBatterySculpture(charge: Float, percent: Int?, drag: F
   )
 
   // Machined top cap, carry handle and graphite shell.
-  drawBatteryBox(projection, -30f, -83f, -13f, 30f, -73f, 13f, Color(0xFF657080), Color(0xFF343D4B))
-  drawBatteryBox(projection, -23f, -94f, -7f, -15f, -80f, 7f, Color(0xFF394454), Color(0xFF161E2A))
-  drawBatteryBox(projection, 15f, -94f, -7f, 23f, -80f, 7f, Color(0xFF394454), Color(0xFF161E2A))
-  drawBatteryBox(projection, -23f, -99f, -7f, 23f, -91f, 7f, Color(0xFF637185), Color(0xFF26303F))
-  drawBatteryBox(projection, -43f, -74f, -21f, 43f, 75f, 21f, Color(0xFF596576), Color(0xFF171F2C))
+  drawBatteryBox(projection, -30f, -83f, -13f, 30f, -73f, 13f, Color(0xFF657080), Color(0xFF343D4B), boxDepths, boxOrder, boxPath)
+  drawBatteryBox(projection, -23f, -94f, -7f, -15f, -80f, 7f, Color(0xFF394454), Color(0xFF161E2A), boxDepths, boxOrder, boxPath)
+  drawBatteryBox(projection, 15f, -94f, -7f, 23f, -80f, 7f, Color(0xFF394454), Color(0xFF161E2A), boxDepths, boxOrder, boxPath)
+  drawBatteryBox(projection, -23f, -99f, -7f, 23f, -91f, 7f, Color(0xFF637185), Color(0xFF26303F), boxDepths, boxOrder, boxPath)
+  drawBatteryBox(projection, -43f, -74f, -21f, 43f, 75f, 21f, Color(0xFF596576), Color(0xFF171F2C), boxDepths, boxOrder, boxPath)
 
   // The front panel is a translucent window into ten charge segments.
   val front = projection.panel(-41f, -72f, 41f, 73f, 21.1f, 5f)
@@ -236,26 +265,98 @@ private fun DrawScope.drawBatterySculpture(charge: Float, percent: Int?, drag: F
   drawLine(energy.copy(alpha = if (percent == null) 0.15f else 0.75f), projection.at(-6f, -65f, 22f), projection.at(6f, -65f, 22f), 1.6f * scale, StrokeCap.Round)
 }
 
+/** Corner indices + the 6 quad faces of a box, in the original template order. */
+private val BoxFaces = arrayOf(
+  intArrayOf(0, 1, 5, 4), intArrayOf(3, 2, 6, 7), intArrayOf(0, 3, 7, 4),
+  intArrayOf(1, 2, 6, 5), intArrayOf(0, 1, 2, 3), intArrayOf(4, 5, 6, 7),
+)
+
+private val BoxCornerScratch = ThreadLocal.withInitial { FloatArray(24) }
+
+/**
+ * 3D geometry per frame without per-frame allocation.
+ *
+ * The previous implementation built two `List`s, eight `BatteryPoint`s and six
+ * `Path`s on every frame the battery sculpture was drawn. [drawBatteryBox]
+ * now keeps the corners in a reusable [FloatArray], the face depths/order in
+ * reusable primitive arrays, and draws all six faces through one reused
+ * [Path]. Faces are still painted back-to-front by average depth, using a
+ * stable insertion sort that is order-identical to the old `sortedBy` (equal
+ * sums keep template order) but allocates nothing.
+ */
 private fun DrawScope.drawBatteryBox(
   projection: BatteryProjection,
   left: Float, top: Float, back: Float,
   right: Float, bottom: Float, front: Float,
   highlight: Color, shadow: Color,
+  depths: FloatArray,
+  order: IntArray,
+  path: Path,
 ) {
-  val vertices = listOf(
-    BatteryPoint(left, top, back), BatteryPoint(right, top, back),
-    BatteryPoint(right, bottom, back), BatteryPoint(left, bottom, back),
-    BatteryPoint(left, top, front), BatteryPoint(right, top, front),
-    BatteryPoint(right, bottom, front), BatteryPoint(left, bottom, front),
-  )
-  val faces = listOf(
-    listOf(0, 1, 5, 4), listOf(3, 2, 6, 7), listOf(0, 3, 7, 4),
-    listOf(1, 2, 6, 5), listOf(0, 1, 2, 3), listOf(4, 5, 6, 7),
-  ).sortedBy { indices -> indices.sumOf { projection.project(vertices[it]).depth.toDouble() } }
-  faces.forEach { indices ->
-    val points = indices.map { vertices[it] }
-    val path = projection.path(points)
-    drawPath(path, Brush.linearGradient(listOf(highlight, shadow), projection.project(points.first()).position, projection.project(points[2]).position))
+  val c = BoxCornerScratch.get() ?: FloatArray(24)
+  fun corner(slot: Int, x: Float, y: Float, z: Float) {
+    val base = slot * 3
+    c[base] = x; c[base + 1] = y; c[base + 2] = z
+  }
+  corner(0, left, top, back)
+  corner(1, right, top, back)
+  corner(2, right, bottom, back)
+  corner(3, left, bottom, back)
+  corner(4, left, top, front)
+  corner(5, right, top, front)
+  corner(6, right, bottom, front)
+  corner(7, left, bottom, front)
+
+  var index = 0
+  while (index < BoxFaces.size) {
+    val face = BoxFaces[index]
+    var sum = 0f
+    var vertex = 0
+    while (vertex < 4) {
+      val corner = face[vertex] * 3
+      sum += projection.project(c[corner], c[corner + 1], c[corner + 2]).depth
+      vertex++
+    }
+    depths[index] = sum
+    order[index] = index
+    index++
+  }
+  index = 1
+  while (index < BoxFaces.size) {
+    val current = order[index]
+    val key = depths[current]
+    var scan = index - 1
+    while (scan >= 0 && depths[order[scan]] > key) {
+      order[scan + 1] = order[scan]
+      scan--
+    }
+    order[scan + 1] = current
+    index++
+  }
+
+  index = 0
+  while (index < BoxFaces.size) {
+    val face = BoxFaces[order[index]]
+    path.reset()
+    var vertex = 0
+    while (vertex < 4) {
+      val corner = face[vertex] * 3
+      val projected = projection.project(c[corner], c[corner + 1], c[corner + 2]).position
+      if (vertex == 0) path.moveTo(projected.x, projected.y) else path.lineTo(projected.x, projected.y)
+      vertex++
+    }
+    path.close()
+    val first = face[0] * 3
+    val third = face[2] * 3
+    drawPath(
+      path,
+      Brush.linearGradient(
+        listOf(highlight, shadow),
+        projection.project(c[first], c[first + 1], c[first + 2]).position,
+        projection.project(c[third], c[third + 1], c[third + 2]).position,
+      ),
+    )
     drawPath(path, highlight.copy(alpha = 0.24f), style = Stroke(0.6.dp.toPx()))
+    index++
   }
 }

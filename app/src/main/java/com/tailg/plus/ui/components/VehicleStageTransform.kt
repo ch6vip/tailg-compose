@@ -36,9 +36,15 @@ internal fun vehicleStageTransform(width: Float, height: Float): VehicleStageTra
 internal fun VehicleStageTransform.mapViewBox(x: Float, y: Float): Pair<Float, Float> =
   (originX + x * scale) to (originY + y * scale)
 
-internal fun isRemoteVehicleImageUrl(url: String): Boolean =
-  url.startsWith("https://", ignoreCase = true) ||
-    url.startsWith("http://", ignoreCase = true)
+internal fun isRemoteVehicleImageUrl(url: String): Boolean {
+  if (!url.startsWith("https://", ignoreCase = true)) return false
+  val host = runCatching { java.net.URI(url).host }.getOrNull()
+    ?.trim()?.trimEnd('.')?.lowercase() ?: return false
+  return host == "www.tailgdd.com" ||
+    host == "tailgdd.com" ||
+    host.endsWith(".tailgdd.com") ||
+    host == "cdn.tailg.com"
+}
 
 /**
  * Decode target for vehicle photos: the illustration slot is at most a few

@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.os.Handler
 import android.os.Looper
 import android.webkit.JavascriptInterface
+import android.webkit.WebResourceRequest
 import android.webkit.WebSettings
 import android.webkit.WebView
 import android.webkit.WebViewClient
@@ -83,9 +84,11 @@ fun CaptchaSliderDialog(
         // HTTP subresources to reach it. COMPATIBILITY_MODE still blocks
         // blockable mixed content (scripts) while not breaking image loading.
         mixedContentMode = WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE
+        allowFileAccess = false
+        allowContentAccess = false
       }
       registerCaptchaBridge(this, bridge)
-      webViewClient = WebViewClient()
+      webViewClient = CaptchaWebViewClient { failed = true }
       loadUrl(CAPTCHA_URL)
     }
   }
@@ -220,6 +223,46 @@ internal class CaptchaJsInterface(
   fun setError(errorCode: String) {
     handler.post { if (!closed && !delivered) onError(errorCode) }
   }
+}
+/**
+ * Restrict captcha navigation to the official host. The JS bridge stays
+ * registered for the WebView lifetime; leaving `www.tailgdd.com` (or
+ * `file:` / `content:`) would let a redirected page call `setSmsInfo`.
+ */
+internal class CaptchaWebViewClient(
+  private val onBlocked: () -> Unit,
+) : WebViewClient() {
+  override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
+    val url = request?.url ?: return true
+    if (request.isForMainFrame && !isAllowedCaptchaUrl(url.scheme, url.host)) {
+      onBlocked()
+      return true
+    }
+    return false
+  }
+
+  @Deprecated("Deprecated in API 24; kept for minSdk 26 devices")
+  override fun shouldOverrideUrlLoading(view: WebView?, url: String?): Boolean {
+    val parsed = runCatching { android.net.Uri.parse(url) }.getOrNull()
+    if (parsed != null && isAllowedCaptchaUrl(parsed.scheme, parsed.host)) return false
+    onBlocked()
+    return true
+  }
+}
+
+internal fun isAllowedCaptchaUrl(scheme: String?, host: String?): Boolean {
+  if (scheme.isNullOrBlank()) return true
+  if (scheme.equals("about", ignoreCase = true) || scheme.equals("javascript", ignoreCase = true)) {
+    return true
+  }
+  if (!scheme.equals("https", ignoreCase = true)) return false
+  val normalized = host?.trim()?.trimEnd('.')?.lowercase().orEmpty()
+  if (normalized.isEmpty()) return true
+  return normalized == "www.tailgdd.com" ||
+    normalized == "tailgdd.com" ||
+    normalized.endsWith(".tailgdd.com") ||
+    normalized == "captcha.qq.com" ||
+    normalized == "turing.captcha.qcloud.com"
 }
 
 private const val CAPTCHA_URL = "https://www.tailgdd.com/document/appCode.html"

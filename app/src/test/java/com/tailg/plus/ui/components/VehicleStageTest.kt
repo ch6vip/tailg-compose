@@ -108,8 +108,12 @@ class VehicleStageTest {
 
   @Test
   fun remoteImageUrlDetection() {
-    assertTrue(isRemoteVehicleImageUrl("https://cdn.example/car.png"))
-    assertTrue(isRemoteVehicleImageUrl("HTTP://cdn.example/car.png"))
+    assertTrue(isRemoteVehicleImageUrl("https://www.tailgdd.com/car.png"))
+    assertTrue(isRemoteVehicleImageUrl("https://cdn.tailg.com/car.png"))
+    assertFalse(isRemoteVehicleImageUrl("https://oss.aliyuncs.com/car.png"))
+    assertFalse(isRemoteVehicleImageUrl("https://attacker.oss-cn-hangzhou.aliyuncs.com/x.png"))
+    assertFalse(isRemoteVehicleImageUrl("https://cdn.example/car.png"))
+    assertFalse(isRemoteVehicleImageUrl("HTTP://www.tailgdd.com/car.png"))
     assertFalse(isRemoteVehicleImageUrl(""))
     assertFalse(isRemoteVehicleImageUrl("drawable://bike"))
     assertFalse(isRemoteVehicleImageUrl("ftp://cdn.example/car.png"))

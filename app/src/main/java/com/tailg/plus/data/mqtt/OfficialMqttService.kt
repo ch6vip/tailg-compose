@@ -943,7 +943,7 @@ class OfficialMqttService(
             // QoS 0 fire-and-forget, matching ControlFragment.mqttPublish.
             client.publish(topic, message)
         }
-        log.operation("官方 MQTT 已发令: $commandApiName", detail = "topic=$topic payload=$payload")
+        log.operation("官方 MQTT 已发令: $commandApiName", detail = "topic=$topic")
     }
 
     private fun setPending(apiName: String, error: String?) {

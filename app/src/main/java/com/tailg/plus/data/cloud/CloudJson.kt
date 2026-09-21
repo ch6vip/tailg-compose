@@ -13,7 +13,7 @@ import com.squareup.moshi.Moshi
  * `null`); every consumer here is lenient (`fromJson` / `parsePersisted*`
  * default missing keys), so round-trips are unaffected.
  */
-internal object CloudJson {
+object CloudJson {
     /** Single shared plain-Moshi instance for the cloud module. */
     internal val moshi: Moshi = Moshi.Builder().build()
     private val adapter: JsonAdapter<Any> = moshi.adapter(Any::class.java)

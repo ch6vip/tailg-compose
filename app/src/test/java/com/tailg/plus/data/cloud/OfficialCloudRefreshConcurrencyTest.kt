@@ -9,6 +9,7 @@ import com.tailg.plus.data.model.OfficialTravelDay
 import com.tailg.plus.data.model.OfficialVehicle
 import com.tailg.plus.data.model.OfficialVehicleLocation
 import io.mockk.coEvery
+import io.mockk.coVerify
 import io.mockk.every
 import io.mockk.mockk
 import kotlinx.coroutines.CancellationException
@@ -271,5 +272,27 @@ class OfficialCloudRefreshConcurrencyTest {
 
     assertTrue(request.isCancelled)
     assertNull(service.currentState.batteryInfoError)
+  }
+
+  @Test
+  fun failedRefreshDoesNotLookSuccessfulToWaiters() = runTest {
+    val gate = CompletableDeferred<Unit>()
+    val requests = java.util.concurrent.atomic.AtomicInteger()
+    val api = mockk<OfficialCloudApiClientInterface>()
+    every { api.config } returns OfficialCloudApiConfig()
+    coEvery { api.request(any(), any(), any(), any(), any()) } coAnswers {
+      requests.incrementAndGet()
+      gate.await()
+      throw OfficialCloudApiException("boom")
+    }
+    val service = service(api, backgroundScope)
+    val first = async { runCatching { service.refreshVehicles(silent = false) } }
+    testScheduler.runCurrent()
+    val second = async { runCatching { service.refreshVehicles(silent = true) } }
+    testScheduler.runCurrent()
+    gate.complete(Unit)
+    assertTrue(first.await().isFailure)
+    assertTrue(second.await().isFailure)
+    assertEquals(1, requests.get())
   }
 }

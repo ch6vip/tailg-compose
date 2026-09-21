@@ -88,9 +88,15 @@ class OfficialCloudApiConfig(
 ) {
     /** Resolve a relative API path against [apiBase] (Dart `Uri.resolve`). */
     fun resolve(path: String): HttpUrl {
+        require(!path.contains("://")) { "官方接口路径不允许绝对 URL: $path" }
         val base = apiBase.trimEnd('/') + "/"
-        return base.toHttpUrl().resolve(path)
+        val resolved = base.toHttpUrl().resolve(path)
             ?: throw IllegalArgumentException("无法解析官方接口路径: $path")
+        val expectedHost = base.toHttpUrl().host
+        require(resolved.host == expectedHost && resolved.scheme == "https") {
+            "官方接口路径必须留在 $expectedHost: $path"
+        }
+        return resolved
     }
 
     /** Exponential-ish backoff: base * (attempt + 1). */

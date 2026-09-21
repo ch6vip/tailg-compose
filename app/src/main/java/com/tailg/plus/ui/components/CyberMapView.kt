@@ -1,5 +1,7 @@
 package com.tailg.plus.ui.components
 
+import android.os.SystemClock
+
 import android.view.ViewGroup
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
@@ -66,6 +68,12 @@ fun circleGeoPoints(center: GeoPoint, radiusMeters: Double, segments: Int = 64):
   }
 }
 
+/** Minimum pin movement before the map re-centres (metres). */
+private const val CAMERA_FOLLOW_MIN_METERS = 8.0
+
+/** Minimum time between camera re-centres (ms). */
+private const val CAMERA_FOLLOW_MIN_INTERVAL_MS = 1000L
+
 /** Remembers the last camera target so recompositions never fight user gestures. */
 private class CameraTarget {
   var centerLat: Double? = null
@@ -73,6 +81,14 @@ private class CameraTarget {
   var trackKey: List<Pair<Double, Double>>? = null
   var initialized = false
   var disposed = false
+
+  /**
+   * Anchor of the last `animateTo` (position + uptime). Compared against the
+   * incoming fix so GPS jitter does not restart the camera animation.
+   */
+  var lastAnimateLat: Double? = null
+  var lastAnimateLng: Double? = null
+  var lastAnimateAtMs: Long = 0L
 }
 
 private data class MapDataKey(
@@ -158,6 +174,21 @@ fun CyberMapView(
   val hasCenter = isValidCoordinate(latitude, longitude)
   val validTrackPoints = remember(trackPoints) {
     trackPoints.filter { isValidCoordinate(it.latitude, it.longitude) }
+  }
+
+  // Derived once per input change instead of once per `AndroidView.update`
+  // call. `update` runs on every recomposition — live location tracking,
+  // loading flags, fence toggles — and this used to rebuild the GeoPoint, the
+  // `List<Pair>` track key and the MapDataKey each time: three fresh copies of
+  // a several-hundred-point track per recomposition.
+  val center = remember(latitude, longitude) {
+    if (isValidCoordinate(latitude, longitude)) GeoPoint(latitude!!, longitude!!) else null
+  }
+  val trackKey = remember(validTrackPoints) {
+    if (validTrackPoints.size >= 2) validTrackPoints.map { it.latitude to it.longitude } else null
+  }
+  val dataKey = remember(latitude, longitude, fenceRadiusMeters, fenceEnabled, showVehiclePin, trackKey) {
+    MapDataKey(latitude, longitude, fenceRadiusMeters, fenceEnabled, showVehiclePin, trackKey)
   }
 
   // No coordinate → nothing to show: skip creating the osmdroid MapView
@@ -274,14 +305,9 @@ fun CyberMapView(
           }
         }
 
-        val center: GeoPoint? = if (hasCenter) GeoPoint(latitude!!, longitude!!) else null
-        val hasTrack = validTrackPoints.size >= 2
-        val trackKey = if (hasTrack) {
-          validTrackPoints.map { it.latitude to it.longitude }
-        } else {
-          null
-        }
-        val dataKey = MapDataKey(latitude, longitude, fenceRadiusMeters, fenceEnabled, showVehiclePin, trackKey)
+        // `center` / `trackKey` / `dataKey` are hoisted above: they only depend
+        // on the map inputs, not on how many times `update` has run.
+        val hasTrack = trackKey != null
         if (dataKey != overlayState.dataKey) {
         overlayState.dataKey = dataKey
 
@@ -330,7 +356,25 @@ fun CyberMapView(
             camera.trackKey = null
             camera.centerLat = center.latitude
             camera.centerLng = center.longitude
-            view.controller.animateTo(center)
+            // GPS jitter moves a stationary fix by a metre or two on every
+            // emission. Calling animateTo for each of those restarts the pan
+            // animation continuously and makes osmdroid re-request tiles for a
+            // viewport that never really moved. Follow only when the pin has
+            // drifted far enough AND the previous animation has settled; the
+            // anchors below latch, so small moves accumulate instead of being
+            // dropped.
+            val now = SystemClock.uptimeMillis()
+            val anchorLat = camera.lastAnimateLat
+            val anchorLng = camera.lastAnimateLng
+            val drifted = anchorLat == null || anchorLng == null ||
+              GeoPoint(anchorLat, anchorLng).distanceToAsDouble(center) >= CAMERA_FOLLOW_MIN_METERS
+            val cooledDown = now - camera.lastAnimateAtMs >= CAMERA_FOLLOW_MIN_INTERVAL_MS
+            if (drifted && cooledDown) {
+              camera.lastAnimateLat = center.latitude
+              camera.lastAnimateLng = center.longitude
+              camera.lastAnimateAtMs = now
+              view.controller.animateTo(center)
+            }
           }
           center == null && !camera.initialized -> {
             camera.initialized = true

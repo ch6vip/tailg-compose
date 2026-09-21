@@ -31,6 +31,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -539,6 +540,7 @@ private fun StatusChip(label: String, color: androidx.compose.ui.graphics.Color)
  * login gating + the vehicle list. Emissions that leave these fields unchanged
  * (battery refresh, message arrival, travel flips) no longer recompose the page.
  */
+@Immutable
 private data class CloudScreenSlice(
   val signedIn: Boolean,
   val loading: Boolean,

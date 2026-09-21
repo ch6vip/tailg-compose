@@ -36,6 +36,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -1352,6 +1353,7 @@ private fun GarageVehicleCodeSheet(
  * only battery/message/travel fields produces an equal slice and is dropped
  * before it can recompose the garage page.
  */
+@Immutable
 private data class GarageCloudSlice(
   val signedIn: Boolean,
   val vehicles: List<OfficialVehicle>,

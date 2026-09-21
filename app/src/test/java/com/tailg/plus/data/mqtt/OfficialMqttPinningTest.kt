@@ -75,6 +75,17 @@ class OfficialMqttPinningTest {
         }
     }
 
+    @Test
+    fun trustManagerRejectsExpiredPinnedCertificate() {
+        val expired = mockk<X509Certificate>()
+        every { expired.publicKey } returns OfficialMqttPinning.pinnedCertificate.publicKey
+        every { expired.subjectX500Principal } returns OfficialMqttPinning.pinnedCertificate.subjectX500Principal
+        every { expired.checkValidity() } throws java.security.cert.CertificateExpiredException("expired")
+        assertThrows(CertificateException::class.java) {
+            PinnedTrustManager().checkServerTrusted(arrayOf(expired), "EC")
+        }
+    }
+
     private fun certificateWithKey(encoded: ByteArray): X509Certificate {
         val key = mockk<PublicKey>()
         every { key.encoded } returns encoded
@@ -83,6 +94,7 @@ class OfficialMqttPinningTest {
         val cert = mockk<X509Certificate>()
         every { cert.publicKey } returns key
         every { cert.subjectX500Principal } returns principal
+        every { cert.checkValidity() } returns Unit
         return cert
     }
 }

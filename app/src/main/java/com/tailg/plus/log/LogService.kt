@@ -3,9 +3,9 @@ package com.tailg.plus.log
 import com.tailg.plus.util.SensitiveTextRedactor
 import java.time.LocalDateTime
 import java.util.ArrayDeque
-import kotlinx.coroutines.flow.MutableSharedFlow
-import kotlinx.coroutines.flow.SharedFlow
-import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /** Dart `enum LogLevel { debug, info, warning, error }`. */
 enum class LogLevel { DEBUG, INFO, WARNING, ERROR }
@@ -40,9 +40,9 @@ data class LogEntry(
  * but BLE/MQTT callbacks and UI reads here can come from different threads,
  * so all buffer mutations are guarded by a lock.
  *
- * Change notification: Dart broadcast `StreamController<void>` → `SharedFlow`
- * of [Unit]. Pings are dropped when nobody subscribes, matching the Dart
- * `hasListener` guard. UI can collect [changes] to rebuild its list.
+ * Change notification: Dart broadcast `StreamController<void>` → [changes],
+ * a `StateFlow` generation counter. The counter is bumped on every mutation,
+ * so the UI can key its snapshot cache on its value.
  */
 class LogService(
     clock: () -> LocalDateTime = { LocalDateTime.now() },
@@ -51,6 +51,12 @@ class LogService(
     companion object {
         private const val MAX_ENTRIES = 2000
         private val LOGIN_HINT = Regex("(登录|login)", RegexOption.IGNORE_CASE)
+
+        /**
+         * Quiet-window width used by UI collectors to coalesce log bursts.
+         * Lives here so every screen debounces [changes] by the same amount.
+         */
+        const val REFRESH_DEBOUNCE_MS = 120L
     }
 
     private val lock = Any()
@@ -58,8 +64,22 @@ class LogService(
     private var _evictedCount = 0
     private var clock: () -> LocalDateTime = clock
 
-    private val _changes = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
-    val changes: SharedFlow<Unit> = _changes.asSharedFlow()
+    // Note: 代次计数器而非 SharedFlow<Unit>，以及本轮全部帧预算修复 — 见
+    // .agents/notes/implemented/architecture/2026-09-21-frame-budget-cleanup.md
+    /**
+     * Change notification: Dart broadcast `StreamController<void>` → a
+     * `StateFlow` generation counter.
+     *
+     * The old shape was `SharedFlow<Unit>`: a ping carried no value, so every
+     * collector had to keep a parallel counter of its own just to have
+     * something usable as a `remember` key, and debouncing was re-implemented
+     * at each call site. The generation value *is* the key.
+     */
+    private val _changes = MutableStateFlow(0L)
+    val changes: StateFlow<Long> = _changes.asStateFlow()
+
+    /** Current [changes] value — usable directly as a `remember` key. */
+    val generation: Long get() = _changes.value
 
     /** Snapshot of all entries (newest last). */
     val all: List<LogEntry>
@@ -86,7 +106,7 @@ class LogService(
     /**
      * Dart `resetForTest({clock})`: clear + replace the clock. The Dart
      * version also recreates the stream controller after `dispose`; a
-     * `SharedFlow` cannot be closed, so nothing needs recreating here.
+     * `StateFlow` cannot be closed either, so nothing needs recreating here.
      */
     fun resetForTest(clock: (() -> LocalDateTime)? = null) {
         clear()
@@ -152,7 +172,7 @@ class LogService(
                 _logs.removeFirst()
                 _evictedCount++
             }
-            _changes.tryEmit(Unit)
+            _changes.value += 1
         }
     }
 
@@ -161,7 +181,7 @@ class LogService(
         synchronized(lock) {
             _logs.clear()
             _evictedCount = 0
-            _changes.tryEmit(Unit)
+            _changes.value += 1
         }
     }
 

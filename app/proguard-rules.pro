@@ -45,9 +45,6 @@
 -keep class org.eclipse.paho.** { *; }
 -dontwarn org.eclipse.paho.**
 
-# ---- Lottie ----
--dontwarn com.airbnb.lottie.**
-
 # ---- CameraX / ML Kit / Play services ----
 -dontwarn androidx.camera.**
 -dontwarn com.google.mlkit.**

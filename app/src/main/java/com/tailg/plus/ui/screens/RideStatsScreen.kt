@@ -438,6 +438,12 @@ private fun HeroDial(
   val sky = Color(0xFF4FC3FF)
   val accent = CyberHomeColors.rideAccent
   val card = CyberHomeColors.card
+  // Keyed on the palette colour: `Box.background(brush)` otherwise builds a new
+  // gradient (and, at draw time, a new shader) on every recomposition of this
+  // screen — which happens on each ride-stat refresh.
+  val glowBrush = remember(primary) {
+    Brush.radialGradient(listOf(primary.copy(alpha = 0.14f), Color.Transparent))
+  }
 
   Column(
     modifier = Modifier
@@ -453,10 +459,7 @@ private fun HeroDial(
       Box(
         modifier = Modifier
           .size(250.dp)
-          .background(
-            Brush.radialGradient(listOf(primary.copy(alpha = 0.14f), Color.Transparent)),
-            CircleShape,
-          ),
+          .background(glowBrush, CircleShape),
       )
       Canvas(modifier = Modifier.size(206.dp)) {
         val stroke = 13.dp.toPx()
@@ -638,10 +641,15 @@ private fun BreakdownBar(
     label = "breakdownBar",
   )
   val value = OfficialRideStatistics.formatMileage(rawValue, distanceUnit)
-  val barBrush = if (highlighted) {
-    Brush.horizontalGradient(listOf(CyberHomeColors.primary, Color(0xFF4FC3FF)))
-  } else {
-    Brush.horizontalGradient(listOf(CyberHomeColors.controlStrong, CyberHomeColors.controlStrong))
+  val barPrimary = CyberHomeColors.primary
+  val barStrong = CyberHomeColors.controlStrong
+  // One brush per highlight state instead of one per recomposition.
+  val barBrush = remember(highlighted, barPrimary, barStrong) {
+    if (highlighted) {
+      Brush.horizontalGradient(listOf(barPrimary, Color(0xFF4FC3FF)))
+    } else {
+      Brush.horizontalGradient(listOf(barStrong, barStrong))
+    }
   }
 
   Row(

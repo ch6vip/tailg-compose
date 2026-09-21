@@ -120,3 +120,22 @@ class OfficialCloudApiClientTest {
     }
   }
 }
+
+class OfficialCloudApiConfigResolveTest {
+  @Test
+  fun relativePathStaysOnOfficialHost() {
+    val url = OfficialCloudApiConfig().resolve("app/login")
+    org.junit.Assert.assertEquals("www.tailgdd.com", url.host)
+    org.junit.Assert.assertTrue(url.encodedPath.contains("app/login"))
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun absoluteUrlIsRejected() {
+    OfficialCloudApiConfig().resolve("https://evil.example/steal")
+  }
+
+  @Test(expected = IllegalArgumentException::class)
+  fun hostOverrideRelativePathIsRejected() {
+    OfficialCloudApiConfig().resolve("//evil.example/steal")
+  }
+}

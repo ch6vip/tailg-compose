@@ -22,3 +22,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "tailg-compose"
 include(":app")
+// Macrobenchmark harness: a separate com.android.test module that drives the
+// `benchmark` build type of :app (see app/build.gradle.kts + macrobenchmark/).
+include(":macrobenchmark")

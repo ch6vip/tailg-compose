@@ -1,0 +1,35 @@
+# Macrobenchmark test APK keep rules.
+#
+# AGP 9 reads keep rules for a module from `src/<sourceSet>/keepRules/` (the
+# task log shows it probing exactly that path). `proguardFiles { }` on the
+# com.android.test build type is NOT consulted, which is why the rules below
+# live here rather than in a module-root proguard-rules.pro.
+#
+# The `benchmark` build type of this module is R8-minified on purpose: the
+# tested APK is :app:benchmark, which is shrunk, and AGP's
+# checkTestedAppObfuscation<BuildType> task refuses to run an unshrunk test APK
+# against a shrunk target ("Mapping file found in tested application").
+
+# The test classes and their JUnit entry points are discovered reflectively by
+# the instrumentation runner, so they must survive shrinking.
+-keep class com.tailg.plus.macrobenchmark.** { *; }
+
+-keepattributes RuntimeVisibleAnnotations,RuntimeVisibleParameterAnnotations,AnnotationDefault,Signature,InnerClasses,EnclosingMethod
+
+-dontwarn org.junit.**
+-dontwarn androidx.test.**
+-dontwarn androidx.benchmark.**
+
+# Optional / compile-only dependencies of the AndroidX benchmark + test
+# libraries. They are absent from this APK's runtime classpath, so R8 reports
+# them as missing. AGP proposes these same rules in
+# build/outputs/mapping/benchmark/missing_rules.txt; they cover code paths the
+# harness never executes here (JSON result writing, arch-core internals,
+# JSR-305/errorprone annotations).
+-dontwarn androidx.arch.core.executor.ArchTaskExecutor
+-dontwarn androidx.arch.core.internal.FastSafeIterableMap
+-dontwarn androidx.arch.core.internal.SafeIterableMap$IteratorWithAdditions
+-dontwarn androidx.profileinstaller.ProfileInstallReceiver
+-dontwarn androidx.startup.Initializer
+-dontwarn com.google.errorprone.annotations.**
+-dontwarn com.squareup.moshi.**

@@ -125,6 +125,17 @@ internal sealed interface GattEvent {
   ) : GattEvent
   data class MtuChanged(val mtu: Int, val status: Int) : GattEvent
   data class ReadRemoteRssi(val rssi: Int, val status: Int) : GattEvent
+  fun isLifecycle(): Boolean = when (this) {
+    is ConnectionStateChanged,
+    is ServicesDiscovered,
+    is CharacteristicRead,
+    is CharacteristicWrite,
+    is DescriptorWrite,
+    is MtuChanged,
+    is ReadRemoteRssi,
+    -> true
+    is CharacteristicChanged -> false
+  }
 }
 
 /**

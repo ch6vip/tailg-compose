@@ -103,6 +103,13 @@ internal class PinnedTrustManager : X509TrustManager {
     override fun checkServerTrusted(chain: Array<X509Certificate>, authType: String) {
         val leaf = chain.firstOrNull()
             ?: throw CertificateException("empty server certificate chain")
+        try {
+            leaf.checkValidity()
+        } catch (e: java.security.cert.CertificateExpiredException) {
+            throw CertificateException("pinned official certificate is expired", e)
+        } catch (e: java.security.cert.CertificateNotYetValidException) {
+            throw CertificateException("pinned official certificate is not yet valid", e)
+        }
         if (!OfficialMqttPinning.isPinned(leaf)) {
             throw CertificateException(
                 "server certificate does not match the pinned official key " +
@@ -110,7 +117,6 @@ internal class PinnedTrustManager : X509TrustManager {
             )
         }
     }
-
     override fun getAcceptedIssuers(): Array<X509Certificate> =
         arrayOf(OfficialMqttPinning.pinnedCertificate)
 }

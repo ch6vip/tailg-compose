@@ -14,6 +14,8 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -27,10 +29,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
@@ -261,62 +261,85 @@ fun ScanScreen(
         .fillMaxSize()
         .padding(padding),
     ) {
-      Column(
-        modifier = Modifier
-          .fillMaxSize()
-          .verticalScroll(rememberScrollState()),
-      ) {
-        CyberPageHeader(title = stringResource(R.string.scan_search), onBack = onBack)
+      // The body used to be a `Column` inside `verticalScroll`, so the BLE
+      // result list could not be virtualised: every newly discovered device
+      // recomposed every card already on screen. The list is now the scroll
+      // container itself — the static chrome becomes leading items — and the
+      // results are keyed by device address, so a new device only composes its
+      // own card. (A `LazyColumn` nested in `verticalScroll` would throw, so
+      // the two cannot coexist.)
+      LazyColumn(modifier = Modifier.fillMaxSize()) {
+        item {
+          CyberPageHeader(title = stringResource(R.string.scan_search), onBack = onBack)
+        }
         if (!bluetoothOn) {
-          ScanHintCard(
-            icon = Lucide.bluetoothOff,
-            title = stringResource(R.string.scan_ble_off),
-            subtitle = stringResource(R.string.scan_ble_off_hint),
-          )
+          item {
+            ScanHintCard(
+              icon = Lucide.bluetoothOff,
+              title = stringResource(R.string.scan_ble_off),
+              subtitle = stringResource(R.string.scan_ble_off_hint),
+            )
+          }
         }
-        Spacer(Modifier.height(16.dp))
-        RadarWidget(scanning = scanning)
-        Spacer(Modifier.height(20.dp))
-        Column(
-          modifier = Modifier.fillMaxWidth(),
-          horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-          Text(
-            text = when {
-              !bluetoothOn -> stringResource(R.string.scan_ble_waiting)
-              scanning -> stringResource(R.string.scan_searching)
-              else -> stringResource(R.string.scan_search_hint)
-            },
-            style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
-          )
-          Spacer(Modifier.height(4.dp))
-          Text(
-            text = stringResource(R.string.scan_ble_ensure),
-            style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
-          )
+        item { Spacer(Modifier.height(16.dp)) }
+        item { RadarWidget(scanning = scanning) }
+        item { Spacer(Modifier.height(20.dp)) }
+        item {
+          Column(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally,
+          ) {
+            Text(
+              text = when {
+                !bluetoothOn -> stringResource(R.string.scan_ble_waiting)
+                scanning -> stringResource(R.string.scan_searching)
+                else -> stringResource(R.string.scan_search_hint)
+              },
+              style = TextStyle(fontSize = 15.sp, fontWeight = FontWeight.W700, color = CyberHomeColors.ink),
+            )
+            Spacer(Modifier.height(4.dp))
+            Text(
+              text = stringResource(R.string.scan_ble_ensure),
+              style = TextStyle(fontSize = 12.sp, color = CyberHomeColors.inkFaint),
+            )
+          }
         }
-        Spacer(Modifier.height(20.dp))
-        DeviceList(
-          results = results,
-          connectingRemoteId = connectingRemoteId,
-          onTap = { device ->
-            if (connectingRemoteId != null) return@DeviceList
-            // Stop scanning before connecting (Dart `_stopScan` in `_connectDevice`).
-            scanning = false
-            connectingRemoteId = device.id
-            // Delegate to the host callback; clear the connecting state once
-            // the host returns. The real ConnectionManager.connect() is a
-            // suspend call the host can await before popping the back stack.
-            scope.launch {
-              try {
-                onConnectDevice(device.id, device.name)
-              } finally {
-                connectingRemoteId = null
-              }
-            }
-          },
-        )
-        Spacer(Modifier.height(80.dp))
+        item { Spacer(Modifier.height(20.dp)) }
+        // 5dp vertical padding per card === the previous `spacedBy(10.dp)`.
+        itemsIndexed(
+          items = results,
+          // `ScanDevice.id` falls back to "" when the BLUETOOTH_CONNECT
+          // permission is revoked mid-scan and the address cannot be read. A
+          // duplicate key crashes LazyColumn at composition time, so key on the
+          // position when the id is unusable.
+          key = { index, device -> device.id.ifEmpty { "unknown-$index" } },
+          contentType = { _, _ -> "scan-device" },
+        ) { _, device ->
+          Box(modifier = Modifier.padding(horizontal = 20.dp, vertical = 5.dp)) {
+            DeviceCard(
+              device = device,
+              connecting = connectingRemoteId == device.id,
+              disabled = connectingRemoteId != null && connectingRemoteId != device.id,
+              onTap = {
+                if (connectingRemoteId != null) return@DeviceCard
+                // Stop scanning before connecting (Dart `_stopScan` in `_connectDevice`).
+                scanning = false
+                connectingRemoteId = device.id
+                // Delegate to the host callback; clear the connecting state once
+                // the host returns. The real ConnectionManager.connect() is a
+                // suspend call the host can await before popping the back stack.
+                scope.launch {
+                  try {
+                    onConnectDevice(device.id, device.name)
+                  } finally {
+                    connectingRemoteId = null
+                  }
+                }
+              },
+            )
+          }
+        }
+        item { Spacer(Modifier.height(80.dp)) }
       }
 
       // Scan FAB.
@@ -554,29 +577,6 @@ private fun ScanHintCard(
 
 // ── Device list ─────────────────────────────────────────────────────────
 
-@Composable
-private fun DeviceList(
-  results: List<ScanDevice>,
-  connectingRemoteId: String?,
-  onTap: (ScanDevice) -> Unit,
-) {
-  if (results.isEmpty()) return
-  Column(
-    modifier = Modifier
-      .fillMaxWidth()
-      .padding(horizontal = 20.dp),
-    verticalArrangement = Arrangement.spacedBy(10.dp),
-  ) {
-    results.forEach { device ->
-      DeviceCard(
-        device = device,
-        connecting = connectingRemoteId == device.id,
-        disabled = connectingRemoteId != null && connectingRemoteId != device.id,
-        onTap = { onTap(device) },
-      )
-    }
-  }
-}
 
 @Composable
 private fun DeviceCard(

@@ -52,8 +52,8 @@ import com.tailg.plus.data.ble.CommandCode
 import com.tailg.plus.data.ble.CommandResponse
 import com.tailg.plus.data.ble.ModelType
 import com.tailg.plus.data.ble.ParsedResponse
-import com.tailg.plus.data.ble.QgjCommandIds
 import com.tailg.plus.data.ble.QgjResponse
+import com.tailg.plus.data.ble.QgjCommandIds
 import com.tailg.plus.data.ble.RidingMode
 import com.tailg.plus.data.ble.StateResponse
 import com.tailg.plus.data.ble.TLINK_INDUCTION_CHECK_PLAIN
@@ -119,6 +119,8 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.selects.select
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -146,6 +148,13 @@ class ConnectionManager(
 
     /** Android `GATT_ERROR` (0x85 = 133) — flutter_blue_plus reports it as "android-code: 133". */
     private const val GATT_STATUS_ERROR = 133
+
+    /**
+     * Depth of `gattEvents` (notifications). Lifecycle events use
+     * [gattLifecycleEvents] so a notify storm cannot drop CONNECTED /
+     * DISCONNECTED / write ACKs.
+     */
+    private const val GATT_EVENT_CAPACITY = 512
   }
 
   private val ownsScope = externalScope == null
@@ -217,10 +226,17 @@ class ConnectionManager(
   private val _ridingMode = MutableStateFlow(RidingMode.standard)
   private val _response = MutableSharedFlow<ParsedResponse>(extraBufferCapacity = 16)
   private val _fbb2 = MutableSharedFlow<String>(extraBufferCapacity = 1)
-
   // GATT bridge plumbing.
   private data class GattCallbackEvent(val source: BluetoothGatt?, val event: GattEvent)
-  private val gattEvents = Channel<GattCallbackEvent>(Channel.UNLIMITED)
+  // Notifications may be dropped under a storm (oldest first). Lifecycle
+  // events (connect/disconnect/discover/write ACK) use an unbounded queue:
+  // they are 1:1 with serialized GATT operations, so they cannot grow like
+  // a notify flood, and DROP_OLDEST here would lose CONNECTED/DISCONNECTED.
+  private val gattEvents = Channel<GattCallbackEvent>(
+    capacity = GATT_EVENT_CAPACITY,
+    onBufferOverflow = BufferOverflow.DROP_OLDEST,
+  )
+  private val gattLifecycleEvents = Channel<GattCallbackEvent>(Channel.UNLIMITED)
   @Volatile private var _gatt: BluetoothGatt? = null
   @Volatile private var _connectDeferred: CompletableDeferred<Unit>? = null
   @Volatile private var _discoveryDeferred: CompletableDeferred<Unit>? = null
@@ -238,13 +254,22 @@ class ConnectionManager(
 
   init {
     eventLoopJob = scope.launch {
-      for ((source, event) in gattEvents) {
-        // All callback types belong to a GATT session, including reads, ACKs
-        // and notifications already queued when a reconnect replaces _gatt.
+      while (isActive) {
+        val (source, event) = try {
+          gattLifecycleEvents.tryReceive().getOrNull()
+            ?: select {
+              gattLifecycleEvents.onReceive { it }
+              gattEvents.onReceive { it }
+            }
+        } catch (_: kotlinx.coroutines.channels.ClosedReceiveChannelException) {
+          break
+        }
         try {
           synchronized(lock) {
             if (source != null && source === _gatt) handleGattEvent(event)
           }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+          throw e
         } catch (e: Exception) {
           log.ble("GATT 事件处理异常", detail = e.toString(), level = LogLevel.ERROR)
         }
@@ -529,6 +554,13 @@ class ConnectionManager(
       // Arm only now: the 8 s budget covers the protocol LOGIN handshake, not
       // MTU negotiation + service discovery (which have their own timeouts).
       armReadyWatchdog()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+      log.ble("连接取消", detail = e.toString(), level = LogLevel.INFO)
+      clearRuntimeResources(disconnectDevice = true)
+      resetCharacteristics()
+      _device = null
+      setState(ConnectionState.DISCONNECTED)
+      throw e
     } catch (e: Exception) {
       log.ble("连接失败", detail = e.toString(), level = LogLevel.ERROR)
       clearRuntimeResources(disconnectDevice = true)
@@ -929,9 +961,10 @@ class ConnectionManager(
       log.ble("释放连接时断开设备失败", detail = e.toString(), level = LogLevel.WARNING)
     }
 
-    // Stop the event loop and, when the scope is manager-owned, the scope.
     reconnectJob?.cancel()
     reconnectJob = null
+    gattEvents.close()
+    gattLifecycleEvents.close()
     eventLoopJob?.cancel()
     eventLoopJob = null
     if (ownsScope) {
@@ -1027,7 +1060,9 @@ class ConnectionManager(
   }
 
   private fun enqueueGattEvent(source: BluetoothGatt?, event: GattEvent) {
-    gattEvents.trySend(GattCallbackEvent(source, event))
+    val payload = GattCallbackEvent(source, event)
+    val queue = if (event.isLifecycle()) gattLifecycleEvents else gattEvents
+    queue.trySend(payload)
   }
 
   /**
@@ -2172,7 +2207,12 @@ class ConnectionManager(
     if (isMuted != other.isMuted) return false
     if (batteryPercent != other.batteryPercent) return false
     if (temperature != other.temperature) return false
-    if (signalStrength != other.signalStrength) return false
+    // Deliberately NOT compared: `BikeState.signalStrength` had no consumer
+    // anywhere in the app (only ever written and compared), so a jittery
+    // 1 Hz RSSI value would re-emit a new state object every second and
+    // recompose the whole control page — including its osmdroid mini-map —
+    // for a field nothing read. The RSSI that *is* consumed (induction
+    // unlock) is read directly from the GATT callback, not from BikeState.
     if (faultMotor != other.faultMotor) return false
     if (faultController != other.faultController) return false
     if (faultBrake != other.faultBrake) return false

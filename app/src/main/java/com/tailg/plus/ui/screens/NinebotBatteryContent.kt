@@ -391,24 +391,41 @@ private fun NinebotBatteryHero(snapshot: BatterySnapshot, p: BatteryPalette, mot
   Spacer(Modifier.height(14.dp))
 }
 
+
 @Composable
 private fun BatteryRange(snapshot: BatterySnapshot) {
   val unit = LocalDistanceUnitPreference.current
   val distance = batteryNumber(snapshot.remainingMileage)?.takeIf { it.isFinite() && it >= 0 }
   val value = distance?.let { formatDistanceKilometersValue(it, unit) } ?: "—"
+  // Constant two-stop gradient: built once instead of on every recomposition.
+  val rangeBrush = remember {
+    Brush.linearGradient(listOf(Color(0xFF214EC5), Color(0xFF2969E8)))
+  }
   Box(
     Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))
-      .background(Brush.linearGradient(listOf(Color(0xFF214EC5), Color(0xFF2969E8))))
+      .background(rangeBrush)
       .testTag("ninebot-battery-range"),
   ) {
+    val path = remember { Path() }
+    val curves = remember { FloatArray(48) }
     Canvas(Modifier.matchParentSize().clearAndSetSemantics {}) {
-      repeat(6) { index ->
+      val p = curves
+      var index = 0
+      while (index < 6) {
         val x = size.width * 0.80f + index * 22.dp.toPx()
-        val path = Path().apply {
-          moveTo(x, -20.dp.toPx())
-          cubicTo(x - 110.dp.toPx(), size.height * 0.35f, x + 60.dp.toPx(), size.height * 0.7f, x - 60.dp.toPx(), size.height + 24.dp.toPx())
-        }
+        val base = index * 8
+        // The curve is filled into a reusable primitive array and traced through
+        // the reused path: the previous version allocated a `Path` per stroke on
+        // every frame.
+        p[base] = x; p[base + 1] = -20.dp.toPx()
+        p[base + 2] = x - 110.dp.toPx(); p[base + 3] = size.height * 0.35f
+        p[base + 4] = x + 60.dp.toPx(); p[base + 5] = size.height * 0.7f
+        p[base + 6] = x - 60.dp.toPx(); p[base + 7] = size.height + 24.dp.toPx()
+        path.reset()
+        path.moveTo(p[base], p[base + 1])
+        path.cubicTo(p[base + 2], p[base + 3], p[base + 4], p[base + 5], p[base + 6], p[base + 7])
         drawPath(path, Color.White.copy(alpha = 0.12f - index * 0.012f), style = Stroke(1.dp.toPx()))
+        index++
       }
     }
     Column(Modifier.padding(horizontal = 22.dp, vertical = 18.dp)) {

@@ -28,6 +28,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -1212,6 +1213,7 @@ private fun temperatureDisplay(snapshot: BatterySnapshot): String {
  * battery/BMS detail + loading/error set. Emissions that leave these fields
  * unchanged no longer recompose the page.
  */
+@Immutable
 private data class BatteryCloudSlice(
   val signedIn: Boolean,
   val sessionGeneration: Long,

@@ -29,6 +29,7 @@ import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.VerticalDivider
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -815,6 +816,7 @@ internal fun ReadOnlyNotice(title: String, subtitle: String) {
  * resolved location inputs and the travel/fence datasets. `internal` because
  * TravelTab/FenceTab live in their own files.
  */
+@Immutable
 internal data class LocationCloudSlice(
   val signedIn: Boolean,
   val selectedVehicle: OfficialVehicle?,

@@ -1,5 +1,6 @@
 package com.tailg.plus.data.mqtt
 
+import com.tailg.plus.data.cloud.CloudJson
 import com.tailg.plus.data.cloud.OfficialCloudApiException
 import com.tailg.plus.data.model.OfficialVehicle
 import java.net.URI
@@ -126,9 +127,8 @@ object OfficialMqttConfig {
         )
     }
 
-    /** Official `MqttCmdBean` JSON: `{"imei":"...","command":"lock"}`. */
     fun commandPayload(imei: String, command: String): String =
-        """{"imei":"$imei","command":"$command"}"""
+        CloudJson.encode(mapOf("imei" to imei, "command" to command))
 
     /** IMEI used in topic/payload for this vehicle (official `this.imei`). */
     fun commandImei(vehicle: OfficialVehicle): String {

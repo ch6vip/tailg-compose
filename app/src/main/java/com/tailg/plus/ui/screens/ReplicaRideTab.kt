@@ -18,7 +18,6 @@ import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -49,12 +48,15 @@ import com.tailg.plus.util.formatDateText
 import com.tailg.plus.util.formatDateMinuteText
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.debounce
 
 /**
  * Ride-record page of [OfficialReplicaScreen] (Dart RideRecordPage).
  * Extracted from OfficialReplicaScreen.kt for maintainability.
  */
 
+// `debounce` is still FlowPreview in kotlinx-coroutines 1.11.
+@OptIn(kotlinx.coroutines.FlowPreview::class)
 @Composable
 internal fun RideRecordTab(
   cloudService: OfficialCloudService,
@@ -77,13 +79,14 @@ internal fun RideRecordTab(
   val location = vehicle?.lastLocation
   val cloudVehicle = if (rideSlice.signedIn) rideSlice.selectedVehicle else null
   val displayName = vehicle?.displayName ?: cloudVehicle?.displayName ?: stringResource(R.string.replica_unbound)
-  // LogService is an app-lifetime singleton whose snapshot list is not
-  // observable; subscribe to its change flow so the "recent actions" list
-  // refreshes instead of freezing at first composition.
-  var logGeneration by remember { mutableIntStateOf(0) }
-  LaunchedEffect(log) {
-    log.changes.collect { logGeneration++ }
-  }
+  // LogService bumps a generation counter on every buffer mutation; debounced
+  // here so a BLE handshake's log burst triggers one `byCategory` scan per
+  // quiet window instead of one per line. `byCategory` itself walks up to 2000
+  // entries under the service lock, so the previous undebounced `collect` ran
+  // that scan from the main thread for every single log line.
+  val logGeneration by remember(log) {
+    log.changes.debounce(LogService.REFRESH_DEBOUNCE_MS)
+  }.collectAsStateWithLifecycle(initialValue = log.generation)
   val logs = remember(log, logGeneration) {
     log.byCategory(LogCategory.OPERATION).takeLast(12).reversed()
   }

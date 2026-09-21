@@ -57,6 +57,16 @@ class OfficialMqttConfigTest {
     assertIllegalArgument { OfficialMqttConfig.parseBrokerUri("tcp://broker.test/path") }
   }
 
+  @Test
+  fun commandPayloadIsJsonEncoded() {
+    assertEquals(
+      """{"imei":"860123","command":"lock"}""",
+      OfficialMqttConfig.commandPayload("860123", "lock"),
+    )
+    val escaped = OfficialMqttConfig.commandPayload("""a"b""", "unlock")
+    assertTrue(escaped.contains("""\"b\"""" ) || escaped.contains("""a\"b"""))
+    assertTrue(escaped.startsWith("{"))
+  }
   private fun assertIllegalArgument(block: () -> Unit) {
     try {
       block()

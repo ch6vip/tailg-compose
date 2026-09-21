@@ -38,6 +38,8 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.tailg.plus.log.LogLevel
 import com.tailg.plus.log.LogService
 import com.tailg.plus.ui.components.CyberPageHeader
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import com.tailg.plus.ui.components.LucideIcon
 import com.tailg.plus.ui.components.Lucide
 import com.tailg.plus.ui.theme.AppIconSizes
@@ -71,8 +73,12 @@ fun DiagnosticScreen(
   var history by remember { mutableStateOf<List<DiagnosticRecord>>(emptyList()) }
   val strDiagLoadFailed = stringResource(R.string.diag_load_failed)
 
+  // `loadHistory` reads DataStore (already off-main) and then JSON-parses and
+  // sorts every persisted record. That parse used to run on whatever dispatcher
+  // `LaunchedEffect` provides — the main one — so a long history parsed on the
+  // UI thread. Keep the whole load in one Default-dispatcher block.
   LaunchedEffect(Unit) {
-    history = loadHistory(context, log, strDiagLoadFailed)
+    history = withContext(Dispatchers.Default) { loadHistory(context, log, strDiagLoadFailed) }
   }
 
   Scaffold(

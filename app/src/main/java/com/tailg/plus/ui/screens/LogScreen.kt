@@ -24,7 +24,6 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +38,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.tailg.plus.data.cloud.OfficialCloudService
 import com.tailg.plus.log.LogEntry
 import com.tailg.plus.log.LogLevel
@@ -56,7 +56,6 @@ import com.tailg.plus.ui.theme.AppRadii
 import com.tailg.plus.ui.theme.CyberHomeColors
 import com.tailg.plus.util.ClipboardText
 import com.tailg.plus.util.formatLogClockTime
-import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
@@ -67,9 +66,10 @@ import com.tailg.plus.R
  *
  * The Dart `StatefulWidget` subscribes to `LogService.changes` (a broadcast
  * `Stream<void>`) and bumps a `_listGeneration` counter to force a rebuild.
- * Here we collect the `SharedFlow<Unit>` in a `LaunchedEffect` and bump a
- * `mutableIntStateOf` generation; the `LazyColumn` reads `logService.all` on
- * every recomposition (the snapshot is cheap and the buffer is capped at 2000).
+ * Here `LogService.changes` is a generation counter, so this screen collects
+ * it (debounced) into state and keys the `log.all` snapshot on its value: the
+ * up-to-2000-entry copy happens once per quiet window instead of once per
+ * recomposition.
  *
  * The diagnostic-report copy path uses the Kotlin [DiagnosticExportService],
  * which needs an [OfficialCloudService] + [VehicleStore]; those are
@@ -102,17 +102,19 @@ fun LogScreen(
     )
   }
 
+  // Explicit refresh counter for the header's refresh action. The automatic
+  // refresh path is the LogService generation below.
   var listGeneration by remember { mutableIntStateOf(0) }
   var showClearDialog by remember { mutableStateOf(false) }
 
-  // Subscribe to LogService.changes so the list refreshes when new entries
-  // arrive. Debounced: a BLE handshake can emit dozens of log lines per
-  // second, and each bump rebuilds the whole LazyColumn — coalescing bursts
-  // into one refresh per quiet window keeps the page smooth (same principle
-  // as ComicPlus_Pure's throttled list updates).
-  LaunchedEffect(log) {
-    log.changes.debounce(LOG_REFRESH_DEBOUNCE_MS).collectLatest { listGeneration++ }
-  }
+  // LogService bumps its generation on every buffer mutation. Debounced here:
+  // a BLE handshake can emit dozens of log lines per second, and each refresh
+  // rebuilds the whole LazyColumn — coalescing bursts into one refresh per
+  // quiet window keeps the page smooth (same principle as ComicPlus_Pure's
+  // throttled list updates).
+  val logGeneration by remember(log) {
+    log.changes.debounce(LogService.REFRESH_DEBOUNCE_MS)
+  }.collectAsStateWithLifecycle(initialValue = log.generation)
 
 
   val strNoCopy = stringResource(R.string.log_no_copy)
@@ -176,7 +178,10 @@ fun LogScreen(
           CyberHeaderAction(icon = Lucide.trash, label = stringResource(R.string.log_clear), onTap = confirmClear)
         },
       )
-      val entries = log.all
+      // Keyed snapshot: `log.all` takes the service lock and copies up to 2000
+      // entries. Calling it straight from composition meant every unrelated
+      // recomposition (palette, snackbar, dialog state) paid for that copy.
+      val entries = remember(log, logGeneration, listGeneration) { log.all }
       if (entries.isEmpty()) {
         Box(
           modifier = Modifier
@@ -191,8 +196,6 @@ fun LogScreen(
           )
         }
       } else {
-        // listGeneration is read so a bump forces recomposition.
-        @Suppress("UNUSED_EXPRESSION") listGeneration
         LazyColumn(
           modifier = Modifier
             .fillMaxSize()
@@ -212,9 +215,6 @@ fun LogScreen(
     }
   }
 }
-
-/** Coalesce log bursts into one list refresh per quiet window. */
-private const val LOG_REFRESH_DEBOUNCE_MS = 120L
 
 /** Dart `_LogTile`: time + level dot + message/detail. */
 @Composable

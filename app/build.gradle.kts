@@ -107,6 +107,29 @@ android {
                 allowInsecureMqttTls.toString(),
             )
         }
+        // Macrobenchmark target. Must behave like `release` (R8 + resource
+        // shrinking, non-debuggable) so the measured startup/frame numbers are
+        // representative, but it is signed with the debug key: `release` only
+        // gets a signingConfig when the CI keystore is present, and an unsigned
+        // APK cannot be installed/profiled by the benchmark module.
+        // `matchingFallbacks` lets library modules without a `benchmark` build
+        // type fall back to their `release` variant.
+        // `isProfileable = true` adds <profileable android:shell="true"/> to the
+        // manifest: macrobenchmark hard-fails with "Benchmark Target is NOT
+        // profileable" on API 29+ when the target is neither debuggable nor
+        // profileable, and a debuggable target would skew every number.
+        create("benchmark") {
+            initWith(buildTypes.getByName("release"))
+            signingConfig = signingConfigs.getByName("debug")
+            isDebuggable = false
+            isProfileable = true
+            isMinifyEnabled = true
+            matchingFallbacks += listOf("release")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro",
+            )
+        }
     }
 
     compileOptions {
@@ -206,9 +229,6 @@ dependencies {
     implementation(libs.camerax.lifecycle)
     implementation(libs.camerax.view)
     implementation(libs.mlkit.barcode)
-
-    // Animation
-    implementation(libs.lottie.compose)
 
     // MQTT
     implementation(libs.paho.mqtt)

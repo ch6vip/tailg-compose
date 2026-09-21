@@ -28,6 +28,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.TabRowDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
@@ -879,6 +880,7 @@ private fun MessageDetailSheet(
  * `distinctUntilChanged` compares by value: battery/location/travel emissions
  * that leave the message set unchanged are dropped before recomposing the page.
  */
+@Immutable
 private data class MessageCloudSlice(
   val signedIn: Boolean,
   val vehicleMessages: List<OfficialCloudMessage>,

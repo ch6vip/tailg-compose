@@ -23,7 +23,6 @@ osmdroid = "6.1.20"
 zxingCore = "3.5.4"
 camerax = "1.4.2"
 mlkitBarcode = "17.3.0"
-lottie = "6.7.1"
 paho = "1.2.5"
 timber = "5.0.1"
 junit = "4.13.2"
@@ -33,6 +32,11 @@ androidxTestExtJunit = "1.3.0"
 espresso = "3.7.0"
 mockk = "1.14.11"
 profileinstaller = "1.4.1"
+# Macrobenchmark (macrobenchmark module only). 1.5.0 is the newest stable
+# androidx.benchmark line; its AAR metadata asks for minCompileSdk=34, which
+# compileSdk 37 satisfies.
+benchmark = "1.5.0"
+uiautomator = "2.4.0"
 
 [libraries]
 # AndroidX core
@@ -50,6 +54,10 @@ androidx-compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graph
 androidx-compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
 androidx-compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
 androidx-compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+# Declared but currently unreferenced. Kept on purpose: the UI screens under
+# app/src/main/java are being rewritten in parallel and `Icons.Filled.*` (which
+# lives in material-icons-extended) is a likely addition; the entries cost
+# nothing unless a build script references them.
 androidx-compose-material-icons-core = { group = "androidx.compose.material", name = "material-icons-core" }
 androidx-compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
 androidx-compose-ui-test-junit4 = { group = "androidx.compose.ui", name = "ui-test-junit4" }
@@ -93,9 +101,6 @@ camerax-lifecycle = { group = "androidx.camera", name = "camera-lifecycle", vers
 camerax-view = { group = "androidx.camera", name = "camera-view", version.ref = "camerax" }
 mlkit-barcode = { group = "com.google.mlkit", name = "barcode-scanning", version.ref = "mlkitBarcode" }
 
-# Animation
-lottie-compose = { group = "com.airbnb.android", name = "lottie-compose", version.ref = "lottie" }
-
 # MQTT
 paho-mqtt = { group = "org.eclipse.paho", name = "org.eclipse.paho.client.mqttv3", version.ref = "paho" }
 
@@ -114,7 +119,13 @@ androidx-test-ext-junit = { group = "androidx.test.ext", name = "junit-ktx", ver
 androidx-test-espresso = { group = "androidx.test.espresso", name = "espresso-core", version.ref = "espresso" }
 mockk = { group = "io.mockk", name = "mockk", version.ref = "mockk" }
 
+# Macrobenchmark (macrobenchmark module only — not shipped in the app APK)
+androidx-benchmark-macro-junit4 = { group = "androidx.benchmark", name = "benchmark-macro-junit4", version.ref = "benchmark" }
+androidx-test-ext-junit4 = { group = "androidx.test.ext", name = "junit", version.ref = "androidxTestExtJunit" }
+androidx-test-uiautomator = { group = "androidx.test.uiautomator", name = "uiautomator", version.ref = "uiautomator" }
+
 [plugins]
+android-test = { id = "com.android.test", version.ref = "agp" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }

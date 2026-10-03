@@ -218,7 +218,7 @@ private val TireGradient = Brush.linearGradient(
 )
 
 private val EnergyGradient = Brush.linearGradient(
-  colors = listOf(Color(0xFF00E0A6), Color(0xFF00A57C)),
+  colors = listOf(Color(0xFF3DDC9A), Color(0xFF14956A)),
   start = Offset(108f, 98.5f), // centerLeft of battery bar
   end = Offset(148f, 98.5f),
 )

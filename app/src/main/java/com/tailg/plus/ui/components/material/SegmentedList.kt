@@ -73,8 +73,8 @@ import kotlin.math.roundToInt
 
 /** Port of KernelSU `ui/component/material/SegmentedList.kt`. */
 val LocalListItemShapes = compositionLocalOf<ListItemShapes?> { null }
-private val SegmentedOuterRadius = 16.dp
-private val SegmentedInnerRadius = 4.dp
+private val SegmentedOuterRadius = 20.dp
+private val SegmentedInnerRadius = 8.dp
 private const val SegmentedSpringStiffness = 800f
 private const val SegmentedSpringDamping = 0.9f
 

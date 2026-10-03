@@ -33,9 +33,8 @@ import com.tailg.plus.ui.theme.AppTouchTargets
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
- * Shared settings row in the 九号 visual language: large-radius white cards,
- * circular line-icon wells, ink titles. Core tiles use a larger well so
- * vehicle / BMS still read as primary.
+ * Shared settings row: large-radius cards, circular icon wells, ink titles.
+ * Core tiles use a larger well so vehicle / BMS still read as primary.
  *
  * Note: 设置页核心/普通分层与 SettingTile — 见 .agents/notes/implemented/feature/2026-09-20-settings-hierarchy.md
  */
@@ -80,11 +79,11 @@ internal fun ninebotSettingsDark(): Boolean =
 
 @Composable
 internal fun ninebotSettingsCardColor(): Color =
-  if (ninebotSettingsDark()) Color(0xFF2C2F34) else Color.White
+  if (ninebotSettingsDark()) Color(0xFF1C2128) else Color.White
 
 @Composable
 internal fun ninebotSettingsCircleColor(): Color =
-  if (ninebotSettingsDark()) Color(0xFF3A3E44) else Color(0xFFEEF0F5)
+  if (ninebotSettingsDark()) Color(0xFF2A313B) else Color(0xFFF2F4F7)
 
 @Composable
 fun SettingsGroup(
@@ -180,7 +179,7 @@ fun SettingTile(
         Text(
           text = title,
           fontSize = 16.sp,
-          fontWeight = FontWeight.W700,
+          fontWeight = FontWeight.W600,
           color = CyberHomeColors.ink,
           maxLines = 1,
           overflow = TextOverflow.Ellipsis,
@@ -246,7 +245,7 @@ fun SettingFeatureTile(
       Text(
         text = title,
         fontSize = 16.sp,
-        fontWeight = FontWeight.W700,
+        fontWeight = FontWeight.W600,
         color = CyberHomeColors.ink,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,
@@ -271,7 +270,7 @@ fun SettingsSectionLabel(
   Text(
     text = text,
     fontSize = 13.sp,
-    fontWeight = FontWeight.W700,
+    fontWeight = FontWeight.W600,
     color = CyberHomeColors.inkMuted,
     modifier = modifier.padding(start = 24.dp, end = 20.dp, top = 16.dp, bottom = 8.dp),
   )

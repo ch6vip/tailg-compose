@@ -435,7 +435,7 @@ private fun HeroDial(
 
   val track = CyberHomeColors.line
   val primary = CyberHomeColors.primary
-  val sky = Color(0xFF4FC3FF)
+  val sky = Color(0xFF5B94F5)
   val accent = CyberHomeColors.rideAccent
   val card = CyberHomeColors.card
   // Keyed on the palette colour: `Box.background(brush)` otherwise builds a new
@@ -646,7 +646,7 @@ private fun BreakdownBar(
   // One brush per highlight state instead of one per recomposition.
   val barBrush = remember(highlighted, barPrimary, barStrong) {
     if (highlighted) {
-      Brush.horizontalGradient(listOf(barPrimary, Color(0xFF4FC3FF)))
+      Brush.horizontalGradient(listOf(barPrimary, Color(0xFF5B94F5)))
     } else {
       Brush.horizontalGradient(listOf(barStrong, barStrong))
     }

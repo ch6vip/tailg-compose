@@ -63,26 +63,10 @@ import com.tailg.plus.domain.control.ControlChannelAvailability
 import com.tailg.plus.ui.theme.CyberHomeColors
 
 /**
- * 九号 (NINEBOT) control home — a faithful replica of the 九号出行 车控 page
- * (reference shots: dark M3 95c MAX home + light AE86 home + control-card
- * closeup), replacing the first-pass free interpretation.
- *
- * Structure, top to bottom:
- *  - vehicle name + message bubble; 车控/主题 tabs with signal + BLE chip;
- *  - battery hero: oversized percent + chevron, thin blue charge bar (fixed
- *    210dp like the app), 续航 line with a round battery badge;
- *  - vehicle stage: giant low-alpha "ninebot" watermark behind the car photo
- *    over the blue-gray stage gradient;
- *  - control card: 闪灯鸣笛 / slide-to-power / 更多功能 over 感应解锁 /
- *    电池信息 / 打开坐垫 by default (three configurable lower shortcuts);
- *  - bottom cards: mini map with the 车辆定位 chip beside stacked
- *    今日里程 (warm) / 总里程 cards.
- *
- * The replica reads fixed tones lifted from the shots (see [NbReplica]) for
- * the card/circle/thumb/today-card surfaces — the generic [CyberHomeColors]
- * tokens cannot express the exact card-vs-page contrast of the reference —
- * while text colors still come from the palette so light/dark follow the
- * theme mode. Dark and light look like their respective shots.
+ * 九号 control home. Structure is unchanged:
+ * vehicle header, battery hero, vehicle stage, control card, map and mileage cards.
+ * Surfaces use the Lumen palette (cool mist stage, white cards, ink controls,
+ * warm stone "today" card). Text still follows the active light/dark palette.
  */
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -111,33 +95,33 @@ private fun replicaDark(): Boolean = CyberHomeColors.pageBg.luminance() < 0.5f
 
 private fun nbReplica(dark: Boolean): NbReplica = if (dark) {
     NbReplica(
-        stageTop = Color(0xFF272C37),
-        stageBottom = Color(0xFF0D0F14),
-        card = Color(0xFF2C2F34),
-        circle = Color(0xFF3A3E44),
-        track = Color(0xFF3A3E44),
-        thumb = Color(0xFFE9EAEC),
-        thumbInk = Color(0xFF17191D),
-        todayCard = Color(0xFF4B4B46),
-        totalStrip = Color(0xFF22252C),
+        stageTop = Color(0xFF1C222B),
+        stageBottom = Color(0xFF0F1216),
+        card = Color(0xFF1C2128),
+        circle = Color(0xFF2A313B),
+        track = Color(0xFF2A313B),
+        thumb = Color(0xFFF3F5F7),
+        thumbInk = Color(0xFF12161C),
+        todayCard = Color(0xFF3A332A),
+        totalStrip = Color(0xFF151920),
         watermark = Color(0x0FFFFFFF),
-        locateChip = Color(0xF01A1C22),
-        locateChipInk = Color(0xFFEDEFF4),
+        locateChip = Color(0xF0161A20),
+        locateChipInk = Color(0xFFF3F5F7),
     )
 } else {
     NbReplica(
-        stageTop = Color(0xFFE3E5EF),
-        stageBottom = Color(0xFFD5D7E1),
+        stageTop = Color(0xFFF7F8FA),
+        stageBottom = Color(0xFFEEF1F5),
         card = Color(0xFFFFFFFF),
-        circle = Color(0xFFEEF0F5),
-        track = Color(0xFFECEEF3),
-        thumb = Color(0xFF1B2438),
+        circle = Color(0xFFF2F4F7),
+        track = Color(0xFFE7EBEF),
+        thumb = Color(0xFF12161C),
         thumbInk = Color(0xFFFFFFFF),
-        todayCard = Color(0xFFF8E4C6),
-        totalStrip = Color(0xFFF0F1F5),
-        watermark = Color(0x0D1B2438),
-        locateChip = Color(0xF5FFFFFF),
-        locateChipInk = Color(0xFF1B2438),
+        todayCard = Color(0xFFF6EFE4),
+        totalStrip = Color(0xFFF3F5F8),
+        watermark = Color(0x0D12161C),
+        locateChip = Color(0xF7FFFFFF),
+        locateChipInk = Color(0xFF12161C),
     )
 }
 
@@ -147,17 +131,15 @@ private fun rememberReplica(): NbReplica {
     return remember(dark) { nbReplica(dark) }
 }
 
-/** The official charge-bar blue (same in both modes). */
-private val NbChargeBlue = Color(0xFF3D7BFF)
+/** Charge bar uses the same cobalt as the rest of the app. */
+private val NbChargeBlue = Color(0xFF1F6FEB)
 
 /**
- * Page background behind the replica cards — the shots sit on a slightly
- * lifted gray (dark ~#121419, light lavender ~#D9DBE6) rather than the raw
- * palette page bg.
+ * Page behind the home cards. Light is a cool mist, dark is the charcoal page.
  */
 @Composable
 fun ninebotPageBackground(): Color =
-    if (replicaDark()) Color(0xFF121419) else Color(0xFFD9DBE6)
+    if (replicaDark()) Color(0xFF0F1216) else Color(0xFFF3F5F8)
 
 private val NbControlCardShape = RoundedCornerShape(30.dp)
 private val NbStatCardShape = RoundedCornerShape(28.dp)

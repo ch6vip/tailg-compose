@@ -137,16 +137,16 @@ internal data class NinebotCoulombState(
 
 @Immutable
 internal data class BatteryPalette(val dark: Boolean) {
-  val page = if (dark) Color(0xFF111419) else Color(0xFFF4F5F7)
-  val surface = if (dark) Color(0xFF1D232C) else Color.White
-  val soft = if (dark) Color(0xFF171C24) else Color(0xFFEBEEF3)
-  val ink = if (dark) Color(0xFFF4F6FA) else Color(0xFF171D29)
-  val muted = if (dark) Color(0xFFA0ABBC) else Color(0xFF5F6B7D)
-  val line = if (dark) Color(0xFF303947) else Color(0xFFDCE1E9)
-  val blue = if (dark) Color(0xFF93B8FF) else Color(0xFF285DD1)
-  val blueSoft = if (dark) Color(0xFF202F49) else Color(0xFFE4ECFF)
-  val warning = if (dark) Color(0xFFFFC478) else Color(0xFF935512)
-  val danger = if (dark) Color(0xFFFFA298) else Color(0xFFB74437)
+  val page = if (dark) Color(0xFF0F1216) else Color(0xFFF3F5F8)
+  val surface = if (dark) Color(0xFF1C2128) else Color.White
+  val soft = if (dark) Color(0xFF151920) else Color(0xFFEEF1F5)
+  val ink = if (dark) Color(0xFFF3F5F7) else Color(0xFF12161C)
+  val muted = if (dark) Color(0xFFA8B0BA) else Color(0xFF6B7380)
+  val line = if (dark) Color(0xFF2A313B) else Color(0xFFE3E8EE)
+  val blue = if (dark) Color(0xFF7EAEFF) else Color(0xFF1F6FEB)
+  val blueSoft = if (dark) Color(0xFF1A335C) else Color(0xFFE6F0FF)
+  val warning = if (dark) Color(0xFFE8B15A) else Color(0xFF8A5A12)
+  val danger = if (dark) Color(0xFFFF8A84) else Color(0xFFB42318)
 }
 
 private enum class BatteryHelp { CYCLES, SCORE, CARE, SWAP }
@@ -399,7 +399,7 @@ private fun BatteryRange(snapshot: BatterySnapshot) {
   val value = distance?.let { formatDistanceKilometersValue(it, unit) } ?: "—"
   // Constant two-stop gradient: built once instead of on every recomposition.
   val rangeBrush = remember {
-    Brush.linearGradient(listOf(Color(0xFF214EC5), Color(0xFF2969E8)))
+    Brush.linearGradient(listOf(Color(0xFF1858C7), Color(0xFF1F6FEB)))
   }
   Box(
     Modifier.fillMaxWidth().clip(RoundedCornerShape(24.dp))

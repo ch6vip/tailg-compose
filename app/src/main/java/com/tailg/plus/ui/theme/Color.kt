@@ -6,95 +6,95 @@ import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 
 /**
- * VOID COCKPIT design tokens — ported 1:1 from the Flutter replica's
- * `lib/theme/app_colors.dart`. The app is dark-first; light companions exist
- * for completeness (rarely used).
+ * Lumen design tokens. One calm mobility language for light and dark:
+ * cool-neutral canvas, ink text, a single cobalt accent. Neon cockpit
+ * greens are retired; semantic names stay so call sites do not change.
  */
 
 object AppColors {
-    // Dark-first statics (mirror of AppColors dark set)
-    val primary = Color(0xFF00FFB2)
-    val primaryDark = Color(0xFF00C896)
-    val pageBg = Color(0xFF05070B)
-    val textPrimary = Color(0xFFF4F6FA)
-    val textSecondary = Color(0xFF8B93A7)
-    val textTertiary = Color(0xFF5A6278)
-    val border = Color(0xFF1C2433)
-    val danger = Color(0xFFFF4D6A)
-    val surface = Color(0xFF151B26)
-    val surfaceContainerHigh = Color(0xFF1C2433)
-    val pageBgBot = Color(0xFF05070B)
-    val inkBtn = Color(0xFF1C2433)
-    val surfaceBrandRedTint = Color(0x22FF4D6A)
-    val surfaceBrandTealTint = Color(0x1A00FFB2)
-    val energyGreen = Color(0xFF00FFB2)
-    val energyRed = Color(0xFFFF4D5E)
+    val primary = Color(0xFF1F6FEB)
+    val primaryDark = Color(0xFF1858C7)
+    val pageBg = Color(0xFF0F1216)
+    val textPrimary = Color(0xFFF3F5F7)
+    val textSecondary = Color(0xFFA8B0BA)
+    val textTertiary = Color(0xFF7C8694)
+    val border = Color(0xFF2A313B)
+    val danger = Color(0xFFE23B3B)
+    val surface = Color(0xFF181C22)
+    val surfaceContainerHigh = Color(0xFF242A33)
+    val pageBgBot = Color(0xFF0F1216)
+    val inkBtn = Color(0xFF242A33)
+    val surfaceBrandRedTint = Color(0x22E23B3B)
+    val surfaceBrandTealTint = Color(0x1A1F6FEB)
+    val energyGreen = Color(0xFF2EC98A)
+    val energyRed = Color(0xFFE23B3B)
 }
 
-/** Dark-mode token set (VOID, primary). */
+/** Dark-mode token set. */
 object AppColorsDark {
-    val primary = Color(0xFF00FFB2)
-    val primaryDark = Color(0xFF00C896)
-    val pageBg = Color(0xFF05070B)
-    val textPrimary = Color(0xFFF4F6FA)
-    val textSecondary = Color(0xFF8B93A7)
-    val textTertiary = Color(0xFF5A6278)
-    val border = Color(0xFF1C2433)
-    val success = Color(0xFF00FFB2)
-    val warning = Color(0xFFFFB84D)
-    val danger = Color(0xFFFF4D6A)
-    val surface = Color(0xFF151B26)
-    val surfaceContainerLow = Color(0xFF11161F)
-    val surfaceContainerHigh = Color(0xFF1C2433)
-    val outlineVariant = Color(0xFF2A3142)
-    val darkSurface = Color(0xFF05070B)
-    val energyGreen = Color(0xFF00FFB2)
-    val energyAmber = Color(0xFFFFB84D)
-    val energyRed = Color(0xFFFF4D6A)
-    val inkBtn = Color(0xFF1C2433)
-    val inkBtn2 = Color(0xFF2A3142)
-    val accentSky = Color(0xFF5CB8FF)
-    val accentViolet = Color(0xFF9B8EFF)
-    val accentAmber = Color(0xFFFFB84D)
+    val primary = Color(0xFF7EAEFF)
+    val primaryDark = Color(0xFF1F6FEB)
+    val pageBg = Color(0xFF0F1216)
+    val textPrimary = Color(0xFFF3F5F7)
+    val textSecondary = Color(0xFFA8B0BA)
+    val textTertiary = Color(0xFF7C8694)
+    val border = Color(0xFF2A313B)
+    val success = Color(0xFF2EC98A)
+    val warning = Color(0xFFE39A2B)
+    val danger = Color(0xFFFF8A84)
+    val surface = Color(0xFF181C22)
+    val surfaceContainerLow = Color(0xFF151920)
+    val surfaceContainerHigh = Color(0xFF242A33)
+    val outlineVariant = Color(0xFF2A313B)
+    val darkSurface = Color(0xFF0F1216)
+    val energyGreen = Color(0xFF2EC98A)
+    val energyAmber = Color(0xFFE39A2B)
+    val energyRed = Color(0xFFFF8A84)
+    val inkBtn = Color(0xFF242A33)
+    val inkBtn2 = Color(0xFF2C333E)
+    val accentSky = Color(0xFF7EAEFF)
+    val accentViolet = Color(0xFF9B8CFF)
+    val accentAmber = Color(0xFFE39A2B)
     val accentPurple = Color(0xFFA78BFA)
-    val accentOrange = Color(0xFFFF9A3C)
-    val brandRed = Color(0xFFFF4D5E)
-    val pageBgTop = Color(0xFF0A0E14)
-    val pageBgBot = Color(0xFF05070B)
+    val accentOrange = Color(0xFFE08A3C)
+    val brandRed = Color(0xFFE23B3B)
+    val pageBgTop = Color(0xFF151920)
+    val pageBgBot = Color(0xFF0F1216)
 }
 
 /** Light-mode companion token set. */
 object AppColorsLight {
-    val primary = Color(0xFF00A57C)
-    val primaryDark = Color(0xFF008F6A)
+    val primary = Color(0xFF1F6FEB)
+    val primaryDark = Color(0xFF1858C7)
     val pageBg = Color(0xFFF3F5F8)
-    val textPrimary = Color(0xFF0B1220)
-    val textSecondary = Color(0xFF5C667A)
-    val textTertiary = Color(0xFF8A93A5)
-    val border = Color(0x140B1220)
-    val success = Color(0xFF00A57C)
-    val warning = Color(0xFFF5A623)
-    val danger = Color(0xFFFF4D5E)
+    val textPrimary = Color(0xFF12161C)
+    val textSecondary = Color(0xFF5E6774)
+    val textTertiary = Color(0xFF98A0AB)
+    val border = Color(0x1412161C)
+    val success = Color(0xFF1F9D6A)
+    val warning = Color(0xFFE39A2B)
+    val danger = Color(0xFFE23B3B)
     val surface = Color(0xFFFFFFFF)
-    val surfaceContainerLow = Color(0xFFF6F7FA)
-    val surfaceContainerHigh = Color(0xFFE8ECF2)
-    val outlineVariant = Color(0x1A0B1220)
-    val darkSurface = Color(0xFF0B1220)
-    val energyGreen = Color(0xFF00C896)
-    val energyAmber = Color(0xFFF5A623)
-    val energyRed = Color(0xFFFF4D5E)
-    val inkBtn = Color(0xFF1B2230)
-    val inkBtn2 = Color(0xFF2A3342)
-    val accentSky = Color(0xFF2E9BFF)
-    val accentViolet = Color(0xFF7C6CFF)
-    val accentAmber = Color(0xFFF5A623)
-    val accentPurple = Color(0xFF7B61FF)
-    val accentOrange = Color(0xFFFF8A00)
-    val brandRed = Color(0xFFF11C2C)
-    val pageBgTop = Color(0xFFE8ECF2)
-    val pageBgBot = Color(0xFFF6F7FA)
+    val surfaceContainerLow = Color(0xFFF7F8FA)
+    val surfaceContainerHigh = Color(0xFFEEF1F5)
+    val outlineVariant = Color(0x1A12161C)
+    val darkSurface = Color(0xFF12161C)
+    val energyGreen = Color(0xFF1F9D6A)
+    val energyAmber = Color(0xFFE39A2B)
+    val energyRed = Color(0xFFE23B3B)
+    val inkBtn = Color(0xFF1A1F27)
+    val inkBtn2 = Color(0xFF2A313B)
+    val accentSky = Color(0xFF1F6FEB)
+    val accentViolet = Color(0xFF6E5CFF)
+    val accentAmber = Color(0xFFE39A2B)
+    val accentPurple = Color(0xFF7C6AF2)
+    val accentOrange = Color(0xFFE08A3C)
+    val brandRed = Color(0xFFE23B3B)
+    val pageBgTop = Color(0xFFEEF1F5)
+    val pageBgBot = Color(0xFFF7F8FA)
 }
 
 /**
@@ -139,64 +139,64 @@ data class CyberPalette(
     val navShadow: Color,
 )
 
-/** The original light Cyber palette — kept byte-for-byte as the default. */
+/** Default light palette — previews and any caller outside [TailgTheme]. */
 val LightCyberPalette = CyberPalette(
-    pageBg = Color(0xFFF4F5F7),
-    pageBgTop = Color(0xFFEAF1FC),
+    pageBg = Color(0xFFF3F5F8),
+    pageBgTop = Color(0xFFEEF1F5),
     card = Color(0xFFFFFFFF),
-    cardMuted = Color(0xFFF8F9FB),
-    control = Color(0xFFF0F1F3),
-    controlStrong = Color(0xFFE1E3E7),
-    line = Color(0xFFE5E7EC),
-    lineStrong = Color(0xFFD7DAE1),
-    ink = Color(0xFF15171C),
-    inkSecondary = Color(0xFF33363D),
-    inkMuted = Color(0xFF696D76),
-    inkFaint = Color(0xFF9A9EA7),
-    primary = Color(0xFF168CFF),
-    primarySoft = Color(0xFFDCEEFF),
-    success = Color(0xFF34C759),
-    warning = Color(0xFFFF9F0A),
-    danger = Color(0xFFFF3B30),
-    rideAccent = Color(0xFFFF2D68),
-    rideAccentSoft = Color(0xFFFFF4E6),
-    mapPlaceholder = Color(0xFFE9EEF3),
-    alertSurface = Color(0xFFE9EAED),
+    cardMuted = Color(0xFFF7F8FA),
+    control = Color(0xFFE8EDF2),
+    controlStrong = Color(0xFFEEF1F5),
+    line = Color(0xFFE3E8EE),
+    lineStrong = Color(0xFFC5CDD6),
+    ink = Color(0xFF12161C),
+    inkSecondary = Color(0xFF3E4652),
+    inkMuted = Color(0xFF6B7380),
+    inkFaint = Color(0xFF8E97A3),
+    primary = Color(0xFF1F6FEB),
+    primarySoft = Color(0xFFE6F0FF),
+    success = Color(0xFF1F9D6A),
+    warning = Color(0xFFE39A2B),
+    danger = Color(0xFFE23B3B),
+    rideAccent = Color(0xFFE08A3C),
+    rideAccentSoft = Color(0xFFF8EBD9),
+    mapPlaceholder = Color(0xFFE8EDF2),
+    alertSurface = Color(0xFFEEF1F5),
     navSurface = Color(0xF7FFFFFF),
-    navSelected = Color(0xFFE1E2E5),
+    navSelected = Color(0xFFE8EDF2),
     white75 = Color(0xBFFFFFFF),
     white96 = Color(0xF5FFFFFF),
     white = Color(0xFFFFFFFF),
-    shadow = Color(0x140D1420),
-    actionShadow = Color(0x120D1420),
-    navShadow = Color(0x24182740),
+    shadow = Color(0x1212161C),
+    actionShadow = Color(0x1012161C),
+    navShadow = Color(0x1A12161C),
 )
 
 /** Static dark fallback (used when no dynamic scheme is wired, e.g. previews). */
 val DarkCyberPalette = CyberPalette(
-    pageBg = Color(0xFF0B0E13),
-    pageBgTop = Color(0xFF0B1220),
-    card = Color(0xFF151A22),
-    cardMuted = Color(0xFF1A2029),
-    control = Color(0xFF1F2630),
-    controlStrong = Color(0xFF2A323E),
-    line = Color(0xFF2A323E),
-    lineStrong = Color(0xFF3A434F),
-    ink = Color(0xFFF2F4F8),
-    inkSecondary = Color(0xFFD4D8DE),
-    inkMuted = Color(0xFF9AA1AC),
-    inkFaint = Color(0xFF6C7480),
-    primary = Color(0xFF4FA8FF),
-    primarySoft = Color(0xFF16324E),
-    success = Color(0xFF3EDB6A),
-    warning = Color(0xFFFFB84D),
-    danger = Color(0xFFFF5C6C),
-    rideAccent = Color(0xFFFF5C8A),
-    rideAccentSoft = Color(0xFF33202B),
-    mapPlaceholder = Color(0xFF161C25),
-    alertSurface = Color(0xFF1A2029),
-    navSurface = Color(0xF21A2029),
-    navSelected = Color(0xFF232A35),
+    pageBg = Color(0xFF0F1216),
+    pageBgTop = Color(0xFF151920),
+    card = Color(0xFF1C2128),
+    cardMuted = Color(0xFF181C22),
+    control = Color(0xFF2C333E),
+    controlStrong = Color(0xFF242A33),
+    line = Color(0xFF2A313B),
+    lineStrong = Color(0xFF5C6672),
+    ink = Color(0xFFF3F5F7),
+    inkSecondary = Color(0xFFD5DAE1),
+    inkMuted = Color(0xFFA8B0BA),
+    inkFaint = Color(0xFF7C8694),
+    primary = Color(0xFF7EAEFF),
+    primarySoft = Color(0xFF1A335C),
+    success = Color(0xFF3DDC9A),
+    warning = Color(0xFFE8B15A),
+    danger = Color(0xFFFF8A84),
+    rideAccent = Color(0xFFF0B27A),
+    rideAccentSoft = Color(0xFF3D2E1C),
+    mapPlaceholder = Color(0xFF151920),
+    alertSurface = Color(0xFF242A33),
+    navSurface = Color(0xF2181C22),
+    navSelected = Color(0xFF2A313B),
     white75 = Color(0xBFFFFFFF),
     white96 = Color(0xF5FFFFFF),
     white = Color(0xFFFFFFFF),
@@ -220,12 +220,12 @@ fun ColorScheme.toCyberPalette(): CyberPalette = CyberPalette(
     lineStrong = outline,
     ink = onSurface,
     inkSecondary = onSurfaceVariant,
-    inkMuted = onSurfaceVariant,
+    inkMuted = lerp(onSurfaceVariant, background, 0.22f),
     inkFaint = outline,
     primary = primary,
     primarySoft = primaryContainer,
-    success = Color(0xFF34C759),
-    warning = Color(0xFFFF9F0A),
+    success = Color(0xFF2EBE6A),
+    warning = Color(0xFFE39A2B),
     danger = error,
     rideAccent = tertiary,
     rideAccentSoft = tertiaryContainer,

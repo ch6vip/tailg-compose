@@ -20,61 +20,66 @@ import androidx.compose.ui.unit.sp
  */
 fun tailgTypography(palette: CyberPalette): Typography = Typography(
     displaySmall = TextStyle(
-        fontSize = 24.sp,
-        fontWeight = FontWeight.W700,
+        fontSize = 28.sp,
+        fontWeight = FontWeight.W600,
+        letterSpacing = (-0.4).sp,
         color = palette.ink,
     ),
     headlineMedium = TextStyle(
-        fontSize = 20.sp,
-        fontWeight = FontWeight.W700,
+        fontSize = 22.sp,
+        fontWeight = FontWeight.W600,
+        letterSpacing = (-0.2).sp,
         color = palette.ink,
     ),
     headlineSmall = TextStyle(
         fontSize = 18.sp,
-        fontWeight = FontWeight.W700,
+        fontWeight = FontWeight.W600,
         color = palette.ink,
     ),
     titleLarge = TextStyle(
         fontSize = 17.sp,
-        fontWeight = FontWeight.W800,
+        fontWeight = FontWeight.W600,
         color = palette.ink,
     ),
     titleMedium = TextStyle(
         fontSize = 16.sp,
-        fontWeight = FontWeight.W700,
+        fontWeight = FontWeight.W600,
         color = palette.ink,
     ),
     titleSmall = TextStyle(
-        fontSize = 15.sp,
-        fontWeight = FontWeight.W700,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.W600,
         color = palette.ink,
     ),
     bodyLarge = TextStyle(
-        fontSize = 14.sp,
-        fontWeight = FontWeight.W700,
+        fontSize = 15.sp,
+        fontWeight = FontWeight.W400,
         color = palette.ink,
     ),
     bodyMedium = TextStyle(
-        fontSize = 13.sp,
+        fontSize = 14.sp,
+        fontWeight = FontWeight.W400,
         color = palette.inkSecondary,
     ),
     bodySmall = TextStyle(
         fontSize = 13.sp,
+        fontWeight = FontWeight.W400,
         color = palette.inkMuted,
     ),
     labelLarge = TextStyle(
-        fontSize = 13.sp,
+        fontSize = 14.sp,
         fontWeight = FontWeight.W600,
         color = palette.ink,
     ),
     labelMedium = TextStyle(
         fontSize = 12.sp,
+        fontWeight = FontWeight.W500,
         color = palette.inkSecondary,
     ),
     labelSmall = TextStyle(
         fontSize = 11.sp,
-        fontWeight = FontWeight.W700,
-        letterSpacing = 1.5.sp,
+        fontWeight = FontWeight.W600,
+        letterSpacing = 0.4.sp,
         color = palette.inkMuted,
     ),
 )

@@ -195,9 +195,12 @@ private fun DrawScope.drawBatterySculpture(
   val projection = BatteryProjection(center, scale, -22f + drag)
   val energy = if (percent != null && percent <= 20) Color(0xFFFFB85C) else Color(0xFF69B9FF)
 
-  // Soft studio light and two fine orbital construction lines.
+  // Soft studio light and two fine orbital construction lines. The radial stop
+  // colours only depend on the light/dark palette, so pick the shared pair here
+  // rather than allocating a fresh `listOf` + `Color.copy` on every drawn frame.
+  val glowColors = if (p.dark) DarkGlowColors else LightGlowColors
   drawCircle(
-    Brush.radialGradient(listOf(p.blue.copy(alpha = if (p.dark) 0.12f else 0.09f), Color.Transparent), center, size.width * 0.60f),
+    Brush.radialGradient(glowColors, center, size.width * 0.60f),
     radius = size.width * 0.60f,
     center = center,
   )
@@ -207,7 +210,7 @@ private fun DrawScope.drawBatterySculpture(
   }
   val shadowCenter = Offset(center.x + 5f * scale, center.y + 89f * scale)
   drawOval(
-    Brush.radialGradient(listOf(Color(0xFF08142A).copy(alpha = if (p.dark) 0.42f else 0.20f), Color.Transparent), shadowCenter, 65f * scale),
+    Brush.radialGradient(if (p.dark) DarkShadowColors else LightShadowColors, shadowCenter, 65f * scale),
     shadowCenter - Offset(65f, 11f) * scale,
     Size(130f, 22f) * scale,
   )
@@ -221,11 +224,15 @@ private fun DrawScope.drawBatterySculpture(
 
   // The front panel is a translucent window into ten charge segments.
   val front = projection.panel(-41f, -72f, 41f, 73f, 21.1f, 5f)
-  drawPath(front, Brush.linearGradient(listOf(Color(0xFF526174), Color(0xFF273140), Color(0xFF121C29)), projection.at(-43f, -74f, 22f), projection.at(43f, 75f, 22f)))
+  drawPath(front, Brush.linearGradient(PanelFrontColors, projection.at(-43f, -74f, 22f), projection.at(43f, 75f, 22f)))
   drawPath(front, Color(0xFFA7B6C9).copy(alpha = 0.28f), style = Stroke(0.8f * scale))
   val window = projection.panel(-33f, -57f, 33f, 52f, 22f, 4f)
-  drawPath(window, Brush.linearGradient(listOf(Color(0xFF0C1927), Color(0xFF163046)), projection.at(-33f, -57f, 22f), projection.at(33f, 52f, 22f)))
+  drawPath(window, Brush.linearGradient(PanelWindowColors, projection.at(-33f, -57f, 22f), projection.at(33f, 52f, 22f)))
   drawPath(window, Color(0xFF7BADC5).copy(alpha = 0.34f), style = Stroke(0.8f * scale))
+  // Cell colours are constant per "low battery" state; building them inside the
+  // `repeat(10)` loop allocated 30 `Color`s and up to 10 new `Brush`es (each
+  // forcing a fresh shader) on every drawn frame while the sculpture animates.
+  val cellColors = if (percent != null && percent <= 20) LowCellColors else NormalCellColors
 
   repeat(10) { index ->
     val bottom = 45f - index * 10f
@@ -237,7 +244,7 @@ private fun DrawScope.drawBatterySculpture(
       val filledTop = bottom - 7f * fill
       val active = projection.panel(-27f, filledTop, 27f, bottom, 22.3f, min(1.1f, 3.5f * fill))
       drawPath(active, Brush.linearGradient(
-        listOf(if (percent != null && percent <= 20) Color(0xFFFFE2B4) else Color(0xFFBDEEFF), energy, if (percent != null && percent <= 20) Color(0xFFB66A22) else Color(0xFF3072D7)),
+        cellColors,
         projection.at(-27f, filledTop, 23f),
         projection.at(27f, bottom, 23f),
       ))
@@ -246,8 +253,7 @@ private fun DrawScope.drawBatterySculpture(
   }
   // Glazing reflection: narrow highlights rather than a costly blur layer.
   val reflection = projection.path(listOf(BatteryPoint(-31f, -55f, 23f), BatteryPoint(-19f, -55f, 23f), BatteryPoint(13f, 50f, 23f), BatteryPoint(4f, 50f, 23f)))
-  drawPath(reflection, Brush.linearGradient(listOf(Color.White.copy(alpha = 0.07f), Color.Transparent), projection.at(-31f, -55f, 23f), projection.at(13f, 50f, 23f)))
-
+  drawPath(reflection, Brush.linearGradient(ReflectionColors, projection.at(-31f, -55f, 23f), projection.at(13f, 50f, 23f)))
   // Side cooling ribs and recessed fasteners give the object a physical scale.
   val side = if (-22f + drag < 0f) 43.1f else -43.1f
   repeat(11) { index ->
@@ -270,6 +276,31 @@ private val BoxFaces = arrayOf(
   intArrayOf(0, 1, 5, 4), intArrayOf(3, 2, 6, 7), intArrayOf(0, 3, 7, 4),
   intArrayOf(1, 2, 6, 5), intArrayOf(0, 1, 2, 3), intArrayOf(4, 5, 6, 7),
 )
+
+/**
+ * Charge-cell gradient stops, hoisted out of the per-frame draw loop.
+ *
+ * The ten illuminated cells were rebuilt with a fresh `listOf(...)` (three new
+ * `Color`s each) inside `repeat(10)` on every drawn frame — and that loop runs
+ * every frame while the sculpture breathes. The colour set only depends on
+ * whether the pack is in its low-charge state, so two shared lists suffice.
+ */
+private val LowCellColors = listOf(Color(0xFFFFE2B4), Color(0xFFFFB85C), Color(0xFFB66A22))
+private val NormalCellColors = listOf(Color(0xFFBDEEFF), Color(0xFF69B9FF), Color(0xFF3072D7))
+
+// Fixed gradient stops for the panel/window glazing and the reflection streak.
+// Their gradient *endpoints* follow the projection (so the brush itself is still
+// rebuilt per frame), but the colour lists are constant and no longer allocated
+// on every drawn frame.
+private val PanelFrontColors = listOf(Color(0xFF526174), Color(0xFF273140), Color(0xFF121C29))
+private val PanelWindowColors = listOf(Color(0xFF0C1927), Color(0xFF163046))
+private val ReflectionColors = listOf(Color.White.copy(alpha = 0.07f), Color.Transparent)
+
+// Studio-light and ground-shadow stop colours, pre-blended for both palettes.
+private val DarkGlowColors = listOf(Color(0xFF7EAEFF).copy(alpha = 0.12f), Color.Transparent)
+private val LightGlowColors = listOf(Color(0xFF1F6FEB).copy(alpha = 0.09f), Color.Transparent)
+private val DarkShadowColors = listOf(Color(0xFF08142A).copy(alpha = 0.42f), Color.Transparent)
+private val LightShadowColors = listOf(Color(0xFF08142A).copy(alpha = 0.20f), Color.Transparent)
 
 private val BoxCornerScratch = ThreadLocal.withInitial { FloatArray(24) }
 

@@ -1,5 +1,6 @@
 package com.tailg.plus.ui.screens
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.tailg.plus.data.ble.platform.ConnectionManager
@@ -28,6 +29,7 @@ import kotlinx.coroutines.launch
  * Transport objects stay injected singletons; this VM owns ephemeral
  * control-session fields previously held in remember {} blocks.
  */
+@Immutable
 data class ControlUiState(
   val busy: Boolean = false,
   val activeCommand: CommandCode? = null,

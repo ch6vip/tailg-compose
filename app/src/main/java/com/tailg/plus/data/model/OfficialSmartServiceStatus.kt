@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.JsonClass
 
 /**
@@ -9,6 +10,7 @@ import com.squareup.moshi.JsonClass
  * The Dart constants `expiredCode = '9'` / `cancelledCode = '7'` map to
  * [EXPIRED_CODE] / [CANCELLED_CODE].
  */
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialSmartServiceStatus(
     val code: String = "",
@@ -56,6 +58,7 @@ data class OfficialSmartServiceStatus(
     }
 }
 
+@Immutable
 data class OfficialSmartServiceControlDecision(
     val message: String? = null,
     val blocksControl: Boolean = false,

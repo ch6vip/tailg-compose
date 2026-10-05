@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -13,6 +14,7 @@ import com.squareup.moshi.JsonClass
  * `leftMileage`/`estimateMileage`, …) and the "keep real zero" rule: numeric
  * `0` for 今日耗电 / 循环次数 is preserved, never normalized away.
  */
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialBatteryInfo(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),

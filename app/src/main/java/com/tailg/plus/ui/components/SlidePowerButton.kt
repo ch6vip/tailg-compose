@@ -210,7 +210,7 @@ fun SlidePowerButton(
     else -> stringResource(R.string.slide_power_slide_on)
   }
 
-  val opacity by animateFloatAsState(
+  val opacity = animateFloatAsState(
     targetValue = if (canSlide || awaitingResult) 1f else 0.58f,
     animationSpec = tween(AppMotion.status),
     label = "slidePowerOpacity",
@@ -227,7 +227,7 @@ fun SlidePowerButton(
           onClick { scope.launch { onUnavailable.invoke() }; true }
         }
       }
-      .alpha(opacity),
+      .graphicsLayer { alpha = opacity.value },
     horizontalAlignment = Alignment.CenterHorizontally,
   ) {
     // These are physical directions: right starts power, left stops it.

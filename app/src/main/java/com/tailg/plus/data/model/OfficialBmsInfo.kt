@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 
@@ -12,6 +13,7 @@ import com.squareup.moshi.JsonClass
  * `batteryCapacity`/`capacitance`, `batteryCyclesNum`/`loopCount`/`cycles`,
  * `batteryTemperature`/`temperature`, `batteryVersion`/`swVer`/`hwVer`).
  */
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialBmsInfo(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
@@ -49,6 +51,7 @@ data class OfficialBmsInfo(
 }
 
 @JsonClass(generateAdapter = true)
+@Immutable
 data class OfficialBmsDetail(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
     val name: String = "",

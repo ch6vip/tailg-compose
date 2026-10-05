@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.tailg.plus.util.formatDistanceMeters
@@ -12,6 +13,7 @@ import com.tailg.plus.util.formatDistanceMeters
  * `OfficialFenceData.radiusLabel` uses [formatDistanceMeters] (ported from
  * `lib/services/display_number_formatter.dart`).
  */
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialVehicleLocation(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
@@ -42,6 +44,7 @@ data class OfficialVehicleLocation(
     }
 }
 
+@Immutable
 @JsonClass(generateAdapter = true)
 data class OfficialFenceData(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),

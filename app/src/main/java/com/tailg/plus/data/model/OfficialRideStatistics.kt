@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.JsonClass
 import com.tailg.plus.data.preferences.DistanceUnitPreference
 import com.tailg.plus.util.formatDistanceKilometersValue
@@ -68,6 +69,7 @@ fun OfficialRidePeriod.requestKey(now: Instant): String {
  * missing key yields `""` instead of a Moshi error.
  */
 @JsonClass(generateAdapter = true)
+@Immutable
 data class OfficialRideStatistics(
     val avgSpeed: String = "",
     val carbonAbsorption: String = "",

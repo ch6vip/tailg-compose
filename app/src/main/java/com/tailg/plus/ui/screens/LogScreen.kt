@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -204,10 +205,9 @@ fun LogScreen(
           verticalArrangement = Arrangement.spacedBy(10.dp),
           contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 8.dp),
         ) {
-          // Index-based key: (time, message) is not unique for burst logging
-          // (same millisecond + same redacted message) and a duplicate key
-          // crashes LazyColumn with "Key was already used".
-          itemsIndexed(entries.asReversed(), key = { index, _ -> index }, contentType = { _, _ -> "log-entry" }) { _, entry ->
+          // Stable key based on monotonically increasing entry.id ensures
+          // proper item diffing and reuse without shift invalidation on bursts.
+          items(entries.asReversed(), key = { it.id }, contentType = { "log-entry" }) { entry ->
             LogTile(entry = entry)
           }
         }

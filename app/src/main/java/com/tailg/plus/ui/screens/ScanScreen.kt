@@ -467,6 +467,12 @@ private fun RadarWidget(scanning: Boolean) {
   }
   val activeSweep = if (scanning) sweep else 0f
   val ringColor = CyberHomeColors.primarySoft
+  // Built once per composition instead of once per drawn frame: the sweep is
+  // inside the `Canvas` draw lambda and re-created a gradient (and a fresh
+  // shader) on every frame of the radar animation.
+  val sweepBrush = remember(ringColor) {
+    Brush.sweepGradient(colors = listOf(ringColor, Color.Transparent))
+  }
 
   Box(
     modifier = Modifier.size(180.dp),
@@ -499,9 +505,7 @@ private fun RadarWidget(scanning: Boolean) {
       if (scanning) {
         rotate(activeSweep, pivot = center) {
           drawArc(
-            brush = Brush.sweepGradient(
-              colors = listOf(ringColor, Color.Transparent),
-            ),
+            brush = sweepBrush,
             startAngle = -60f,
             sweepAngle = 60f,
             useCenter = true,

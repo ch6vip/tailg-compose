@@ -18,6 +18,7 @@ enum class LogCategory { BLE, OPERATION }
  * messages and details are already redacted before the entry is stored.
  */
 data class LogEntry(
+    val id: Long = 0L,
     val time: LocalDateTime,
     val level: LogLevel,
     val category: LogCategory,
@@ -62,6 +63,7 @@ class LogService(
     private val lock = Any()
     private val _logs = ArrayDeque<LogEntry>()
     private var _evictedCount = 0
+    private var _nextId = 1L
     private var clock: () -> LocalDateTime = clock
 
     // Note: 代次计数器而非 SharedFlow<Unit>，以及本轮全部帧预算修复 — 见
@@ -141,7 +143,9 @@ class LogService(
         time: LocalDateTime?,
     ): LogEntry {
         val redactedMessage = redactSensitiveText(message)
+        val id = synchronized(lock) { _nextId++ }
         return LogEntry(
+            id = id,
             time = time ?: clock(),
             level = level,
             category = category,

@@ -13,6 +13,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -290,7 +291,9 @@ fun CyberMapView(
 
   Box(modifier = modifier) {
     androidx.compose.ui.viewinterop.AndroidView(
-      modifier = Modifier.matchParentSize(),
+      modifier = Modifier
+        .matchParentSize()
+        .graphicsLayer(clip = true),
       factory = {
         mapView.also { mv -> labelProvider?.let { mv.overlays.add(TilesOverlay(it, context)) } }
       },

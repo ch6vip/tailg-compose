@@ -34,6 +34,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.Color
@@ -278,26 +279,28 @@ fun NinebotVehicleHeader(
                             )
                         }
                         Spacer(Modifier.height(10.dp))
-                        val fillFraction by animateFloatAsState(
+                        val fillFraction = animateFloatAsState(
                             targetValue = if (batteryKnown) batteryPercent / 100f else 0f,
                             animationSpec = tween(AppMotion.dataChange),
                             label = "nbChargeFill",
                         )
+                        val trackColor = CyberHomeColors.ink.copy(alpha = 0.16f)
                         Box(
                             modifier = Modifier
                                 .width(150.dp)
                                 .height(5.dp)
                                 .clip(RoundedCornerShape(999.dp))
-                                .background(CyberHomeColors.ink.copy(alpha = 0.16f)),
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth(fillFraction.coerceIn(0f, 1f))
-                                    .height(5.dp)
-                                    .clip(RoundedCornerShape(999.dp))
-                                    .background(NbChargeBlue),
-                            )
-                        }
+                                .drawBehind {
+                                    drawRoundRect(color = trackColor)
+                                    val fraction = fillFraction.value.coerceIn(0f, 1f)
+                                    if (fraction > 0f) {
+                                        drawRoundRect(
+                                            color = NbChargeBlue,
+                                            size = androidx.compose.ui.geometry.Size(size.width * fraction, size.height),
+                                        )
+                                    }
+                                },
+                        )
                         Spacer(Modifier.height(12.dp))
                         val (rangeValue, rangeUnit) = splitRangeLabel(rangeText)
                         Row(verticalAlignment = Alignment.Bottom) {
@@ -368,9 +371,9 @@ fun NinebotVehicleHeader(
                 val lifecycle by LocalLifecycleOwner.current.lifecycle.currentStateAsState()
                 val floatActive = loops && !LocalInspectionMode.current &&
                     lifecycle.isAtLeast(Lifecycle.State.RESUMED)
-                val floatY = if (floatActive) {
+                val floatAnim = if (floatActive) {
                     val float = rememberInfiniteTransition(label = "nbFloat")
-                    val v by float.animateFloat(
+                    float.animateFloat(
                         initialValue = 0f,
                         targetValue = -5f,
                         animationSpec = infiniteRepeatable(
@@ -379,18 +382,20 @@ fun NinebotVehicleHeader(
                         ),
                         label = "nbFloatY",
                     )
-                    v
                 } else {
-                    0f
+                    null
                 }
                 // Subtle alive cue: the photo rides a touch higher when powered.
                 val poweredLift = if (powered == true) -3f else 0f
-                // graphicsLayer (draw-only) instead of Modifier.offset (layout): a
-                // per-frame offset would remeasure the whole stage subtree.
+                // graphicsLayer (draw-only) reads snapshot state in draw phase only,
+                // eliminating per-frame recompositions of the vehicle header.
                 Box(
                     modifier = Modifier
                         .align(Alignment.Center)
-                        .graphicsLayer { translationY = (floatY + poweredLift).dp.toPx() },
+                        .graphicsLayer {
+                            val currentFloatY = floatAnim?.value ?: 0f
+                            translationY = (currentFloatY + poweredLift).dp.toPx()
+                        },
                 ) {
                     VehicleStage(
                         batteryLevel = batteryPercent / 100f,

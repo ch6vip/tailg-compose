@@ -1,5 +1,6 @@
 package com.tailg.plus.data.model
 
+import androidx.compose.runtime.Immutable
 import com.squareup.moshi.Json
 import com.squareup.moshi.JsonClass
 import com.tailg.plus.util.formatCompactDecimalText
@@ -22,6 +23,7 @@ import com.tailg.plus.util.travelMetersToKm
  * overflow 32-bit, but real payloads never reach that range.
  */
 @JsonClass(generateAdapter = true)
+@Immutable
 data class OfficialTravelDay(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
     val sec: String = "",
@@ -53,6 +55,7 @@ data class OfficialTravelDay(
 }
 
 @JsonClass(generateAdapter = true)
+@Immutable
 data class OfficialTravelRecord(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
     val hours: String = "",
@@ -154,6 +157,7 @@ fun formatCompactDuration(seconds: Int, emptyWhenZero: Boolean = false): String 
 }
 
 @JsonClass(generateAdapter = true)
+@Immutable
 data class OfficialTravelPoint(
     @Json(ignore = true) val raw: Map<String, Any?> = emptyMap(),
     val lng: String = "",

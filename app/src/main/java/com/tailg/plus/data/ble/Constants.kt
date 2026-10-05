@@ -32,6 +32,7 @@
  */
 package com.tailg.plus.data.ble
 
+import androidx.compose.runtime.Immutable
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -286,6 +287,7 @@ private fun qgjRidingModeFrame(status: List<Int>, mode: RidingMode): List<Int> {
  * Port of Dart `class BikeState` (equals/hashCode come from `data class`,
  * matching the Dart manual implementations).
  */
+@Immutable
 data class BikeState(
   val isLocked: Boolean,
   val isPowerOn: Boolean,
